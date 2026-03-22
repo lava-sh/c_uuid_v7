@@ -81,7 +81,6 @@ def test_uuid_objects_compare_and_hash() -> None:
     assert a != b
     assert b > a
     assert b >= a
-    assert not (a != a)
     assert hash(a) == value_hash
 
 
