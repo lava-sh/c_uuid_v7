@@ -8,33 +8,33 @@ import c_uuid_v7
 
 
 def test_uuid7_returns_fast_uuid() -> None:
-    uuid = c_uuid_v7.uuid7()
-    assert isinstance(uuid, c_uuid_v7.UUID)
-    assert uuid.version == 7
+    uuid_ = c_uuid_v7.uuid7()
+    assert isinstance(uuid_, c_uuid_v7.UUID)
+    assert uuid_.version == 7
 
 
 def test_uuid7_string_and_repr_shape() -> None:
-    uuid = c_uuid_v7.uuid7()
-    text = str(uuid)
+    uuid_ = c_uuid_v7.uuid7()
+    text = str(uuid_)
     assert len(text) == 36
     assert text.count("-") == 4
-    assert repr(uuid) == f"UUID('{text}')"
+    assert repr(uuid_) == f"UUID('{text}')"
 
 
 def test_uuid7_hex_and_int_are_consistent() -> None:
-    value = c_uuid_v7.uuid7()
-    assert len(value.hex) == 32
-    assert value.int == int(value.hex, 16)
+    uuid_ = c_uuid_v7.uuid7()
+    assert len(uuid_.hex) == 32
+    assert uuid_.int == int(uuid_.hex, 16)
 
 
 def test_uuid7_timestamp_from_explicit_seconds() -> None:
-    value = c_uuid_v7.uuid7(1_679_665_408)
-    assert value.timestamp == 1_679_665_408_000
+    uuid_ = c_uuid_v7.uuid7(1_679_665_408)
+    assert uuid_.timestamp == 1_679_665_408_000
 
 
 def test_uuid7_timestamp_from_explicit_seconds_and_nanos() -> None:
-    value = c_uuid_v7.uuid7(1_704_164_645, 123_000_000)
-    assert value.timestamp == 1_704_164_645_123
+    uuid_ = c_uuid_v7.uuid7(1_704_164_645, 123_000_000)
+    assert uuid_.timestamp == 1_704_164_645_123
 
 
 def test_uuid7_accepts_valid_nanos_bounds() -> None:
