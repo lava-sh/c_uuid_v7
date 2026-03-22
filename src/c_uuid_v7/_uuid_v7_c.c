@@ -94,9 +94,9 @@ fill_random(unsigned char *buf, Py_ssize_t len)
     NTSTATUS status = BCryptGenRandom(NULL, buf, (ULONG)len, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
     return status >= 0 ? 0 : -1;
 #else
-#if defined(__linux__)
     Py_ssize_t offset = 0;
 
+#if defined(__linux__)
     while (offset < len) {
         ssize_t rc = getrandom(buf + offset, (size_t)(len - offset), 0);
         if (rc < 0) {
@@ -110,7 +110,7 @@ fill_random(unsigned char *buf, Py_ssize_t len)
 #endif
 
     int fd = open("/dev/urandom", O_RDONLY);
-    Py_ssize_t offset = 0;
+    offset = 0;
 
     if (fd < 0) {
         return -1;
