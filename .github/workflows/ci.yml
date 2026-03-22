@@ -46,6 +46,15 @@ jobs:
         uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           enable-cache: ${{ !startsWith(github.ref, 'refs/tags/') }} # zizmor: ignore[cache-poisoning]
+      - name: "Create and activate .venv"
+        shell: bash
+        run: |
+          uv venv .venv --python ${{ matrix.python-version }}
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            echo ".venv/Scripts" >> "$GITHUB_PATH"
+          else
+            echo ".venv/bin" >> "$GITHUB_PATH"
+          fi
       - name: "Install build dependencies"
         run: uv pip install . --group ci
       - name: "Run ruff"
