@@ -1,11 +1,13 @@
-name: CI
+name: "CI"
 
-permissions: {}
+permissions: { }
 
 on:
   push:
-    branches: [main]
-    tags: ["*"]
+    branches:
+      - "main"
+    tags:
+      - "*"
   pull_request:
   workflow_dispatch:
 
@@ -20,8 +22,21 @@ jobs:
     timeout-minutes: 20
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        os: [
+          ubuntu-latest,
+          windows-latest,
+          macos-latest,
+        ]
+        python-version: [
+          "3.10",
+          "3.11",
+          "3.12",
+          "3.13",
+          "3.13t",
+          "3.14",
+          "3.14t",
+          "pypy3.11"
+        ]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -29,17 +44,16 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: ${{ matrix.python-version }}
+      - name: "Install uv"
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          enable-cache: ${{ !startsWith(github.ref, 'refs/tags/') }} # typos: ignore[cache-poisoning]
       - name: "Install build dependencies"
-        run: python -m pip install --upgrade pip setuptools==82.0.1 "setuptools-scm[simple]==9.2.2" build pytest==9.0.2
-      - name: "Install package"
-        run: python -m pip install -e .
-      - name: "Run tests"
-        shell: bash
-        run: |
-          if [[ "${{ matrix.python-version }}" == 3.13* || "${{ matrix.python-version }}" == 3.14* ]]; then
-            export PYTHONMALLOC=mimalloc
-          fi
-          python -m pytest tests/ -q
+        run: uv pip install . --group ci
+      - name: "Run ruff"
+        run: ruff check
+      - name: "Run pytest"
+        run: pytest
 
   wheels:
     name: "${{ matrix.os }} / wheels"
@@ -47,7 +61,11 @@ jobs:
     needs: tests
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [
+          ubuntu-latest,
+          windows-latest,
+          macos-latest,
+        ]
     env:
       CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-* cp314-*"
       CIBW_SKIP: "pp* *-win32 *-manylinux_i686 *-musllinux*"
@@ -89,7 +107,11 @@ jobs:
     name: "Release"
     runs-on: ubuntu-latest
     if: ${{ startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' }}
-    needs: [wheels, sdist]
+    needs: [
+      tests,
+      wheels,
+      sdist,
+    ]
     permissions:
       id-token: write
       contents: write
