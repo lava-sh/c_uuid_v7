@@ -3,6 +3,7 @@ venv/
 *.egg-info/
 dist/
 build/
+src/c_uuid_v7/_version.py
 
 *.pyd
 uv.lock
