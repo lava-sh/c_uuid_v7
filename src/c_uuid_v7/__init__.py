@@ -1,11 +1,13 @@
 __all__ = (
     "UUID",
     "__version__",
+    "compat",
     "uuid7",
 )
 
 import os
 
+from . import compat
 from ._uuid_v7_c import UUID, _reseed_rng, _uuid7
 from ._version import __version__
 

@@ -440,6 +440,7 @@ uuid_timestamp(UUIDObject *self, void *closure)
 static PyObject *
 uuid_int(UUIDObject *self, void *closure)
 {
+#if PY_VERSION_HEX >= 0x030D0000
     unsigned char bytes[16];
 
     uuid_pack_bytes(self->hi, self->lo, bytes);
@@ -449,6 +450,41 @@ uuid_int(UUIDObject *self, void *closure)
         16,
         Py_ASNATIVEBYTES_BIG_ENDIAN | Py_ASNATIVEBYTES_UNSIGNED_BUFFER
     );
+#else
+    PyObject *high = PyLong_FromUnsignedLongLong(self->hi);
+    PyObject *low = NULL;
+    PyObject *bits = NULL;
+    PyObject *shift = NULL;
+    PyObject *value = NULL;
+
+    if (high == NULL) {
+        return NULL;
+    }
+
+    bits = PyLong_FromLong(64);
+    if (bits == NULL) {
+        Py_DECREF(high);
+        return NULL;
+    }
+
+    shift = PyNumber_Lshift(high, bits);
+    Py_DECREF(high);
+    Py_DECREF(bits);
+    if (shift == NULL) {
+        return NULL;
+    }
+
+    low = PyLong_FromUnsignedLongLong(self->lo);
+    if (low == NULL) {
+        Py_DECREF(shift);
+        return NULL;
+    }
+
+    value = PyNumber_Or(shift, low);
+    Py_DECREF(shift);
+    Py_DECREF(low);
+    return value;
+#endif
 }
 
 static Py_hash_t

@@ -1,5 +1,6 @@
 import os
 import sys
+import uuid
 
 import pytest
 
@@ -84,17 +85,17 @@ def test_uuid_objects_compare_and_hash() -> None:
 
 
 def test_compat_uuid7_returns_stdlib_uuid() -> None:
-    uuid = c_uuid_v7.compat.uuid7()
+    uuid_ = c_uuid_v7.compat.uuid7()
 
-    assert isinstance(uuid, uuid.UUID)
-    assert uuid.version == 7
+    assert isinstance(uuid_, uuid.UUID)
+    assert uuid_.version == 7
 
 
 def test_compat_uuid7_preserves_timestamp() -> None:
-    uuid = c_uuid_v7.compat.uuid7(1_679_665_408, 123_000_000)
+    uuid_ = c_uuid_v7.compat.uuid7(1_679_665_408, 123_000_000)
 
-    assert isinstance(uuid, uuid.UUID)
-    assert uuid.version == 7
+    assert isinstance(uuid_, uuid.UUID)
+    assert uuid_.version == 7
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Does not run on Windows")
