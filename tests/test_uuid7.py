@@ -1,6 +1,5 @@
 import os
 import sys
-import uuid
 
 import pytest
 
@@ -8,17 +7,17 @@ import c_uuid_v7
 
 
 def test_uuid7_returns_fast_uuid() -> None:
-    value = c_uuid_v7.uuid7()
-    assert isinstance(value, c_uuid_v7.UUID)
-    assert value.version == 7
+    uuid = c_uuid_v7.uuid7()
+    assert isinstance(uuid, c_uuid_v7.UUID)
+    assert uuid.version == 7
 
 
 def test_uuid7_string_and_repr_shape() -> None:
-    value = c_uuid_v7.uuid7()
-    text = str(value)
+    uuid = c_uuid_v7.uuid7()
+    text = str(uuid)
     assert len(text) == 36
     assert text.count("-") == 4
-    assert repr(value) == f"UUID('{text}')"
+    assert repr(uuid) == f"UUID('{text}')"
 
 
 def test_uuid7_hex_and_int_are_consistent() -> None:
@@ -85,15 +84,17 @@ def test_uuid_objects_compare_and_hash() -> None:
 
 
 def test_compat_uuid7_returns_stdlib_uuid() -> None:
-    value = c_uuid_v7.compat.uuid7()
-    assert isinstance(value, uuid.UUID)
-    assert value.version == 7
+    uuid = c_uuid_v7.compat.uuid7()
+
+    assert isinstance(uuid, uuid.UUID)
+    assert uuid.version == 7
 
 
 def test_compat_uuid7_preserves_timestamp() -> None:
-    value = c_uuid_v7.compat.uuid7(1_679_665_408, 123_000_000)
-    assert isinstance(value, uuid.UUID)
-    assert value.version == 7
+    uuid = c_uuid_v7.compat.uuid7(1_679_665_408, 123_000_000)
+
+    assert isinstance(uuid, uuid.UUID)
+    assert uuid.version == 7
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Does not run on Windows")
