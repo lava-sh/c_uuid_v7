@@ -19,11 +19,15 @@
 
 ## Installation
 
-```bash
-# Using pip
-pip install c_uuid_v7
+Using pip
 
-# Using uv
+```bash
+pip install c_uuid_v7
+```
+
+Using uv
+
+```bash
 uv pip install c_uuid_v7
 ```
 
