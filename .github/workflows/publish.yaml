@@ -1,6 +1,7 @@
 name: "Publish"
 
 permissions:
+  actions: read
   contents: read
 
 on:
@@ -24,6 +25,11 @@ jobs:
             const repo = context.repo.repo;
             const sha = context.sha;
             const required = ["CI", "typos", "zizmor", "rumdl"];
+
+            if (!context.ref.startsWith("refs/tags/")) {
+              core.setFailed(`Publish is only allowed from tag refs, got: ${context.ref}`);
+              return;
+            }
 
             const { data } = await github.rest.actions.listWorkflowRunsForRepo({
               owner,
