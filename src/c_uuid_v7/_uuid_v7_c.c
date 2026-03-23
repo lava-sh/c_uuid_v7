@@ -33,8 +33,7 @@ static UUIDObject* uuid_cache = NULL;
 static uint64_t rng_state0 = 0;
 static uint64_t rng_state1 = 0;
 static uint64_t last_timestamp_ms = 0;
-static uint64_t rand_tail = 0;
-static uint16_t sequence12 = 0;
+static uint64_t counter42 = 0;
 static int generator_seeded = 0;
 
 #define UUID_TIMESTAMP_SHIFT 16
@@ -44,6 +43,12 @@ static int generator_seeded = 0;
 #define UUID_MAX_TIMESTAMP_MS 0xFFFFFFFFFFFFULL
 #define UUID_MAX_TIMESTAMP_S (UUID_MAX_TIMESTAMP_MS / 1000ULL)
 #define UUID_MAX_NANOS 1000000000ULL
+#define UUID_V7_RESEED_MASK ((1ULL << 41) - 1ULL)
+#define UUID_V7_MAX_COUNTER ((1ULL << 42) - 1ULL)
+#define UUID_V7_TAIL_COUNTER_BITS 30
+#define UUID_V7_RANDOM_BITS 32
+#define UUID_V7_RANDOM_MASK ((1ULL << UUID_V7_RANDOM_BITS) - 1ULL)
+#define UUID_V7_TAIL_COUNTER_MASK ((1ULL << UUID_V7_TAIL_COUNTER_BITS) - 1ULL)
 #ifdef _WIN32
 static uint64_t epoch_base_ms = 0;
 static uint64_t tick_base_ms = 0;
@@ -159,8 +164,7 @@ seed_generator(void) {
 #endif
 
     last_timestamp_ms = 0;
-    rand_tail = 0;
-    sequence12 = 0;
+    counter42 = 0;
     generator_seeded = 1;
     return 0;
 }
@@ -180,6 +184,18 @@ next_u64(void) {
     rng_state0 = rotl64(s0, 55) ^ s1 ^ (s1 << 14);
     rng_state1 = rotl64(s1, 36);
     return result;
+}
+
+static inline void
+split_counter_random(uint64_t counter, uint16_t* rand_a, uint64_t* tail62) {
+    *rand_a = (uint16_t)((counter >> UUID_V7_TAIL_COUNTER_BITS) & 0x0FFFU);
+    *tail62 = ((counter & UUID_V7_TAIL_COUNTER_MASK) << UUID_V7_RANDOM_BITS)
+              | (next_u64() & UUID_V7_RANDOM_MASK);
+}
+
+static inline void
+random_v7_payload(uint16_t* rand_a, uint64_t* tail62) {
+    split_counter_random(next_u64() & UUID_V7_RESEED_MASK, rand_a, tail62);
 }
 
 static int
@@ -242,22 +258,28 @@ build_timestamp_ms(uint64_t timestamp_s,
 }
 
 static inline void
-advance_monotonic_state(uint64_t timestamp_ms, uint16_t* rand_a, uint64_t* tail62) {
-    if (timestamp_ms > last_timestamp_ms) {
-        last_timestamp_ms = timestamp_ms;
-        sequence12 = (uint16_t)(next_u64() & 0x0FFFU);
-        rand_tail = next_u64() & UUID_RAND_MASK;
+advance_monotonic_state(uint64_t observed_ms,
+                        uint64_t* timestamp_ms,
+                        uint16_t* rand_a,
+                        uint64_t* tail62) {
+    uint64_t counter = counter42;
+    uint64_t current_ms = last_timestamp_ms;
+
+    if (observed_ms > current_ms) {
+        current_ms = observed_ms;
+        counter = next_u64() & UUID_V7_RESEED_MASK;
     } else {
-        sequence12 = (uint16_t)((sequence12 + 1U) & 0x0FFFU);
-        if (timestamp_ms < last_timestamp_ms || sequence12 == 0) {
-            last_timestamp_ms += 1U;
-            sequence12 = (uint16_t)(next_u64() & 0x0FFFU);
-            rand_tail = next_u64() & UUID_RAND_MASK;
+        counter += 1U;
+        if (counter > UUID_V7_MAX_COUNTER) {
+            current_ms += 1U;
+            counter = next_u64() & UUID_V7_RESEED_MASK;
         }
     }
 
-    *rand_a = sequence12;
-    *tail62 = rand_tail;
+    last_timestamp_ms = current_ms;
+    counter42 = counter;
+    *timestamp_ms = current_ms;
+    split_counter_random(counter, rand_a, tail62);
 }
 
 static inline void
@@ -290,9 +312,7 @@ build_uuid7_default(uint64_t* hi, uint64_t* lo) {
         return -1;
     }
 
-    timestamp_ms = uuid7_now_ms();
-    advance_monotonic_state(timestamp_ms, &rand_a, &tail62);
-    timestamp_ms = last_timestamp_ms;
+    advance_monotonic_state(uuid7_now_ms(), &timestamp_ms, &rand_a, &tail62);
 
     uuid_build_words(timestamp_ms, rand_a, tail62, hi, lo);
     return 0;
@@ -333,15 +353,13 @@ build_uuid7_parts_from_args(PyObject* timestamp_obj,
         return -1;
     }
 
-    if (has_timestamp) {
-        rand_a = has_nanos ? (uint16_t)(nanos & 0x0FFFU) : (uint16_t)(next_u64() & 0x0FFFU);
-        tail62 = next_u64() & UUID_RAND_MASK;
-    } else if (has_nanos) {
+    if (has_timestamp && has_nanos) {
         rand_a = (uint16_t)(nanos & 0x0FFFU);
         tail62 = next_u64() & UUID_RAND_MASK;
+    } else if (has_timestamp || has_nanos) {
+        random_v7_payload(&rand_a, &tail62);
     } else {
-        advance_monotonic_state(timestamp_ms, &rand_a, &tail62);
-        timestamp_ms = last_timestamp_ms;
+        advance_monotonic_state(timestamp_ms, &timestamp_ms, &rand_a, &tail62);
     }
 
     uuid_build_words(timestamp_ms, rand_a, tail62, hi, lo);

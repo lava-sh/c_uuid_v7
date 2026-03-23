@@ -9,6 +9,7 @@ include = [
     "tests/**.py",
     "benchmark/run.py",
     "pyproject.toml",
+    "README.md"
 ]
 
 [lint.isort]

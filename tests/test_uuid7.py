@@ -37,6 +37,31 @@ def test_uuid7_hex_and_int_are_consistent() -> None:
     assert uuid_.int == int(uuid_.hex, 16)
 
 
+def test_uuid7_consecutive_values_change_more_than_the_last_bit() -> None:
+    first = c_uuid_v7.uuid7()
+    second = c_uuid_v7.uuid7()
+    xor = first.int ^ second.int
+
+    assert first != second
+    assert (first.int & ((1 << 62) - 1)) != (second.int & ((1 << 62) - 1))
+    assert xor > 1
+
+
+def test_uuid7_batch_is_strictly_increasing() -> None:
+    values = [c_uuid_v7.uuid7() for _ in range(1024)]
+
+    assert len({value.int for value in values}) == len(values)
+    assert all(left < right for left, right in zip(values, values[1:]))
+
+
+def test_uuid7_explicit_timestamp_batch_is_valid() -> None:
+    values = [c_uuid_v7.uuid7(1_704_164_645, 123_000_000) for _ in range(256)]
+
+    assert all(value.version == 7 for value in values)
+    assert all(value.timestamp == 1_704_164_645_123 for value in values)
+    assert len({value.int for value in values}) == len(values)
+
+
 def test_uuid7_timestamp_from_explicit_seconds() -> None:
     uuid_ = c_uuid_v7.uuid7(1_679_665_408)
     assert uuid_.timestamp == 1_679_665_408_000
@@ -84,7 +109,7 @@ def test_uuid7_rejects_timestamp_above_supported_range() -> None:
 
 def test_uuid_objects_compare_and_hash() -> None:
     a = c_uuid_v7.uuid7(1_700_000_000, 1)
-    b = c_uuid_v7.uuid7(1_700_000_000, 2)
+    b = c_uuid_v7.uuid7(1_700_000_001, 1)
     value_hash = hash(a)
     assert a < b
     assert a <= b
