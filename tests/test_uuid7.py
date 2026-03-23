@@ -3,6 +3,7 @@ import itertools
 import os
 import sys
 import uuid
+from typing import Any
 
 import pytest
 
@@ -18,9 +19,40 @@ class _UUIDObject(ctypes.Structure):
     ]
 
 
+def _ints(values: list[c_uuid_v7.UUID]) -> list[int]:
+    return [value.int for value in values]
+
+
+def _assert_uuid7_bits(value: c_uuid_v7.UUID) -> None:
+    assert value.version == 7
+    assert (value.int >> 76) & 0xF == 0x7
+    assert (value.int >> 62) & 0x3 == 0x2
+
+
+def _assert_strictly_increasing(values: list[c_uuid_v7.UUID]) -> None:
+    ints = _ints(values)
+    assert len(set(ints)) == len(ints)
+    assert all(left < right for left, right in itertools.pairwise(values))
+    assert all(left < right for left, right in itertools.pairwise(ints))
+
+
+def _assert_timestamp_non_decreasing(values: list[c_uuid_v7.UUID]) -> None:
+    timestamps = [value.timestamp for value in values]
+    assert all(
+        left <= right
+        for left, right in itertools.pairwise(timestamps)
+    )  # fmt: skip
+
+
 def test_uuid7_returns_fast_uuid() -> None:
     uuid_ = c_uuid_v7.uuid7()
     assert isinstance(uuid_, c_uuid_v7.UUID)
+    assert uuid_.version == 7
+
+
+def test_compat_uuid7_returns_stdlib_uuid() -> None:
+    uuid_ = c_uuid_v7.compat.uuid7()
+    assert isinstance(uuid_, uuid.UUID)
     assert uuid_.version == 7
 
 
@@ -38,90 +70,90 @@ def test_uuid7_hex_and_int_are_consistent() -> None:
     assert uuid_.int == int(uuid_.hex, 16)
 
 
+def test_uuid7_sets_expected_version_and_variant_bits() -> None:
+    for _ in range(128):
+        _assert_uuid7_bits(c_uuid_v7.uuid7())
+
+
 def test_uuid7_consecutive_values_change_more_than_the_last_bit() -> None:
     first = c_uuid_v7.uuid7()
     second = c_uuid_v7.uuid7()
-    xor = first.int ^ second.int
 
     assert first != second
     assert (first.int & ((1 << 62) - 1)) != (second.int & ((1 << 62) - 1))
-    assert xor > 1
+    assert (first.int ^ second.int) > 1
 
 
-def test_uuid7_batch_is_strictly_increasing() -> None:
-    values = [c_uuid_v7.uuid7() for _ in range(1024)]
+@pytest.mark.parametrize("size", [1024, 10_000])
+def test_uuid7_batches_are_unique_monotonic_and_timestamp_ordered(size: int) -> None:
+    values = [c_uuid_v7.uuid7() for _ in range(size)]
 
-    assert len({value.int for value in values}) == len(values)
-    assert all(
-        left < right
-        for left, right
-        in itertools.pairwise(values)
-    )  # fmt: skip
+    _assert_strictly_increasing(values)
+    _assert_timestamp_non_decreasing(values)
+    assert all(value.version == 7 for value in values)
 
 
 def test_uuid7_explicit_timestamp_batch_is_valid() -> None:
     values = [c_uuid_v7.uuid7(1_704_164_645, 123_000_000) for _ in range(256)]
 
-    assert all(value.version == 7 for value in values)
     assert all(value.timestamp == 1_704_164_645_123 for value in values)
-    assert len({value.int for value in values}) == len(values)
+    assert all(value.version == 7 for value in values)
+    assert all(value.hex[:12] == values[0].hex[:12] for value in values)
+    assert len(set(_ints(values))) == len(values)
 
 
-def test_uuid7_timestamp_from_explicit_seconds() -> None:
-    uuid_ = c_uuid_v7.uuid7(1_679_665_408)
-    assert uuid_.timestamp == 1_679_665_408_000
+@pytest.mark.parametrize(
+    ("args", "expected_timestamp"),
+    [
+        ((1_679_665_408,), 1_679_665_408_000),
+        ((1_704_164_645, 123_000_000), 1_704_164_645_123),
+    ],
+)
+def test_uuid7_explicit_timestamp_is_encoded(
+    args: tuple[int, ...],
+    expected_timestamp: int,
+) -> None:
+    uuid_ = c_uuid_v7.uuid7(*args)
+    assert uuid_.timestamp == expected_timestamp
+    _assert_uuid7_bits(uuid_)
 
 
-def test_uuid7_timestamp_from_explicit_seconds_and_nanos() -> None:
-    uuid_ = c_uuid_v7.uuid7(1_704_164_645, 123_000_000)
-    assert uuid_.timestamp == 1_704_164_645_123
+@pytest.mark.parametrize("nanos", [0, 999_999_999])
+def test_uuid7_accepts_valid_nanos_bounds(nanos: int) -> None:
+    _assert_uuid7_bits(c_uuid_v7.uuid7(nanos=nanos))
 
 
-def test_uuid7_accepts_valid_nanos_bounds() -> None:
-    assert c_uuid_v7.uuid7(nanos=0).version == 7
-    assert c_uuid_v7.uuid7(nanos=999_999_999).version == 7
-
-
-def test_uuid7_rejects_nanos_out_of_range() -> None:
-    with pytest.raises(ValueError, match=r"nanos must be in range 0\.\.999999999"):
-        c_uuid_v7.uuid7(nanos=1_000_000_000)
-
-
-def test_uuid7_rejects_negative_timestamp() -> None:
-    with pytest.raises(TypeError, match="timestamp must be a non-negative int or None"):
-        c_uuid_v7.uuid7(timestamp=-1)
-
-
-def test_uuid7_rejects_negative_nanos() -> None:
-    with pytest.raises(TypeError, match="nanos must be a non-negative int or None"):
-        c_uuid_v7.uuid7(nanos=-1)
-
-
-def test_uuid7_rejects_invalid_timestamp_type() -> None:
-    with pytest.raises(TypeError, match="timestamp must be a non-negative int or None"):
-        c_uuid_v7.uuid7(timestamp="bad")  # ty: ignore[invalid-argument-type]
-
-
-def test_uuid7_rejects_invalid_nanos_type() -> None:
-    with pytest.raises(TypeError, match="nanos must be a non-negative int or None"):
-        c_uuid_v7.uuid7(nanos="bad")  # ty: ignore[invalid-argument-type]
-
-
-def test_uuid7_rejects_timestamp_above_supported_range() -> None:
-    with pytest.raises(ValueError, match="timestamp is too large"):
-        c_uuid_v7.uuid7(timestamp=281_474_976_711)
+@pytest.mark.parametrize(
+    ("kwargs", "error_type", "message"),
+    [
+        ({"nanos": 1_000_000_000}, ValueError, r"nanos must be in range 0\.\.999999999"),
+        ({"timestamp": -1}, TypeError, "timestamp must be a non-negative int or None"),
+        ({"nanos": -1}, TypeError, "nanos must be a non-negative int or None"),
+        ({"timestamp": "bad"}, TypeError, "timestamp must be a non-negative int or None"),
+        ({"nanos": "bad"}, TypeError, "nanos must be a non-negative int or None"),
+        ({"timestamp": 281_474_976_711}, ValueError, "timestamp is too large"),
+    ],
+)
+def test_uuid7_rejects_invalid_arguments(
+    kwargs: dict[str, Any],
+    error_type: type[Exception],
+    message: str,
+) -> None:
+    with pytest.raises(error_type, match=message):
+        c_uuid_v7.uuid7(**kwargs)
 
 
 def test_uuid_objects_compare_and_hash() -> None:
-    a = c_uuid_v7.uuid7(1_700_000_000, 1)
-    b = c_uuid_v7.uuid7(1_700_000_001, 1)
-    value_hash = hash(a)
-    assert a < b
-    assert a <= b
-    assert a != b
-    assert b > a
-    assert b >= a
-    assert hash(a) == value_hash
+    lower = c_uuid_v7.uuid7(1_700_000_000, 1)
+    higher = c_uuid_v7.uuid7(1_700_000_001, 1)
+    cached_hash = hash(lower)
+
+    assert lower < higher
+    assert lower <= higher
+    assert lower != higher
+    assert higher > lower
+    assert higher >= lower
+    assert hash(lower) == cached_hash
 
 
 @pytest.mark.skipif(
@@ -131,6 +163,7 @@ def test_uuid_objects_compare_and_hash() -> None:
 def test_uuid_hash_never_returns_error_sentinel() -> None:
     uuid_ = c_uuid_v7.uuid7()
     raw_uuid = _UUIDObject.from_address(id(uuid_))
+
     original_hi = raw_uuid.hi
     original_lo = raw_uuid.lo
 
@@ -139,19 +172,10 @@ def test_uuid_hash_never_returns_error_sentinel() -> None:
 
     try:
         assert hash(uuid_) == -2
-
-        mapping = {uuid_: "value"}
-        assert mapping[uuid_] == "value"
+        assert {uuid_: "stored"}[uuid_] == "stored"
     finally:
         raw_uuid.hi = original_hi
         raw_uuid.lo = original_lo
-
-
-def test_compat_uuid7_returns_stdlib_uuid() -> None:
-    uuid_ = c_uuid_v7.compat.uuid7()
-
-    assert isinstance(uuid_, uuid.UUID)
-    assert uuid_.version == 7
 
 
 def test_compat_uuid7_preserves_timestamp() -> None:
