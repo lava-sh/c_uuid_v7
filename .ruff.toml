@@ -6,7 +6,7 @@ indent-width = 4
 include = [
     "src/**.py",
     "tests/**.py",
-    "benchmark/**.py",
+    "benchmark/run.py",
     "pyproject.toml",
 ]
 
@@ -41,6 +41,7 @@ ignore = [
 "tests/**.py" = [
     "S101",    # Check `assert`'s
     "PLR2004", # Check magic value's
+    "FURB171", # Check for membership tests against single-item containers
 ]
 # benchmark
 "benchmark/**.py" = [

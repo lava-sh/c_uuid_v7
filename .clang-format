@@ -1,0 +1,6 @@
+BasedOnStyle: Mozilla
+ColumnLimit: 100
+IndentWidth: 4
+ContinuationIndentWidth: 4
+AllowShortFunctionsOnASingleLine: None
+BreakBeforeBraces: Attach
