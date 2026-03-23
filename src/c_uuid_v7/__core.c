@@ -58,8 +58,7 @@ uuid7_system_ms(void) {
     ULARGE_INTEGER ticks;
 
     GetSystemTimeAsFileTime(&ft);
-    ticks.LowPart = ft.dwLowDateTime;
-    ticks.HighPart = ft.dwHighDateTime;
+    ticks.QuadPart = ((uint64_t)ft.dwHighDateTime << 32) | (uint64_t)ft.dwLowDateTime;
     return (ticks.QuadPart - 116444736000000000ULL) / 10000ULL;
 #elif defined(CLOCK_REALTIME)
     struct timespec ts;
@@ -231,6 +230,35 @@ split_counter_random(uint64_t counter, uint16_t* rand_a, uint64_t* tail62) {
 }
 
 static int
+random_counter42(uint64_t* counter) {
+    unsigned char bytes[6];
+
+    if (fill_random(bytes, (Py_ssize_t)sizeof(bytes)) != 0) {
+        PyErr_SetString(PyExc_OSError, "unable to generate random bytes");
+        return -1;
+    }
+
+    *counter = (((uint64_t)(bytes[0] & 0x0FU)) << 38) | (((uint64_t)bytes[1]) << 30) |
+               (((uint64_t)(bytes[2] & 0x3FU)) << 24) | (((uint64_t)bytes[3]) << 16) |
+               (((uint64_t)bytes[4]) << 8) | (uint64_t)bytes[5];
+    return 0;
+}
+
+static inline void
+split_counter_random32(uint64_t counter, uint32_t low32, uint16_t* rand_a, uint64_t* tail62) {
+    *rand_a = (uint16_t)(counter >> 30);
+    *tail62 = ((counter & UUID_V7_LOW30_MASK) << 32) | (uint64_t)low32;
+}
+
+static inline void
+next_low32_and_increment(uint32_t* low32, uint64_t* increment) {
+    uint64_t random64 = next_u64();
+
+    *low32 = (uint32_t)random64;
+    *increment = 1U + ((random64 >> 32) & 0x0FU);
+}
+
+static int
 random_v7_payload(uint16_t* rand_a, uint64_t* tail62) {
     uint64_t counter;
 
@@ -306,28 +334,31 @@ advance_monotonic_state(uint64_t observed_ms,
                         uint64_t* tail62) {
     uint64_t counter = counter42;
     uint64_t current_ms = last_timestamp_ms;
+    uint64_t increment;
+    uint32_t low32;
+
+    next_low32_and_increment(&low32, &increment);
 
     if (observed_ms > current_ms) {
         current_ms = observed_ms;
-        if (random_u64(&counter) != 0) {
+        if (random_counter42(&counter) != 0) {
             return -1;
         }
-        counter &= UUID_V7_RESEED_MASK;
     } else {
-        counter += 1U;
+        counter += increment;
         if (counter > UUID_V7_MAX_COUNTER) {
             current_ms += 1U;
-            if (random_u64(&counter) != 0) {
+            if (random_counter42(&counter) != 0) {
                 return -1;
             }
-            counter &= UUID_V7_RESEED_MASK;
         }
     }
 
     last_timestamp_ms = current_ms;
     counter42 = counter;
     *timestamp_ms = current_ms;
-    return split_counter_random(counter, rand_a, tail62);
+    split_counter_random32(counter, low32, rand_a, tail62);
+    return 0;
 }
 
 static inline void
@@ -697,11 +728,11 @@ static PyMethodDef module_methods[] = {
 };
 
 static struct PyModuleDef module_def = {
-    PyModuleDef_HEAD_INIT, "_uuid_v7_c", "Fast UUIDv7 generator.", -1, module_methods,
+    PyModuleDef_HEAD_INIT, "__core", "Fast UUIDv7 generator.", -1, module_methods,
 };
 
 PyMODINIT_FUNC
-PyInit__uuid_v7_c(void) {
+PyInit___core(void) {
     PyObject* module;
 
     if (PyType_Ready(&UUIDType) < 0) {
