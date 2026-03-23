@@ -1,0 +1,10 @@
+[environment]
+python-version = "3.10"
+
+[src]
+include = [
+    "src/*.py",
+    "src/*.pyi",
+    "tests/*.py",
+    "noxfile.py"
+]
