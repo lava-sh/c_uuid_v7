@@ -5,10 +5,10 @@
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
-/* clang-format off */
-#include <windows.h>
+
 #include <bcrypt.h>
-/* clang-format on */
+#include <windows.h>
+
 #pragma comment(lib, "bcrypt.lib")
 #else
 #include <fcntl.h>
@@ -249,8 +249,9 @@ advance_monotonic_state(uint64_t timestamp_ms, uint16_t* rand_a, uint64_t* tail6
         sequence12 = (uint16_t)((sequence12 + 1U) & 0x0FFFU);
         if (timestamp_ms < last_timestamp_ms || sequence12 == 0) {
             last_timestamp_ms += 1U;
+            sequence12 = (uint16_t)(next_u64() & 0x0FFFU);
+            rand_tail = next_u64() & UUID_RAND_MASK;
         }
-        rand_tail = (rand_tail + 1U) & UUID_RAND_MASK;
     }
 
     *rand_a = sequence12;
@@ -283,7 +284,7 @@ build_uuid7_default(uint64_t* hi, uint64_t* lo) {
     uint64_t tail62;
     uint16_t rand_a;
 
-    if (seed_generator() != 0) {
+    if (!generator_seeded && seed_generator() != 0) {
         return -1;
     }
 
@@ -308,7 +309,7 @@ build_uuid7_parts_from_args(PyObject* timestamp_obj,
     int has_timestamp;
     int has_nanos;
 
-    if (seed_generator() != 0) {
+    if (!generator_seeded && seed_generator() != 0) {
         return -1;
     }
 
