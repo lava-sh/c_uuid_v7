@@ -34,4 +34,4 @@ jobs:
       - name: "Install rumdl"
         run: uv pip install --group rumdl --system
       - name: "Run rumdl"
-        run: rumdl check .
+        run: rumdl check
