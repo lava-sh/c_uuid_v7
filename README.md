@@ -36,9 +36,10 @@ print(c_uuid_v7.uuid7())  # 019d1ab2-cfea-71f3-ab07-0bf844ff9149
 print(c_uuid_v7.compat.uuid7())  # 019d1ab2-cfea-71f3-ab07-0bf98a94016c
 ```
 
-## Compatibility with Python UUID
+## Compatibility with Python [uuid.UUID](https://docs.python.org/3/library/uuid.html)
 
-In some cases, for example if you are using `Django`, you might need `uuid.UUID` instances to be returned
+In some cases, for example if you are using `Django`, you might
+need [uuid.UUID](https://docs.python.org/3/library/uuid.html) instances to be returned
 from the standard-library `uuid`, not a custom `UUID` class.
 
 In that case you can use the `c_uuid_v7.compat` which comes with a performance penalty
