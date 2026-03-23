@@ -192,9 +192,9 @@ random_u64(uint64_t* out) {
         return -1;
     }
 
-    *out = ((uint64_t)bytes[0] << 56) | ((uint64_t)bytes[1] << 48) | ((uint64_t)bytes[2] << 40)
-           | ((uint64_t)bytes[3] << 32) | ((uint64_t)bytes[4] << 24) | ((uint64_t)bytes[5] << 16)
-           | ((uint64_t)bytes[6] << 8) | (uint64_t)bytes[7];
+    *out = ((uint64_t)bytes[0] << 56) | ((uint64_t)bytes[1] << 48) | ((uint64_t)bytes[2] << 40) |
+           ((uint64_t)bytes[3] << 32) | ((uint64_t)bytes[4] << 24) | ((uint64_t)bytes[5] << 16) |
+           ((uint64_t)bytes[6] << 8) | (uint64_t)bytes[7];
     return 0;
 }
 
@@ -224,10 +224,9 @@ split_counter_random(uint64_t counter, uint16_t* rand_a, uint64_t* tail62) {
         return -1;
     }
     *rand_a = (uint16_t)((((uint16_t)cr[0] << 8) | (uint16_t)cr[1]) & 0x0FFFU);
-    *tail62 = (((uint64_t)(cr[2] & 0x3FU)) << 56) | (((uint64_t)cr[3]) << 48)
-              | (((uint64_t)cr[4]) << 40) | (((uint64_t)cr[5]) << 32)
-              | (((uint64_t)cr[6]) << 24) | (((uint64_t)cr[7]) << 16)
-              | (((uint64_t)cr[8]) << 8) | (uint64_t)cr[9];
+    *tail62 = (((uint64_t)(cr[2] & 0x3FU)) << 56) | (((uint64_t)cr[3]) << 48) |
+              (((uint64_t)cr[4]) << 40) | (((uint64_t)cr[5]) << 32) | (((uint64_t)cr[6]) << 24) |
+              (((uint64_t)cr[7]) << 16) | (((uint64_t)cr[8]) << 8) | (uint64_t)cr[9];
     return 0;
 }
 
