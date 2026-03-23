@@ -94,25 +94,25 @@ commit_count_since_tag: int = {scm_version.distance}
 build = "cp310-* cp311-* cp312-* cp313-* cp314-* pp311-*"
 build-frontend = "build[uv]"
 enable = ["pypy"]
-skip = "*t-*"
+skip = "*t-* *-musllinux_{ppc64le,s390x}"
 test-command = "pytest {project}/tests"
 test-groups = ["pytest"]
 test-sources = ["tests"]
 
 [tool.cibuildwheel.linux]
-archs = ["x86_64", "i686", "aarch64", "ppc64le", "s390x", "armv7l", "riscv64"]
-test-skip = "*-manylinux_{aarch64,ppc64le,s390x,armv7l,riscv64} *-musllinux_{i686,aarch64,ppc64le,s390x,armv7l,riscv64}"
+archs = ["x86_64", "i686", "aarch64", "ppc64le", "s390x", "armv7l"]
+test-skip = "*-manylinux_{aarch64,ppc64le,s390x,armv7l} *-musllinux_{i686,aarch64,armv7l}"
 
 [tool.cibuildwheel.macos]
-archs = ["x86_64", "arm64", "universal2"]
-test-skip = "*-macosx_arm64 *-macosx_universal2:arm64"
+archs = ["x86_64", "arm64"]
+test-skip = "*-macosx_arm64"
 
 [tool.cibuildwheel.windows]
 archs = ["AMD64", "x86", "ARM64"]
 test-skip = "*-win_arm64"
 
 [[tool.cibuildwheel.overrides]]
-select = "*-musllinux_{ppc64le,riscv64,s390x}"
+select = "*-musllinux_{ppc64le,s390x}"
 build-frontend = "build"
 
 [[tool.cibuildwheel.overrides]]
