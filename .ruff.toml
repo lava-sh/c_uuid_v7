@@ -5,6 +5,7 @@ indent-width = 4
 
 include = [
     "src/**.py",
+    "src/**.pyi",
     "tests/**.py",
     "benchmark/run.py",
     "pyproject.toml",
