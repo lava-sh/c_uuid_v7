@@ -65,7 +65,7 @@ bench = [
 [tool.setuptools]
 package-dir = { "" = "src" }
 ext-modules = [
-    { name = "c_uuid_v7._uuid_v7_c", sources = ["src/c_uuid_v7/_uuid_v7_c.c"] },
+    { name = "c_uuid_v7.__core", sources = ["src/c_uuid_v7/__core.c"] },
 ]
 
 [tool.setuptools.packages.find]
