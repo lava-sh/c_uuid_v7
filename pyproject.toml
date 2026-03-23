@@ -92,6 +92,7 @@ commit_count_since_tag: int = {scm_version.distance}
 
 [tool.cibuildwheel]
 build = "cp310-* cp311-* cp312-* cp313-* cp314-* pp311-*"
+build-frontend = "build[uv]"
 enable = ["pypy"]
 skip = "*t-*"
 test-command = "pytest {project}/tests"
@@ -109,6 +110,10 @@ test-skip = "*-macosx_arm64 *-macosx_universal2:arm64"
 [tool.cibuildwheel.windows]
 archs = ["AMD64", "x86", "ARM64"]
 test-skip = "*-win_arm64"
+
+[[tool.cibuildwheel.overrides]]
+select = "*-musllinux_{ppc64le,riscv64,s390x}"
+build-frontend = "build"
 
 [[tool.cibuildwheel.overrides]]
 select = "cp3{13,14}-*"
