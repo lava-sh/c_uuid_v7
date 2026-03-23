@@ -46,6 +46,18 @@ dev = [
     { include-group = "rumdl" },
     { include-group = "zizmor" },
 ]
+bench = [
+    "uuid_utils == 0.14.1",
+    "uuid_v7 == 1.0.0",
+    "UUIDv7gen == 1.0.3",
+    "uuid6 == 2025.0.1",
+    "lastuuid == 0.5.0",
+    # # # # # # # # # #
+    "polars == 1.39.3",
+    "altair == 6.0.0",
+    "py-cpuinfo == 9.0.0",
+    "vl-convert-python == 1.9.0.post1",
+]
 
 [tool.setuptools]
 package-dir = { "" = "src" }

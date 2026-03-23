@@ -6,6 +6,7 @@ indent-width = 4
 include = [
     "src/**.py",
     "tests/**.py",
+    "benchmark/**.py",
     "pyproject.toml",
 ]
 
@@ -40,6 +41,10 @@ ignore = [
 "tests/**.py" = [
     "S101",    # Check `assert`'s
     "PLR2004", # Check magic value's
+]
+# benchmark
+"benchmark/**.py" = [
+    "INP001",
 ]
 
 [lint.flake8-tidy-imports.banned-api]
