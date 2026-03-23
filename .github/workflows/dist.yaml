@@ -21,35 +21,99 @@ env:
   UV_PYTHON_DOWNLOADS: 0
 
 jobs:
-  wheels:
-    name: "${{ matrix.os }} / wheels"
-    runs-on: ${{ matrix.os }}
+  wheels-linux-x64:
+    name: "ubuntu-latest / wheels x64"
+    runs-on: ubuntu-latest
     timeout-minutes: 25
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
-          - windows-latest
-          - macos-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
 
       - name: "Set up QEMU"
-        if: runner.os == 'Linux'
         uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
         with:
-          platforms: arm64,arm,riscv64,ppc64le,s390x
+          platforms: arm,ppc64le,s390x
 
       - uses: pypa/cibuildwheel@ee02a1537ce3071a004a6b08c41e72f0fdc42d9a # v3.4.0
         with:
           extras: uv
+        env:
+          CIBW_ARCHS_LINUX: "x86_64 i686 ppc64le s390x armv7l"
+          CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
+          CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
 
       - name: "Upload wheels"
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: wheels-${{ matrix.os }}
+          name: wheels-ubuntu-latest-x64
+          path: wheelhouse/*.whl
+
+  wheels-linux-arm:
+    name: "ubuntu-24.04-arm / wheels aarch64"
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - uses: pypa/cibuildwheel@ee02a1537ce3071a004a6b08c41e72f0fdc42d9a # v3.4.0
+        with:
+          extras: uv
+        env:
+          CIBW_ARCHS_LINUX: "aarch64"
+          CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
+          CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
+
+      - name: "Upload wheels"
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: wheels-ubuntu-24.04-arm
+          path: wheelhouse/*.whl
+
+  wheels-windows:
+    name: "windows-latest / wheels"
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - uses: pypa/cibuildwheel@ee02a1537ce3071a004a6b08c41e72f0fdc42d9a # v3.4.0
+        with:
+          extras: uv
+        env:
+          CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
+          CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
+
+      - name: "Upload wheels"
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: wheels-windows-latest
+          path: wheelhouse/*.whl
+
+  wheels-macos:
+    name: "macos-latest / wheels"
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - uses: pypa/cibuildwheel@ee02a1537ce3071a004a6b08c41e72f0fdc42d9a # v3.4.0
+        with:
+          extras: uv
+        env:
+          CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
+          CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
+
+      - name: "Upload wheels"
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: wheels-macos-latest
           path: wheelhouse/*.whl
 
   sdist:
