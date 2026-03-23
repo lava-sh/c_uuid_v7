@@ -99,12 +99,12 @@ def test_uuid7_rejects_negative_nanos() -> None:
 
 def test_uuid7_rejects_invalid_timestamp_type() -> None:
     with pytest.raises(TypeError, match="timestamp must be a non-negative int or None"):
-        c_uuid_v7.uuid7(timestamp="bad")
+        c_uuid_v7.uuid7(timestamp="bad")  # ty: ignore[invalid-argument-type]
 
 
 def test_uuid7_rejects_invalid_nanos_type() -> None:
     with pytest.raises(TypeError, match="nanos must be a non-negative int or None"):
-        c_uuid_v7.uuid7(nanos="bad")
+        c_uuid_v7.uuid7(nanos="bad")  # ty: ignore[invalid-argument-type]
 
 
 def test_uuid7_rejects_timestamp_above_supported_range() -> None:
@@ -166,7 +166,7 @@ def test_reseed_is_called_when_forking() -> None:
     read_end, write_end = os.pipe()
     c_uuid_v7.uuid7()
 
-    pid = os.fork()
+    pid = os.fork()  # ty: ignore[unresolved-attribute]
     if pid == 0:
         os.close(read_end)
         next_uuid_child = str(c_uuid_v7.uuid7())
