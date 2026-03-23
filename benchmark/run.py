@@ -6,6 +6,7 @@ from pathlib import Path
 
 import altair as alt
 import cpuinfo
+import fastuuid
 import lastuuid
 import polars as pl
 import uuid6
@@ -130,6 +131,7 @@ def run(run_count: int) -> None:
     default_cases = {
         "c_uuid_v7": c_uuid_v7.uuid7,
         "uuid_utils": uuid_utils.uuid7,
+        "fastuuid": fastuuid.uuid7,
         "uuid_v7": uuid_v7_uuid7,
         "uuid6": uuid6.uuid7,
         "lastuuid": lastuuid.uuid7,
