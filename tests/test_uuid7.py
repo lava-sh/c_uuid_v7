@@ -1,3 +1,4 @@
+import ctypes
 import os
 import sys
 import uuid
@@ -5,6 +6,15 @@ import uuid
 import pytest
 
 import c_uuid_v7
+
+
+class _UUIDObject(ctypes.Structure):
+    _fields_ = [
+        ("ob_refcnt", ctypes.c_ssize_t),
+        ("ob_type", ctypes.c_void_p),
+        ("hi", ctypes.c_uint64),
+        ("lo", ctypes.c_uint64),
+    ]
 
 
 def test_uuid7_returns_fast_uuid() -> None:
@@ -82,6 +92,26 @@ def test_uuid_objects_compare_and_hash() -> None:
     assert b > a
     assert b >= a
     assert hash(a) == value_hash
+
+
+def test_uuid_hash_never_returns_error_sentinel() -> None:
+    uuid_ = c_uuid_v7.uuid7()
+    raw_uuid = _UUIDObject.from_address(id(uuid_))
+    original_hi = raw_uuid.hi
+    original_lo = raw_uuid.lo
+
+    raw_uuid.hi = 0x00000000FFFFFFFF
+    raw_uuid.lo = 0xFFFFFFFFFFFFFFFF
+
+    try:
+        assert hash(uuid_) == -2
+
+        mapping = {uuid_: "value"}
+        assert mapping[uuid_] == "value"
+        assert uuid_ in {uuid_}
+    finally:
+        raw_uuid.hi = original_hi
+        raw_uuid.lo = original_lo
 
 
 def test_compat_uuid7_returns_stdlib_uuid() -> None:
