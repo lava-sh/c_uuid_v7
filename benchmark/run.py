@@ -142,6 +142,7 @@ def run(run_count: int) -> None:
         "uuid_utils": "uuid-utils",
         "uuid_v7": "uuid-v7",
         "uuid6": "uuid6",
+        "fastuuid": "fastuuid",
         "lastuuid": "lastuuid",
         "UUIDv7gen": "UUIDv7gen",
     }
