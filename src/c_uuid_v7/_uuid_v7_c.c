@@ -6,8 +6,10 @@
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 
-#include <bcrypt.h>
+/* clang-format off */
 #include <windows.h>
+#include <bcrypt.h>
+/* clang-format on */
 
 #pragma comment(lib, "bcrypt.lib")
 #else
