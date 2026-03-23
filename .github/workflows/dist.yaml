@@ -40,7 +40,8 @@ jobs:
           extras: uv
         env:
           CIBW_ARCHS_LINUX: "x86_64 i686 ppc64le s390x armv7l"
-          CIBW_TEST_SKIP: ${{ github.event_name == 'pull_request' && '*' || '' }}
+          CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
+          CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
 
       - name: "Upload wheels"
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
@@ -62,7 +63,8 @@ jobs:
           extras: uv
         env:
           CIBW_ARCHS_LINUX: "aarch64"
-          CIBW_TEST_SKIP: ${{ github.event_name == 'pull_request' && '*' || '' }}
+          CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
+          CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
 
       - name: "Upload wheels"
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
@@ -83,7 +85,8 @@ jobs:
         with:
           extras: uv
         env:
-          CIBW_TEST_SKIP: ${{ github.event_name == 'pull_request' && '*' || '' }}
+          CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
+          CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
 
       - name: "Upload wheels"
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
@@ -104,7 +107,8 @@ jobs:
         with:
           extras: uv
         env:
-          CIBW_TEST_SKIP: ${{ github.event_name == 'pull_request' && '*' || '' }}
+          CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
+          CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
 
       - name: "Upload wheels"
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
