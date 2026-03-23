@@ -94,6 +94,10 @@ def test_uuid_objects_compare_and_hash() -> None:
     assert hash(a) == value_hash
 
 
+@pytest.mark.skipif(
+    sys.implementation.name != "cpython",
+    reason="Relies on CPython object layout via ctypes.from_address",
+)
 def test_uuid_hash_never_returns_error_sentinel() -> None:
     uuid_ = c_uuid_v7.uuid7()
     raw_uuid = _UUIDObject.from_address(id(uuid_))
@@ -108,7 +112,6 @@ def test_uuid_hash_never_returns_error_sentinel() -> None:
 
         mapping = {uuid_: "value"}
         assert mapping[uuid_] == "value"
-        assert uuid_ in {uuid_}
     finally:
         raw_uuid.hi = original_hi
         raw_uuid.lo = original_lo

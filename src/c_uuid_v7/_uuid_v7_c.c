@@ -267,6 +267,16 @@ uuid_pack_bytes(uint64_t hi, uint64_t lo, unsigned char bytes[16]) {
     }
 }
 
+static inline void
+uuid_build_words(uint64_t timestamp_ms,
+                 uint16_t rand_a,
+                 uint64_t tail62,
+                 uint64_t* hi,
+                 uint64_t* lo) {
+    *hi = (timestamp_ms << UUID_TIMESTAMP_SHIFT) | UUID_VERSION_BITS | (uint64_t)rand_a;
+    *lo = UUID_VARIANT_BITS | tail62;
+}
+
 static int
 build_uuid7_default(uint64_t* hi, uint64_t* lo) {
     uint64_t timestamp_ms;
@@ -281,8 +291,7 @@ build_uuid7_default(uint64_t* hi, uint64_t* lo) {
     advance_monotonic_state(timestamp_ms, &rand_a, &tail62);
     timestamp_ms = last_timestamp_ms;
 
-    *hi = (timestamp_ms << UUID_TIMESTAMP_SHIFT) | UUID_VERSION_BITS | (uint64_t)rand_a;
-    *lo = UUID_VARIANT_BITS | tail62;
+    uuid_build_words(timestamp_ms, rand_a, tail62, hi, lo);
     return 0;
 }
 
@@ -332,8 +341,7 @@ build_uuid7_parts_from_args(PyObject* timestamp_obj,
         timestamp_ms = last_timestamp_ms;
     }
 
-    *hi = (timestamp_ms << UUID_TIMESTAMP_SHIFT) | UUID_VERSION_BITS | (uint64_t)rand_a;
-    *lo = UUID_VARIANT_BITS | tail62;
+    uuid_build_words(timestamp_ms, rand_a, tail62, hi, lo);
     return 0;
 }
 
@@ -418,6 +426,8 @@ uuid_hex(UUIDObject* self, void* closure) {
 
 static PyObject*
 uuid_version(UUIDObject* self, void* closure) {
+    (void)self;
+    (void)closure;
     return PyLong_FromLong(7);
 }
 
@@ -485,16 +495,16 @@ uuid_hash(UUIDObject* self) {
 
 static PyObject*
 uuid_richcompare(PyObject* a, PyObject* b, int op) {
-    UUIDObject* ua;
-    UUIDObject* ub;
+    const UUIDObject* ua;
+    const UUIDObject* ub;
     int cmp;
 
     if (!PyObject_TypeCheck(a, &UUIDType) || !PyObject_TypeCheck(b, &UUIDType)) {
         Py_RETURN_NOTIMPLEMENTED;
     }
 
-    ua = (UUIDObject*)a;
-    ub = (UUIDObject*)b;
+    ua = (const UUIDObject*)a;
+    ub = (const UUIDObject*)b;
 
     if (ua->hi < ub->hi) {
         cmp = -1;
@@ -597,6 +607,7 @@ py_uuid7(PyObject* self, PyObject* const* args, Py_ssize_t nargs, PyObject* kwna
 
 static PyObject*
 py_reseed_rng(PyObject* self, PyObject* Py_UNUSED(args)) {
+    (void)self;
     reseed_generator_state();
     Py_RETURN_NONE;
 }
