@@ -16,7 +16,6 @@
 ## Features
 
 * The fastest UUID v7 generator in Python (see [benchmarks](https://github.com/lava-sh/c_uuid_v7/tree/main/benchmark))
-* Full YAML v1.2 spec support
 
 ## Installation
 
