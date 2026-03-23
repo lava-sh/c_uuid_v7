@@ -25,7 +25,7 @@ uv pip install . --group bench
 ## Run `benchmark/run.py`
 
 ```bash
-python benchmark/run.py                                                                                                                             
+python benchmark/run.py
 ```
 
 ## Results

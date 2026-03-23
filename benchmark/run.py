@@ -3,7 +3,6 @@ import time
 from collections.abc import Callable
 from importlib.metadata import version as get_lib_version
 from pathlib import Path
-from uuid import UUID
 
 import altair as alt
 import cpuinfo
@@ -12,24 +11,17 @@ import polars as pl
 import uuid6
 import uuid7 as uuid7gen
 import uuid_utils
+import uuid_utils.compat as uuid_utils_compat
 from uuid_v7.base import uuid7 as uuid_v7_uuid7
 
-from c_uuid_v7 import uuid7 as c_uuid7
-from c_uuid_v7.compat import uuid7 as c_uuid7_compat
+import c_uuid_v7
+import c_uuid_v7.compat as c_uuid_v7_compat
 
-N = 1_000_000
+N = 500_000
 
 FILE_PATH = Path(__file__).resolve().parent
 CPU = cpuinfo.get_cpu_info()["brand_raw"]
 PY_VERSION = f"{platform.python_version()} ({platform.system()} {platform.release()})"
-
-
-def uuid_utils_compat(
-    timestamp: int | None = None,
-    nanos: int | None = None,
-) -> UUID:
-    uuid_ = uuid_utils.uuid7(timestamp, nanos)
-    return UUID(int=uuid_.int)
 
 
 def benchmark(func: Callable, count: int) -> float:
@@ -44,7 +36,7 @@ def benchmark_cases(cases: dict[str, Callable], count: int) -> dict[str, float]:
     return {
         name: benchmark(func, count)
         for name, func in cases.items()
-    }
+    }  # fmt: skip
 
 
 def plot_benchmark(
@@ -136,7 +128,7 @@ def run(run_count: int) -> None:
     default_generator = uuid7gen.UUIDv7()
 
     default_cases = {
-        "c_uuid_v7": c_uuid7,
+        "c_uuid_v7": c_uuid_v7.uuid7,
         "uuid_utils": uuid_utils.uuid7,
         "uuid_v7": uuid_v7_uuid7,
         "uuid6": uuid6.uuid7,
@@ -153,8 +145,8 @@ def run(run_count: int) -> None:
     }
 
     compact_cases = {
-        "c_uuid_v7.compat": c_uuid7_compat,
-        "uuid_utils.compat": uuid_utils_compat,
+        "c_uuid_v7.compat": c_uuid_v7_compat.uuid7,
+        "uuid_utils.compat": uuid_utils_compat.uuid7,
         "uuid_v7": uuid_v7_uuid7,
         "uuid6": uuid6.uuid7,
         "lastuuid": lastuuid.uuid7,
