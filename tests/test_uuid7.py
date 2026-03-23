@@ -1,4 +1,5 @@
 import ctypes
+import itertools
 import os
 import sys
 import uuid
@@ -51,7 +52,11 @@ def test_uuid7_batch_is_strictly_increasing() -> None:
     values = [c_uuid_v7.uuid7() for _ in range(1024)]
 
     assert len({value.int for value in values}) == len(values)
-    assert all(left < right for left, right in zip(values, values[1:]))
+    assert all(
+        left < right
+        for left, right
+        in itertools.pairwise(values)
+    )  # fmt: skip
 
 
 def test_uuid7_explicit_timestamp_batch_is_valid() -> None:
