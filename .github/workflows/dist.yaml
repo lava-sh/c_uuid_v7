@@ -20,6 +20,7 @@ jobs:
   wheels:
     name: "${{ matrix.os }} / wheels"
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     strategy:
       matrix:
         os:
@@ -30,6 +31,12 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
+
+      - name: "Set up QEMU"
+        if: runner.os == 'Linux'
+        uses: docker/setup-qemu-action@55cfe2b83e90d79d5c779ad0ccf9878f33b558c2 # v3.6.0
+        with:
+          platforms: arm64,arm,riscv64,ppc64le,s390x
 
       - uses: pypa/cibuildwheel@ee02a1537ce3071a004a6b08c41e72f0fdc42d9a # v3.4.0
 
