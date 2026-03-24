@@ -32,7 +32,7 @@ python benchmark/run.py
 
 ### `uuid7()` default APIs
 
-![UUID v7 default API benchmark](uuid7-default.svg)
+![UUID v7 default API benchmark](uuid7.svg)
 
 ### `uuid7()` compact / stdlib-compatible APIs
 
