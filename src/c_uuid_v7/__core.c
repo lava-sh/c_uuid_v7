@@ -330,6 +330,9 @@ typedef struct {
 } UUID7Args;
 
 static int
+fill_uuid7_random_bits(const UUID7Args* args, uint16_t* rand_a, uint64_t* tail62);
+
+static int
 validate_nanos(uint64_t nanos) {
     if (nanos >= UUID_MAX_NANOS) {
         PyErr_SetString(PyExc_ValueError, "nanos must be in range 0..999999999");
@@ -533,17 +536,15 @@ static int
 build_uuid7_with_parsed_args(const UUID7Args* args, uint64_t* hi, uint64_t* lo) {
     uint64_t tail62;
     uint16_t rand_a;
+    int state;
 
     if (ensure_seeded() != 0) {
         return -1;
     }
 
-    if (args->has_timestamp && args->has_nanos) {
-        rand_a = (uint16_t)(args->nanos & 0x0FFFU);
-        tail62 = random_tail62();
-    } else if (args->has_timestamp || args->has_nanos) {
-        random_payload(&rand_a, &tail62);
-    } else {
+    state = fill_uuid7_random_bits(args, &rand_a, &tail62);
+
+    if (state > 0) {
         uint64_t timestamp_ms = args->timestamp_ms;
 
         advance_monotonic_state(timestamp_ms, &timestamp_ms, &rand_a, &tail62);
