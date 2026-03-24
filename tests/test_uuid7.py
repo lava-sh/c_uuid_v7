@@ -4,11 +4,13 @@ import itertools
 import os
 import sys
 import uuid
-from typing import Any
+from typing import Any, Literal
 
 import pytest
 
 import c_uuid_v7
+
+Mode = Literal["fast", "secure"]
 
 
 class _UUIDObject(ctypes.Structure):
@@ -46,6 +48,13 @@ def _assert_timestamp_non_decreasing(values: list[c_uuid_v7.UUID]) -> None:
 
 def test_uuid7_returns_fast_uuid() -> None:
     uuid_ = c_uuid_v7.uuid7()
+    assert isinstance(uuid_, c_uuid_v7.UUID)
+    _assert_uuid7_bits(uuid_)
+
+
+@pytest.mark.parametrize("mode", ["fast", "secure"])
+def test_uuid7_accepts_mode(mode: Mode) -> None:
+    uuid_ = c_uuid_v7.uuid7(mode=mode)
     assert isinstance(uuid_, c_uuid_v7.UUID)
     _assert_uuid7_bits(uuid_)
 
@@ -140,7 +149,7 @@ def test_uuid7_explicit_timestamp_is_encoded(
     args: tuple[int, ...],
     expected_timestamp: int,
 ) -> None:
-    uuid_ = c_uuid_v7.uuid7(*args)
+    uuid_ = c_uuid_v7.uuid7(args[0], args[1] if len(args) > 1 else None)
     assert uuid_.timestamp == expected_timestamp
     _assert_uuid7_bits(uuid_)
 
@@ -148,6 +157,13 @@ def test_uuid7_explicit_timestamp_is_encoded(
 @pytest.mark.parametrize("nanos", [0, 999_999_999])
 def test_uuid7_accepts_valid_nanos_bounds(nanos: int) -> None:
     _assert_uuid7_bits(c_uuid_v7.uuid7(nanos=nanos))
+
+
+@pytest.mark.parametrize("mode", ["fast", "secure"])
+def test_uuid7_modes_are_monotonic(mode: Mode) -> None:
+    values = [c_uuid_v7.uuid7(mode=mode) for _ in range(2048)]
+    _assert_strictly_increasing(values)
+    _assert_timestamp_non_decreasing(values)
 
 
 @pytest.mark.parametrize(
@@ -158,6 +174,8 @@ def test_uuid7_accepts_valid_nanos_bounds(nanos: int) -> None:
         ({"nanos": -1}, TypeError, "nanos must be a non-negative int or None"),
         ({"timestamp": "bad"}, TypeError, "timestamp must be a non-negative int or None"),
         ({"nanos": "bad"}, TypeError, "nanos must be a non-negative int or None"),
+        ({"mode": 1}, TypeError, "mode must be 'fast', 'secure', or None"),
+        ({"mode": "bad"}, ValueError, "mode must be 'fast' or 'secure'"),
         ({"timestamp": 281_474_976_711}, ValueError, "timestamp is too large"),
     ],
 )
@@ -207,6 +225,13 @@ def test_uuid_hash_never_returns_error_sentinel() -> None:
 
 def test_compat_uuid7_preserves_timestamp() -> None:
     uuid_ = c_uuid_v7.compat.uuid7(1_679_665_408, 123_000_000)
+
+    assert isinstance(uuid_, uuid.UUID)
+    assert uuid_.version == 7
+
+
+def test_compat_uuid7_accepts_mode() -> None:
+    uuid_ = c_uuid_v7.compat.uuid7(mode="secure")
 
     assert isinstance(uuid_, uuid.UUID)
     assert uuid_.version == 7
