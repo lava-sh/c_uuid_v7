@@ -54,6 +54,11 @@ static uint64_t epoch_base_ms = 0;
 static uint64_t tick_base_ms = 0;
 #endif
 
+static inline UUIDObject*
+uuid_self(PyObject* self_obj) {
+    return (UUIDObject*)self_obj;
+}
+
 static uint64_t
 uuid7_system_ms(void) {
 #ifdef _WIN32
@@ -171,6 +176,15 @@ seed_generator(void) {
 static void
 reseed_generator_state(void) {
     generator_seeded = 0;
+}
+
+static int
+ensure_seeded(void) {
+    if (!generator_seeded && seed_generator() != 0) {
+        return -1;
+    }
+
+    return 0;
 }
 
 static inline uint64_t
@@ -470,7 +484,7 @@ build_uuid7_default(uint64_t* hi, uint64_t* lo) {
     uint64_t tail62;
     uint16_t rand_a;
 
-    if (!generator_seeded && seed_generator() != 0) {
+    if (ensure_seeded() != 0) {
         return -1;
     }
 
@@ -485,7 +499,7 @@ build_uuid7_default_secure(uint64_t* hi, uint64_t* lo) {
     uint64_t tail62;
     uint16_t rand_a;
 
-    if (!generator_seeded && seed_generator() != 0) {
+    if (ensure_seeded() != 0) {
         return -1;
     }
 
@@ -501,7 +515,7 @@ build_uuid7_with_parsed_args(const UUID7Args* args, uint64_t* hi, uint64_t* lo) 
     uint64_t tail62;
     uint16_t rand_a;
 
-    if (!generator_seeded && seed_generator() != 0) {
+    if (ensure_seeded() != 0) {
         return -1;
     }
 
@@ -523,20 +537,46 @@ build_uuid7_with_parsed_args(const UUID7Args* args, uint64_t* hi, uint64_t* lo) 
 }
 
 static int
+fill_uuid7_random_bits(const UUID7Args* args, uint16_t* rand_a, uint64_t* tail62) {
+    if (args->has_timestamp && args->has_nanos) {
+        *rand_a = (uint16_t)(args->nanos & 0x0FFFU);
+        *tail62 = random_tail62();
+        return 0;
+    }
+
+    if (args->has_timestamp || args->has_nanos) {
+        random_payload(rand_a, tail62);
+        return 0;
+    }
+
+    return 1;
+}
+
+static int
+fill_uuid7_random_bits_secure(const UUID7Args* args, uint16_t* rand_a, uint64_t* tail62) {
+    if (args->has_timestamp && args->has_nanos) {
+        *rand_a = (uint16_t)(args->nanos & 0x0FFFU);
+        return random_tail62_secure(tail62);
+    }
+
+    if (args->has_timestamp || args->has_nanos) {
+        return random_payload_secure(rand_a, tail62);
+    }
+
+    return 1;
+}
+
+static int
 build_uuid7_with_parsed_args_secure(const UUID7Args* args, uint64_t* hi, uint64_t* lo) {
     uint64_t tail62;
     uint16_t rand_a;
+    int state;
 
-    if (args->has_timestamp && args->has_nanos) {
-        rand_a = (uint16_t)(args->nanos & 0x0FFFU);
-        if (random_tail62_secure(&tail62) != 0) {
-            return -1;
-        }
-    } else if (args->has_timestamp || args->has_nanos) {
-        if (random_payload_secure(&rand_a, &tail62) != 0) {
-            return -1;
-        }
-    } else {
+    state = fill_uuid7_random_bits_secure(args, &rand_a, &tail62);
+    if (state < 0) {
+        return -1;
+    }
+    if (state > 0) {
         uint64_t timestamp_ms = args->timestamp_ms;
 
         if (advance_monotonic_state_secure(timestamp_ms, &timestamp_ms, &rand_a, &tail62) != 0) {
@@ -558,7 +598,7 @@ build_uuid7_parts_from_args(PyObject* timestamp_obj,
                             uint64_t* lo) {
     UUID7Args parsed;
 
-    if (!generator_seeded && seed_generator() != 0) {
+    if (ensure_seeded() != 0) {
         return -1;
     }
 
@@ -633,7 +673,7 @@ uuid_str(PyObject* self_obj) {
     unsigned char bytes[16];
     int i;
     int j = 0;
-    UUIDObject* self = (UUIDObject*)self_obj;
+    UUIDObject* self = uuid_self(self_obj);
 
     uuid_pack_bytes(self->hi, self->lo, bytes);
 
@@ -668,7 +708,7 @@ uuid_hex(PyObject* self_obj, void* closure) {
     char out[32];
     unsigned char bytes[16];
     int i;
-    UUIDObject* self = (UUIDObject*)self_obj;
+    UUIDObject* self = uuid_self(self_obj);
 
     uuid_pack_bytes(self->hi, self->lo, bytes);
 
@@ -683,7 +723,7 @@ uuid_hex(PyObject* self_obj, void* closure) {
 static PyObject*
 uuid_bytes(PyObject* self_obj, void* closure) {
     unsigned char bytes[16];
-    UUIDObject* self = (UUIDObject*)self_obj;
+    UUIDObject* self = uuid_self(self_obj);
 
     (void)closure;
     uuid_pack_bytes(self->hi, self->lo, bytes);
@@ -694,7 +734,7 @@ static PyObject*
 uuid_bytes_le(PyObject* self_obj, void* closure) {
     unsigned char bytes[16];
     unsigned char reordered[16];
-    UUIDObject* self = (UUIDObject*)self_obj;
+    UUIDObject* self = uuid_self(self_obj);
 
     (void)closure;
     uuid_pack_bytes(self->hi, self->lo, bytes);
@@ -712,7 +752,7 @@ uuid_bytes_le(PyObject* self_obj, void* closure) {
 
 static PyObject*
 uuid_timestamp(PyObject* self_obj, void* closure) {
-    UUIDObject* self = (UUIDObject*)self_obj;
+    UUIDObject* self = uuid_self(self_obj);
 
     (void)closure;
     return PyLong_FromUnsignedLongLong(self->hi >> UUID_TIMESTAMP_SHIFT);
@@ -720,7 +760,7 @@ uuid_timestamp(PyObject* self_obj, void* closure) {
 
 static PyObject*
 uuid_int(PyObject* self_obj, void* closure) {
-    UUIDObject* self = (UUIDObject*)self_obj;
+    UUIDObject* self = uuid_self(self_obj);
 
 #if PY_VERSION_HEX >= 0x030D0000
     unsigned char bytes[16];
@@ -773,7 +813,7 @@ uuid_nb_int(PyObject* self_obj) {
 
 static PyObject*
 uuid_time_low(PyObject* self_obj, void* closure) {
-    UUIDObject* self = (UUIDObject*)self_obj;
+    UUIDObject* self = uuid_self(self_obj);
 
     (void)closure;
     return PyLong_FromUnsignedLong(self->hi >> 32);
@@ -781,7 +821,7 @@ uuid_time_low(PyObject* self_obj, void* closure) {
 
 static PyObject*
 uuid_time_mid(PyObject* self_obj, void* closure) {
-    UUIDObject* self = (UUIDObject*)self_obj;
+    UUIDObject* self = uuid_self(self_obj);
 
     (void)closure;
     return PyLong_FromUnsignedLong((self->hi >> 16) & 0xFFFFULL);
@@ -789,7 +829,7 @@ uuid_time_mid(PyObject* self_obj, void* closure) {
 
 static PyObject*
 uuid_time_hi_version(PyObject* self_obj, void* closure) {
-    UUIDObject* self = (UUIDObject*)self_obj;
+    UUIDObject* self = uuid_self(self_obj);
 
     (void)closure;
     return PyLong_FromUnsignedLong(self->hi & 0xFFFFULL);
@@ -797,7 +837,7 @@ uuid_time_hi_version(PyObject* self_obj, void* closure) {
 
 static PyObject*
 uuid_clock_seq_hi_variant(PyObject* self_obj, void* closure) {
-    UUIDObject* self = (UUIDObject*)self_obj;
+    UUIDObject* self = uuid_self(self_obj);
 
     (void)closure;
     return PyLong_FromUnsignedLong(self->lo >> 56);
@@ -805,7 +845,7 @@ uuid_clock_seq_hi_variant(PyObject* self_obj, void* closure) {
 
 static PyObject*
 uuid_clock_seq_low(PyObject* self_obj, void* closure) {
-    UUIDObject* self = (UUIDObject*)self_obj;
+    UUIDObject* self = uuid_self(self_obj);
 
     (void)closure;
     return PyLong_FromUnsignedLong((self->lo >> 48) & 0xFFULL);
@@ -815,7 +855,7 @@ static PyObject*
 uuid_clock_seq(PyObject* self_obj, void* closure) {
     unsigned long high;
     unsigned long low;
-    UUIDObject* self = (UUIDObject*)self_obj;
+    UUIDObject* self = uuid_self(self_obj);
 
     (void)closure;
     high = (unsigned long)((self->lo >> 56) & 0x3FULL);
@@ -825,7 +865,7 @@ uuid_clock_seq(PyObject* self_obj, void* closure) {
 
 static PyObject*
 uuid_node(PyObject* self_obj, void* closure) {
-    UUIDObject* self = (UUIDObject*)self_obj;
+    UUIDObject* self = uuid_self(self_obj);
 
     (void)closure;
     return PyLong_FromUnsignedLongLong(self->lo & 0xFFFFFFFFFFFFULL);
@@ -833,7 +873,7 @@ uuid_node(PyObject* self_obj, void* closure) {
 
 static PyObject*
 uuid_fields(PyObject* self_obj, void* closure) {
-    UUIDObject* self = (UUIDObject*)self_obj;
+    UUIDObject* self = uuid_self(self_obj);
 
     (void)closure;
     return Py_BuildValue("(kkkkkK)",
@@ -881,7 +921,7 @@ uuid_deepcopy(PyObject* self_obj, PyObject* args) {
 
 static Py_hash_t
 uuid_hash(PyObject* self_obj) {
-    UUIDObject* self = (UUIDObject*)self_obj;
+    UUIDObject* self = uuid_self(self_obj);
     Py_hash_t hash = (Py_hash_t)(self->hi ^ (self->hi >> 32) ^ self->lo ^ (self->lo >> 32));
 
     if (hash == -1) {
