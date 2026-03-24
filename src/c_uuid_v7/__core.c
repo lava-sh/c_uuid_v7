@@ -559,6 +559,7 @@ uuid_bytes_le(UUIDObject* self, void* closure) {
     return PyBytes_FromStringAndSize((const char*)reordered, 16);
 }
 
+static PyObject*
 uuid_timestamp(UUIDObject* self, void* closure) {
     (void)closure;
     return PyLong_FromUnsignedLongLong(self->hi >> UUID_TIMESTAMP_SHIFT);
@@ -660,14 +661,13 @@ uuid_node(UUIDObject* self, void* closure) {
 static PyObject*
 uuid_fields(UUIDObject* self, void* closure) {
     (void)closure;
-    return Py_BuildValue(
-        "(kkkkkK)",
-        (unsigned long)(self->hi >> 32),
-        (unsigned long)((self->hi >> 16) & 0xFFFFULL),
-        (unsigned long)(self->hi & 0xFFFFULL),
-        (unsigned long)(self->lo >> 56),
-        (unsigned long)((self->lo >> 48) & 0xFFULL),
-        (unsigned long long)(self->lo & 0xFFFFFFFFFFFFULL));
+    return Py_BuildValue("(kkkkkK)",
+                         (unsigned long)(self->hi >> 32),
+                         (unsigned long)((self->hi >> 16) & 0xFFFFULL),
+                         (unsigned long)(self->hi & 0xFFFFULL),
+                         (unsigned long)(self->lo >> 56),
+                         (unsigned long)((self->lo >> 48) & 0xFFULL),
+                         (unsigned long long)(self->lo & 0xFFFFFFFFFFFFULL));
 }
 
 static PyObject*
@@ -760,7 +760,10 @@ uuid_richcompare(PyObject* a, PyObject* b, int op) {
 
 static PyMethodDef uuid_methods[] = {
     { "__copy__", (PyCFunction)uuid_copy, METH_NOARGS, "Return self for copy.copy()." },
-    { "__deepcopy__", uuid_deepcopy, METH_VARARGS, "Return self for copy.deepcopy()." },
+    { "__deepcopy__",
+      (PyCFunction)uuid_deepcopy,
+      METH_VARARGS,
+      "Return self for copy.deepcopy()." },
     { NULL, NULL, 0, NULL },
 };
 
@@ -768,14 +771,22 @@ static PyGetSetDef uuid_getset[] = {
     { "bytes", (getter)uuid_bytes, NULL, "UUID as 16 big-endian bytes.", NULL },
     { "bytes_le", (getter)uuid_bytes_le, NULL, "UUID as 16 little-endian bytes.", NULL },
     { "clock_seq", (getter)uuid_clock_seq, NULL, "Clock sequence.", NULL },
-    { "clock_seq_hi_variant", (getter)uuid_clock_seq_hi_variant, NULL, "Clock sequence high byte with variant.", NULL },
+    { "clock_seq_hi_variant",
+      (getter)uuid_clock_seq_hi_variant,
+      NULL,
+      "Clock sequence high byte with variant.",
+      NULL },
     { "clock_seq_low", (getter)uuid_clock_seq_low, NULL, "Clock sequence low byte.", NULL },
     { "fields", (getter)uuid_fields, NULL, "UUID fields tuple.", NULL },
     { "hex", (getter)uuid_hex, NULL, "Hexadecimal string.", NULL },
     { "int", (getter)uuid_int, NULL, "128-bit integer value.", NULL },
     { "node", (getter)uuid_node, NULL, "Node value.", NULL },
     { "time", (getter)uuid_timestamp, NULL, "UUID time value.", NULL },
-    { "time_hi_version", (getter)uuid_time_hi_version, NULL, "Time high field with version bits.", NULL },
+    { "time_hi_version",
+      (getter)uuid_time_hi_version,
+      NULL,
+      "Time high field with version bits.",
+      NULL },
     { "time_low", (getter)uuid_time_low, NULL, "Time low field.", NULL },
     { "time_mid", (getter)uuid_time_mid, NULL, "Time middle field.", NULL },
     { "timestamp", (getter)uuid_timestamp, NULL, "Unix timestamp in milliseconds.", NULL },
