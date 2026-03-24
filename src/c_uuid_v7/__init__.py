@@ -12,7 +12,7 @@ import uuid
 
 from . import compat
 from .__core import (
-    UUID,
+    _UUID as UUID,
     _reseed_rng,
     _uuid7 as uuid7,
 )

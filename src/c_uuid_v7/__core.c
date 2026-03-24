@@ -745,7 +745,7 @@ PyInit___core(void) {
     }
 
     Py_INCREF(&UUIDType);
-    if (PyModule_AddObject(module, "UUID", (PyObject*)&UUIDType) < 0) {
+    if (PyModule_AddObject(module, "_UUID", (PyObject*)&UUIDType) < 0) {
         Py_DECREF(&UUIDType);
         Py_DECREF(module);
         return NULL;
