@@ -245,7 +245,7 @@ def test_reseed_is_called_when_forking() -> None:
     read_end, write_end = os.pipe()
     c_uuid_v7.uuid7()
 
-    pid = os.fork()  # ty: ignore[unresolved-attribute]
+    pid = os.fork()  # ty: ignore
     if pid == 0:
         os.close(read_end)
         next_uuid_child = str(c_uuid_v7.uuid7())
