@@ -29,6 +29,7 @@ typedef struct {
 
 static PyTypeObject UUIDType;
 static UUIDObject* uuid_cache = NULL;
+static PyNumberMethods uuid_as_number;
 
 static uint64_t rng_state0 = 0;
 static uint64_t rng_state1 = 0;
@@ -46,10 +47,22 @@ static int generator_seeded = 0;
 #define UUID_V7_RESEED_MASK ((1ULL << 41) - 1ULL)
 #define UUID_V7_MAX_COUNTER ((1ULL << 42) - 1ULL)
 #define UUID_V7_LOW30_MASK ((1ULL << 30) - 1ULL)
+#define UUID_MODE_FAST 0
+#define UUID_MODE_SECURE 1
 #ifdef _WIN32
 static uint64_t epoch_base_ms = 0;
 static uint64_t tick_base_ms = 0;
 #endif
+
+static inline UUIDObject*
+uuid_self(PyObject* self_obj) {
+    return (UUIDObject*)self_obj;
+}
+
+static inline const UUIDObject*
+uuid_self_const(PyObject* self_obj) {
+    return (const UUIDObject*)self_obj;
+}
 
 static uint64_t
 uuid7_system_ms(void) {
@@ -170,6 +183,15 @@ reseed_generator_state(void) {
     generator_seeded = 0;
 }
 
+static int
+ensure_seeded(void) {
+    if (!generator_seeded && seed_generator() != 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
 static inline uint64_t
 next_u64(void) {
     uint64_t s0 = rng_state0;
@@ -182,8 +204,15 @@ next_u64(void) {
     return result;
 }
 
+static inline uint64_t
+unpack_u64_be(const unsigned char bytes[8]) {
+    return ((uint64_t)bytes[0] << 56) | ((uint64_t)bytes[1] << 48) | ((uint64_t)bytes[2] << 40) |
+           ((uint64_t)bytes[3] << 32) | ((uint64_t)bytes[4] << 24) | ((uint64_t)bytes[5] << 16) |
+           ((uint64_t)bytes[6] << 8) | (uint64_t)bytes[7];
+}
+
 static int
-random_u64(uint64_t* out) {
+rnd_u64_secure(uint64_t* out) {
     unsigned char bytes[8];
 
     if (fill_random(bytes, (Py_ssize_t)sizeof(bytes)) != 0) {
@@ -191,56 +220,24 @@ random_u64(uint64_t* out) {
         return -1;
     }
 
-    *out = ((uint64_t)bytes[0] << 56) | ((uint64_t)bytes[1] << 48) | ((uint64_t)bytes[2] << 40) |
-           ((uint64_t)bytes[3] << 32) | ((uint64_t)bytes[4] << 24) | ((uint64_t)bytes[5] << 16) |
-           ((uint64_t)bytes[6] << 8) | (uint64_t)bytes[7];
+    *out = unpack_u64_be(bytes);
     return 0;
 }
 
-static int
-fill_counter_random_bytes(uint64_t counter, unsigned char out[10]) {
-    uint64_t adjusted = (counter & UUID_V7_LOW30_MASK) | ((counter & ~UUID_V7_LOW30_MASK) << 2);
-
-    if (fill_random(out, 10) != 0) {
-        PyErr_SetString(PyExc_OSError, "unable to generate random bytes");
-        return -1;
-    }
-
-    out[0] = (unsigned char)(adjusted >> 36);
-    out[1] = (unsigned char)(adjusted >> 28);
-    out[2] = (unsigned char)(adjusted >> 20);
-    out[3] = (unsigned char)(adjusted >> 12);
-    out[4] = (unsigned char)(adjusted >> 4);
-    out[5] = (unsigned char)(((adjusted & 0x0FULL) << 4) | (out[5] & 0x0F));
-    return 0;
+static inline uint64_t
+rnd_counter42(void) {
+    return next_u64() & UUID_V7_RESEED_MASK;
 }
 
 static int
-split_counter_random(uint64_t counter, uint16_t* rand_a, uint64_t* tail62) {
-    unsigned char cr[10];
+rnd_counter42_secure(uint64_t* counter) {
+    uint64_t random64;
 
-    if (fill_counter_random_bytes(counter, cr) != 0) {
-        return -1;
-    }
-    *rand_a = (uint16_t)((((uint16_t)cr[0] << 8) | (uint16_t)cr[1]) & 0x0FFFU);
-    *tail62 = (((uint64_t)(cr[2] & 0x3FU)) << 56) | (((uint64_t)cr[3]) << 48) |
-              (((uint64_t)cr[4]) << 40) | (((uint64_t)cr[5]) << 32) | (((uint64_t)cr[6]) << 24) |
-              (((uint64_t)cr[7]) << 16) | (((uint64_t)cr[8]) << 8) | (uint64_t)cr[9];
-    return 0;
-}
-
-static int
-random_counter42(uint64_t* counter) {
-    unsigned char bytes[6];
-
-    if (fill_random(bytes, (Py_ssize_t)sizeof(bytes)) != 0) {
-        PyErr_SetString(PyExc_OSError, "unable to generate random bytes");
+    if (rnd_u64_secure(&random64) != 0) {
         return -1;
     }
 
-    *counter = (((uint64_t)(bytes[0] & 0x0FU)) << 38) | (((uint64_t)bytes[1]) << 30) |
-               (((uint64_t)(bytes[2] & 0x3FU)) << 24) | (((uint64_t)bytes[3]) << 16) |
-               (((uint64_t)bytes[4]) << 8) | (uint64_t)bytes[5];
+    *counter = random64 & UUID_V7_RESEED_MASK;
     return 0;
 }
 
@@ -259,13 +256,52 @@ next_low32_and_increment(uint32_t* low32, uint64_t* increment) {
 }
 
 static int
-random_v7_payload(uint16_t* rand_a, uint64_t* tail62) {
-    uint64_t counter;
+next_low32_and_increment_secure(uint32_t* low32, uint64_t* increment) {
+    uint64_t random64;
 
-    if (random_u64(&counter) != 0) {
+    if (rnd_u64_secure(&random64) != 0) {
         return -1;
     }
-    return split_counter_random(counter & UUID_V7_RESEED_MASK, rand_a, tail62);
+
+    *low32 = (uint32_t)random64;
+    *increment = 1U + ((random64 >> 32) & 0x0FU);
+    return 0;
+}
+
+static void
+random_payload(uint16_t* rand_a, uint64_t* tail62) {
+    split_counter_random32(rnd_counter42(), (uint32_t)next_u64(), rand_a, tail62);
+}
+
+static int
+random_payload_secure(uint16_t* rand_a, uint64_t* tail62) {
+    uint64_t counter;
+    uint64_t random64;
+
+    if (rnd_counter42_secure(&counter) != 0) {
+        return -1;
+    }
+    if (rnd_u64_secure(&random64) != 0) {
+        return -1;
+    }
+
+    split_counter_random32(counter, (uint32_t)random64, rand_a, tail62);
+    return 0;
+}
+
+static inline uint64_t
+random_tail62(void) {
+    return next_u64() & UUID_RAND_MASK;
+}
+
+static int
+random_tail62_secure(uint64_t* tail62) {
+    if (rnd_u64_secure(tail62) != 0) {
+        return -1;
+    }
+
+    *tail62 &= UUID_RAND_MASK;
+    return 0;
 }
 
 static int
@@ -285,6 +321,13 @@ parse_u64_optional(PyObject* value, uint64_t* out, const char* name) {
     *out = (uint64_t)temp;
     return 1;
 }
+
+typedef struct {
+    uint64_t timestamp_ms;
+    uint64_t nanos;
+    int has_timestamp;
+    int has_nanos;
+} UUID7Args;
 
 static int
 validate_nanos(uint64_t nanos) {
@@ -328,6 +371,34 @@ build_timestamp_ms(uint64_t timestamp_s,
 }
 
 static int
+parse_uuid7_args(PyObject* timestamp_obj, PyObject* nanos_obj, UUID7Args* parsed) {
+    uint64_t timestamp_s = 0;
+
+    parsed->nanos = 0;
+    parsed->timestamp_ms = 0;
+
+    parsed->has_timestamp = parse_u64_optional(timestamp_obj, &timestamp_s, "timestamp");
+    if (parsed->has_timestamp < 0) {
+        return -1;
+    }
+
+    parsed->has_nanos = parse_u64_optional(nanos_obj, &parsed->nanos, "nanos");
+    if (parsed->has_nanos < 0) {
+        return -1;
+    }
+
+    if (parsed->has_nanos && validate_nanos(parsed->nanos) != 0) {
+        return -1;
+    }
+
+    return build_timestamp_ms(timestamp_s,
+                              parsed->has_timestamp,
+                              parsed->nanos,
+                              parsed->has_nanos,
+                              &parsed->timestamp_ms);
+}
+
+static void
 advance_monotonic_state(uint64_t observed_ms,
                         uint64_t* timestamp_ms,
                         uint16_t* rand_a,
@@ -341,14 +412,45 @@ advance_monotonic_state(uint64_t observed_ms,
 
     if (observed_ms > current_ms) {
         current_ms = observed_ms;
-        if (random_counter42(&counter) != 0) {
+        counter = rnd_counter42();
+    } else {
+        counter += increment;
+        if (counter > UUID_V7_MAX_COUNTER) {
+            current_ms += 1U;
+            counter = rnd_counter42();
+        }
+    }
+
+    last_timestamp_ms = current_ms;
+    counter42 = counter;
+    *timestamp_ms = current_ms;
+    split_counter_random32(counter, low32, rand_a, tail62);
+}
+
+static int
+advance_monotonic_state_secure(uint64_t observed_ms,
+                               uint64_t* timestamp_ms,
+                               uint16_t* rand_a,
+                               uint64_t* tail62) {
+    uint64_t counter = counter42;
+    uint64_t current_ms = last_timestamp_ms;
+    uint64_t increment;
+    uint32_t low32;
+
+    if (next_low32_and_increment_secure(&low32, &increment) != 0) {
+        return -1;
+    }
+
+    if (observed_ms > current_ms) {
+        current_ms = observed_ms;
+        if (rnd_counter42_secure(&counter) != 0) {
             return -1;
         }
     } else {
         counter += increment;
         if (counter > UUID_V7_MAX_COUNTER) {
             current_ms += 1U;
-            if (random_counter42(&counter) != 0) {
+            if (rnd_counter42_secure(&counter) != 0) {
                 return -1;
             }
         }
@@ -381,78 +483,183 @@ uuid_build_words(uint64_t timestamp_ms,
     *lo = UUID_VARIANT_BITS | tail62;
 }
 
+#define UUID_ULONG_GETTER(name, expr)                                                              \
+    static PyObject* name(PyObject* self_obj, void* closure) {                                     \
+        const UUIDObject* self = uuid_self_const(self_obj);                                        \
+        (void)closure;                                                                             \
+        return PyLong_FromUnsignedLong((unsigned long)(expr));                                     \
+    }
+
+#define UUID_ULL_GETTER(name, expr)                                                                \
+    static PyObject* name(PyObject* self_obj, void* closure) {                                     \
+        const UUIDObject* self = uuid_self_const(self_obj);                                        \
+        (void)closure;                                                                             \
+        return PyLong_FromUnsignedLongLong((unsigned long long)(expr));                            \
+    }
+
 static int
 build_uuid7_default(uint64_t* hi, uint64_t* lo) {
     uint64_t timestamp_ms;
     uint64_t tail62;
     uint16_t rand_a;
 
-    if (!generator_seeded && seed_generator() != 0) {
+    if (ensure_seeded() != 0) {
         return -1;
     }
 
-    if (advance_monotonic_state(uuid7_now_ms(), &timestamp_ms, &rand_a, &tail62) != 0) {
-        return -1;
-    }
-
+    advance_monotonic_state(uuid7_now_ms(), &timestamp_ms, &rand_a, &tail62);
     uuid_build_words(timestamp_ms, rand_a, tail62, hi, lo);
+    return 0;
+}
+
+static int
+build_uuid7_default_secure(uint64_t* hi, uint64_t* lo) {
+    uint64_t timestamp_ms;
+    uint64_t tail62;
+    uint16_t rand_a;
+
+    if (ensure_seeded() != 0) {
+        return -1;
+    }
+
+    if (advance_monotonic_state_secure(uuid7_now_ms(), &timestamp_ms, &rand_a, &tail62) != 0) {
+        return -1;
+    }
+    uuid_build_words(timestamp_ms, rand_a, tail62, hi, lo);
+    return 0;
+}
+
+static int
+build_uuid7_with_parsed_args(const UUID7Args* args, uint64_t* hi, uint64_t* lo) {
+    uint64_t tail62;
+    uint16_t rand_a;
+
+    if (ensure_seeded() != 0) {
+        return -1;
+    }
+
+    if (args->has_timestamp && args->has_nanos) {
+        rand_a = (uint16_t)(args->nanos & 0x0FFFU);
+        tail62 = random_tail62();
+    } else if (args->has_timestamp || args->has_nanos) {
+        random_payload(&rand_a, &tail62);
+    } else {
+        uint64_t timestamp_ms = args->timestamp_ms;
+
+        advance_monotonic_state(timestamp_ms, &timestamp_ms, &rand_a, &tail62);
+        uuid_build_words(timestamp_ms, rand_a, tail62, hi, lo);
+        return 0;
+    }
+
+    uuid_build_words(args->timestamp_ms, rand_a, tail62, hi, lo);
+    return 0;
+}
+
+static int
+fill_uuid7_random_bits(const UUID7Args* args, uint16_t* rand_a, uint64_t* tail62) {
+    if (args->has_timestamp && args->has_nanos) {
+        *rand_a = (uint16_t)(args->nanos & 0x0FFFU);
+        *tail62 = random_tail62();
+        return 0;
+    }
+
+    if (args->has_timestamp || args->has_nanos) {
+        random_payload(rand_a, tail62);
+        return 0;
+    }
+
+    return 1;
+}
+
+static int
+fill_uuid7_random_bits_secure(const UUID7Args* args, uint16_t* rand_a, uint64_t* tail62) {
+    if (args->has_timestamp && args->has_nanos) {
+        *rand_a = (uint16_t)(args->nanos & 0x0FFFU);
+        return random_tail62_secure(tail62);
+    }
+
+    if (args->has_timestamp || args->has_nanos) {
+        return random_payload_secure(rand_a, tail62);
+    }
+
+    return 1;
+}
+
+static int
+build_uuid7_with_parsed_args_secure(const UUID7Args* args, uint64_t* hi, uint64_t* lo) {
+    uint64_t tail62;
+    uint16_t rand_a;
+    int state;
+
+    state = fill_uuid7_random_bits_secure(args, &rand_a, &tail62);
+    if (state < 0) {
+        return -1;
+    }
+    if (state > 0) {
+        uint64_t timestamp_ms = args->timestamp_ms;
+
+        if (advance_monotonic_state_secure(timestamp_ms, &timestamp_ms, &rand_a, &tail62) != 0) {
+            return -1;
+        }
+        uuid_build_words(timestamp_ms, rand_a, tail62, hi, lo);
+        return 0;
+    }
+
+    uuid_build_words(args->timestamp_ms, rand_a, tail62, hi, lo);
     return 0;
 }
 
 static int
 build_uuid7_parts_from_args(PyObject* timestamp_obj,
                             PyObject* nanos_obj,
+                            int mode,
                             uint64_t* hi,
                             uint64_t* lo) {
-    uint64_t timestamp_s = 0;
-    uint64_t timestamp_ms = 0;
-    uint64_t nanos = 0;
-    uint64_t tail62;
-    uint16_t rand_a;
-    int has_timestamp;
-    int has_nanos;
+    UUID7Args parsed;
 
-    if (!generator_seeded && seed_generator() != 0) {
+    if (ensure_seeded() != 0) {
         return -1;
     }
 
-    has_timestamp = parse_u64_optional(timestamp_obj, &timestamp_s, "timestamp");
-    if (has_timestamp < 0) {
+    if (parse_uuid7_args(timestamp_obj, nanos_obj, &parsed) != 0) {
         return -1;
     }
 
-    has_nanos = parse_u64_optional(nanos_obj, &nanos, "nanos");
-    if (has_nanos < 0) {
+    if (mode == UUID_MODE_SECURE) {
+        return build_uuid7_with_parsed_args_secure(&parsed, hi, lo);
+    }
+
+    return build_uuid7_with_parsed_args(&parsed, hi, lo);
+}
+
+static int
+parse_mode(PyObject* value, int* mode) {
+    if (value == NULL || value == Py_None) {
+        *mode = UUID_MODE_FAST;
+        return 0;
+    }
+
+    if (!PyUnicode_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "mode must be 'fast', 'secure', or None");
         return -1;
     }
 
-    if (has_nanos && validate_nanos(nanos) != 0) {
-        return -1;
+    if (PyUnicode_CompareWithASCIIString(value, "fast") == 0) {
+        *mode = UUID_MODE_FAST;
+        return 0;
     }
 
-    if (build_timestamp_ms(timestamp_s, has_timestamp, nanos, has_nanos, &timestamp_ms) != 0) {
-        return -1;
+    if (PyUnicode_CompareWithASCIIString(value, "secure") == 0) {
+        *mode = UUID_MODE_SECURE;
+        return 0;
     }
 
-    if (has_timestamp && has_nanos) {
-        rand_a = (uint16_t)(nanos & 0x0FFFU);
-        tail62 = next_u64() & UUID_RAND_MASK;
-    } else if (has_timestamp || has_nanos) {
-        if (random_v7_payload(&rand_a, &tail62) != 0) {
-            return -1;
-        }
-    } else {
-        if (advance_monotonic_state(timestamp_ms, &timestamp_ms, &rand_a, &tail62) != 0) {
-            return -1;
-        }
-    }
-
-    uuid_build_words(timestamp_ms, rand_a, tail62, hi, lo);
-    return 0;
+    PyErr_SetString(PyExc_ValueError, "mode must be 'fast' or 'secure'");
+    return -1;
 }
 
 static inline UUIDObject*
-uuid_new_fast(uint64_t hi, uint64_t lo) {
+uuid_new(uint64_t hi, uint64_t lo) {
     UUIDObject* obj;
 
     if (uuid_cache != NULL && Py_REFCNT(uuid_cache) == 1) {
@@ -479,12 +686,13 @@ uuid_new_fast(uint64_t hi, uint64_t lo) {
 }
 
 static PyObject*
-uuid_str(UUIDObject* self) {
+uuid_str(PyObject* self_obj) {
     static const char HEX[] = "0123456789abcdef";
     char out[36];
     unsigned char bytes[16];
     int i;
     int j = 0;
+    const UUIDObject* self = uuid_self_const(self_obj);
 
     uuid_pack_bytes(self->hi, self->lo, bytes);
 
@@ -500,8 +708,8 @@ uuid_str(UUIDObject* self) {
 }
 
 static PyObject*
-uuid_repr(UUIDObject* self) {
-    PyObject* text = uuid_str(self);
+uuid_repr(PyObject* self_obj) {
+    PyObject* text = uuid_str(self_obj);
     PyObject* result;
 
     if (text == NULL) {
@@ -514,11 +722,12 @@ uuid_repr(UUIDObject* self) {
 }
 
 static PyObject*
-uuid_hex(UUIDObject* self, void* closure) {
+uuid_hex(PyObject* self_obj, void* closure) {
     static const char HEX[] = "0123456789abcdef";
     char out[32];
     unsigned char bytes[16];
     int i;
+    const UUIDObject* self = uuid_self_const(self_obj);
 
     uuid_pack_bytes(self->hi, self->lo, bytes);
 
@@ -531,19 +740,41 @@ uuid_hex(UUIDObject* self, void* closure) {
 }
 
 static PyObject*
-uuid_version(UUIDObject* self, void* closure) {
-    (void)self;
+uuid_bytes(PyObject* self_obj, void* closure) {
+    unsigned char bytes[16];
+    const UUIDObject* self = uuid_self_const(self_obj);
+
     (void)closure;
-    return PyLong_FromLong(7);
+    uuid_pack_bytes(self->hi, self->lo, bytes);
+    return PyBytes_FromStringAndSize((const char*)bytes, 16);
 }
 
 static PyObject*
-uuid_timestamp(UUIDObject* self, void* closure) {
-    return PyLong_FromUnsignedLongLong(self->hi >> UUID_TIMESTAMP_SHIFT);
+uuid_bytes_le(PyObject* self_obj, void* closure) {
+    unsigned char bytes[16];
+    unsigned char reordered[16];
+    const UUIDObject* self = uuid_self_const(self_obj);
+
+    (void)closure;
+    uuid_pack_bytes(self->hi, self->lo, bytes);
+    reordered[0] = bytes[3];
+    reordered[1] = bytes[2];
+    reordered[2] = bytes[1];
+    reordered[3] = bytes[0];
+    reordered[4] = bytes[5];
+    reordered[5] = bytes[4];
+    reordered[6] = bytes[7];
+    reordered[7] = bytes[6];
+    memcpy(reordered + 8, bytes + 8, 8);
+    return PyBytes_FromStringAndSize((const char*)reordered, 16);
 }
 
+UUID_ULL_GETTER(uuid_timestamp, self->hi >> UUID_TIMESTAMP_SHIFT)
+
 static PyObject*
-uuid_int(UUIDObject* self, void* closure) {
+uuid_int(PyObject* self_obj, void* closure) {
+    const UUIDObject* self = uuid_self_const(self_obj);
+
 #if PY_VERSION_HEX >= 0x030D0000
     unsigned char bytes[16];
 
@@ -588,8 +819,82 @@ uuid_int(UUIDObject* self, void* closure) {
 #endif
 }
 
+static PyObject*
+uuid_nb_int(PyObject* self_obj) {
+    return uuid_int(self_obj, NULL);
+}
+
+UUID_ULONG_GETTER(uuid_time_low, self->hi >> 32)
+UUID_ULONG_GETTER(uuid_time_mid, (self->hi >> 16) & 0xFFFFULL)
+UUID_ULONG_GETTER(uuid_time_hi_version, self->hi & 0xFFFFULL)
+UUID_ULONG_GETTER(uuid_clock_seq_hi_variant, self->lo >> 56)
+UUID_ULONG_GETTER(uuid_clock_seq_low, (self->lo >> 48) & 0xFFULL)
+
+static PyObject*
+uuid_clock_seq(PyObject* self_obj, void* closure) {
+    unsigned long high;
+    unsigned long low;
+    const UUIDObject* self = uuid_self_const(self_obj);
+
+    (void)closure;
+    high = (unsigned long)((self->lo >> 56) & 0x3FULL);
+    low = (unsigned long)((self->lo >> 48) & 0xFFULL);
+    return PyLong_FromUnsignedLong((high << 8) | low);
+}
+
+UUID_ULL_GETTER(uuid_node, self->lo & 0xFFFFFFFFFFFFULL)
+
+static PyObject*
+uuid_fields(PyObject* self_obj, void* closure) {
+    const UUIDObject* self = uuid_self_const(self_obj);
+
+    (void)closure;
+    return Py_BuildValue("(kkkkkK)",
+                         (unsigned long)(self->hi >> 32),
+                         (unsigned long)((self->hi >> 16) & 0xFFFFULL),
+                         (unsigned long)(self->hi & 0xFFFFULL),
+                         (unsigned long)(self->lo >> 56),
+                         (unsigned long)((self->lo >> 48) & 0xFFULL),
+                         (unsigned long long)(self->lo & 0xFFFFFFFFFFFFULL));
+}
+
+static PyObject*
+uuid_urn(PyObject* self_obj, void* closure) {
+    PyObject* text;
+    PyObject* result;
+
+    (void)closure;
+    text = uuid_str(self_obj);
+    if (text == NULL) {
+        return NULL;
+    }
+
+    result = PyUnicode_FromFormat("urn:uuid:%U", text);
+    Py_DECREF(text);
+    return result;
+}
+
+static PyObject*
+uuid_copy(PyObject* self_obj, PyObject* Py_UNUSED(args)) {
+    Py_INCREF(self_obj);
+    return self_obj;
+}
+
+static PyObject*
+uuid_deepcopy(PyObject* self_obj, PyObject* args) {
+    PyObject* memo;
+
+    if (!PyArg_ParseTuple(args, "O:__deepcopy__", &memo)) {
+        return NULL;
+    }
+
+    Py_INCREF(self_obj);
+    return self_obj;
+}
+
 static Py_hash_t
-uuid_hash(UUIDObject* self) {
+uuid_hash(PyObject* self_obj) {
+    const UUIDObject* self = uuid_self_const(self_obj);
     Py_hash_t hash = (Py_hash_t)(self->hi ^ (self->hi >> 32) ^ self->lo ^ (self->lo >> 32));
 
     if (hash == -1) {
@@ -642,11 +947,39 @@ uuid_richcompare(PyObject* a, PyObject* b, int op) {
     }
 }
 
+static PyMethodDef uuid_methods[] = {
+    { "__copy__", (PyCFunction)uuid_copy, METH_NOARGS, "Return self for copy.copy()." },
+    { "__deepcopy__",
+      (PyCFunction)uuid_deepcopy,
+      METH_VARARGS,
+      "Return self for copy.deepcopy()." },
+    { NULL, NULL, 0, NULL },
+};
+
 static PyGetSetDef uuid_getset[] = {
+    { "bytes", (getter)uuid_bytes, NULL, "UUID as 16 big-endian bytes.", NULL },
+    { "bytes_le", (getter)uuid_bytes_le, NULL, "UUID as 16 little-endian bytes.", NULL },
+    { "clock_seq", (getter)uuid_clock_seq, NULL, "Clock sequence.", NULL },
+    { "clock_seq_hi_variant",
+      (getter)uuid_clock_seq_hi_variant,
+      NULL,
+      "Clock sequence high byte with variant.",
+      NULL },
+    { "clock_seq_low", (getter)uuid_clock_seq_low, NULL, "Clock sequence low byte.", NULL },
+    { "fields", (getter)uuid_fields, NULL, "UUID fields tuple.", NULL },
     { "hex", (getter)uuid_hex, NULL, "Hexadecimal string.", NULL },
     { "int", (getter)uuid_int, NULL, "128-bit integer value.", NULL },
+    { "node", (getter)uuid_node, NULL, "Node value.", NULL },
+    { "time", (getter)uuid_timestamp, NULL, "UUID time value.", NULL },
+    { "time_hi_version",
+      (getter)uuid_time_hi_version,
+      NULL,
+      "Time high field with version bits.",
+      NULL },
+    { "time_low", (getter)uuid_time_low, NULL, "Time low field.", NULL },
+    { "time_mid", (getter)uuid_time_mid, NULL, "Time middle field.", NULL },
     { "timestamp", (getter)uuid_timestamp, NULL, "Unix timestamp in milliseconds.", NULL },
-    { "version", (getter)uuid_version, NULL, "UUID version.", NULL },
+    { "urn", (getter)uuid_urn, NULL, "UUID URN string.", NULL },
     { NULL, NULL, NULL, NULL, NULL },
 };
 
@@ -659,27 +992,31 @@ static PyTypeObject UUIDType = {
     .tp_str = (reprfunc)uuid_str,
     .tp_hash = (hashfunc)uuid_hash,
     .tp_richcompare = uuid_richcompare,
+    .tp_methods = uuid_methods,
     .tp_getset = uuid_getset,
+    .tp_as_number = &uuid_as_number,
 };
 
 static PyObject*
 py_uuid7(PyObject* self, PyObject* const* args, Py_ssize_t nargs, PyObject* kwnames) {
     PyObject* timestamp_obj = Py_None;
     PyObject* nanos_obj = Py_None;
+    PyObject* mode_obj = Py_None;
     Py_ssize_t nkw = kwnames == NULL ? 0 : PyTuple_GET_SIZE(kwnames);
     Py_ssize_t i;
     uint64_t hi;
     uint64_t lo;
+    int mode = UUID_MODE_FAST;
 
     if (nargs == 0 && nkw == 0) {
         if (build_uuid7_default(&hi, &lo) != 0) {
             return NULL;
         }
-        return (PyObject*)uuid_new_fast(hi, lo);
+        return (PyObject*)uuid_new(hi, lo);
     }
 
-    if (nargs > 2) {
-        PyErr_SetString(PyExc_TypeError, "uuid7() takes at most 2 positional arguments");
+    if (nargs > 3) {
+        PyErr_SetString(PyExc_TypeError, "uuid7() takes at most 3 positional arguments");
         return NULL;
     }
 
@@ -689,7 +1026,9 @@ py_uuid7(PyObject* self, PyObject* const* args, Py_ssize_t nargs, PyObject* kwna
     if (nargs >= 2) {
         nanos_obj = args[1];
     }
-
+    if (nargs >= 3) {
+        mode_obj = args[2];
+    }
     for (i = 0; i < nkw; ++i) {
         PyObject* key = PyTuple_GET_ITEM(kwnames, i);
         PyObject* value = args[nargs + i];
@@ -698,17 +1037,27 @@ py_uuid7(PyObject* self, PyObject* const* args, Py_ssize_t nargs, PyObject* kwna
             timestamp_obj = value;
         } else if (PyUnicode_CompareWithASCIIString(key, "nanos") == 0) {
             nanos_obj = value;
+        } else if (PyUnicode_CompareWithASCIIString(key, "mode") == 0) {
+            mode_obj = value;
         } else {
             PyErr_Format(PyExc_TypeError, "uuid7() got an unexpected keyword argument '%U'", key);
             return NULL;
         }
     }
 
-    if (build_uuid7_parts_from_args(timestamp_obj, nanos_obj, &hi, &lo) != 0) {
+    if (parse_mode(mode_obj, &mode) != 0) {
         return NULL;
     }
 
-    return (PyObject*)uuid_new_fast(hi, lo);
+    if (mode == UUID_MODE_SECURE && timestamp_obj == Py_None && nanos_obj == Py_None) {
+        if (build_uuid7_default_secure(&hi, &lo) != 0) {
+            return NULL;
+        }
+    } else if (build_uuid7_parts_from_args(timestamp_obj, nanos_obj, mode, &hi, &lo) != 0) {
+        return NULL;
+    }
+
+    return (PyObject*)uuid_new(hi, lo);
 }
 
 static PyObject*
@@ -734,6 +1083,9 @@ static struct PyModuleDef module_def = {
 PyMODINIT_FUNC
 PyInit___core(void) {
     PyObject* module;
+
+    memset(&uuid_as_number, 0, sizeof(uuid_as_number));
+    uuid_as_number.nb_int = (unaryfunc)uuid_nb_int;
 
     if (PyType_Ready(&UUIDType) < 0) {
         return NULL;
