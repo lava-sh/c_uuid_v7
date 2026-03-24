@@ -100,6 +100,7 @@ def _uuid7(
 
     Returns:
         A UUIDv7 object.
+
     """
 
 def _reseed_rng() -> None: ...

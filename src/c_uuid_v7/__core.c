@@ -619,12 +619,13 @@ uuid_new(uint64_t hi, uint64_t lo) {
 }
 
 static PyObject*
-uuid_str(UUIDObject* self) {
+uuid_str(PyObject* self_obj) {
     static const char HEX[] = "0123456789abcdef";
     char out[36];
     unsigned char bytes[16];
     int i;
     int j = 0;
+    UUIDObject* self = (UUIDObject*)self_obj;
 
     uuid_pack_bytes(self->hi, self->lo, bytes);
 
@@ -640,8 +641,8 @@ uuid_str(UUIDObject* self) {
 }
 
 static PyObject*
-uuid_repr(UUIDObject* self) {
-    PyObject* text = uuid_str(self);
+uuid_repr(PyObject* self_obj) {
+    PyObject* text = uuid_str(self_obj);
     PyObject* result;
 
     if (text == NULL) {
@@ -654,11 +655,12 @@ uuid_repr(UUIDObject* self) {
 }
 
 static PyObject*
-uuid_hex(UUIDObject* self, void* closure) {
+uuid_hex(PyObject* self_obj, void* closure) {
     static const char HEX[] = "0123456789abcdef";
     char out[32];
     unsigned char bytes[16];
     int i;
+    UUIDObject* self = (UUIDObject*)self_obj;
 
     uuid_pack_bytes(self->hi, self->lo, bytes);
 
@@ -671,8 +673,9 @@ uuid_hex(UUIDObject* self, void* closure) {
 }
 
 static PyObject*
-uuid_bytes(UUIDObject* self, void* closure) {
+uuid_bytes(PyObject* self_obj, void* closure) {
     unsigned char bytes[16];
+    UUIDObject* self = (UUIDObject*)self_obj;
 
     (void)closure;
     uuid_pack_bytes(self->hi, self->lo, bytes);
@@ -680,9 +683,10 @@ uuid_bytes(UUIDObject* self, void* closure) {
 }
 
 static PyObject*
-uuid_bytes_le(UUIDObject* self, void* closure) {
+uuid_bytes_le(PyObject* self_obj, void* closure) {
     unsigned char bytes[16];
     unsigned char reordered[16];
+    UUIDObject* self = (UUIDObject*)self_obj;
 
     (void)closure;
     uuid_pack_bytes(self->hi, self->lo, bytes);
@@ -699,13 +703,17 @@ uuid_bytes_le(UUIDObject* self, void* closure) {
 }
 
 static PyObject*
-uuid_timestamp(UUIDObject* self, void* closure) {
+uuid_timestamp(PyObject* self_obj, void* closure) {
+    UUIDObject* self = (UUIDObject*)self_obj;
+
     (void)closure;
     return PyLong_FromUnsignedLongLong(self->hi >> UUID_TIMESTAMP_SHIFT);
 }
 
 static PyObject*
-uuid_int(UUIDObject* self, void* closure) {
+uuid_int(PyObject* self_obj, void* closure) {
+    UUIDObject* self = (UUIDObject*)self_obj;
+
 #if PY_VERSION_HEX >= 0x030D0000
     unsigned char bytes[16];
 
@@ -751,39 +759,55 @@ uuid_int(UUIDObject* self, void* closure) {
 }
 
 static PyObject*
-uuid_time_low(UUIDObject* self, void* closure) {
+uuid_nb_int(PyObject* self_obj) {
+    return uuid_int(self_obj, NULL);
+}
+
+static PyObject*
+uuid_time_low(PyObject* self_obj, void* closure) {
+    UUIDObject* self = (UUIDObject*)self_obj;
+
     (void)closure;
     return PyLong_FromUnsignedLong(self->hi >> 32);
 }
 
 static PyObject*
-uuid_time_mid(UUIDObject* self, void* closure) {
+uuid_time_mid(PyObject* self_obj, void* closure) {
+    UUIDObject* self = (UUIDObject*)self_obj;
+
     (void)closure;
     return PyLong_FromUnsignedLong((self->hi >> 16) & 0xFFFFULL);
 }
 
 static PyObject*
-uuid_time_hi_version(UUIDObject* self, void* closure) {
+uuid_time_hi_version(PyObject* self_obj, void* closure) {
+    UUIDObject* self = (UUIDObject*)self_obj;
+
     (void)closure;
     return PyLong_FromUnsignedLong(self->hi & 0xFFFFULL);
 }
 
 static PyObject*
-uuid_clock_seq_hi_variant(UUIDObject* self, void* closure) {
+uuid_clock_seq_hi_variant(PyObject* self_obj, void* closure) {
+    UUIDObject* self = (UUIDObject*)self_obj;
+
     (void)closure;
     return PyLong_FromUnsignedLong(self->lo >> 56);
 }
 
 static PyObject*
-uuid_clock_seq_low(UUIDObject* self, void* closure) {
+uuid_clock_seq_low(PyObject* self_obj, void* closure) {
+    UUIDObject* self = (UUIDObject*)self_obj;
+
     (void)closure;
     return PyLong_FromUnsignedLong((self->lo >> 48) & 0xFFULL);
 }
 
 static PyObject*
-uuid_clock_seq(UUIDObject* self, void* closure) {
+uuid_clock_seq(PyObject* self_obj, void* closure) {
     unsigned long high;
     unsigned long low;
+    UUIDObject* self = (UUIDObject*)self_obj;
 
     (void)closure;
     high = (unsigned long)((self->lo >> 56) & 0x3FULL);
@@ -792,13 +816,17 @@ uuid_clock_seq(UUIDObject* self, void* closure) {
 }
 
 static PyObject*
-uuid_node(UUIDObject* self, void* closure) {
+uuid_node(PyObject* self_obj, void* closure) {
+    UUIDObject* self = (UUIDObject*)self_obj;
+
     (void)closure;
     return PyLong_FromUnsignedLongLong(self->lo & 0xFFFFFFFFFFFFULL);
 }
 
 static PyObject*
-uuid_fields(UUIDObject* self, void* closure) {
+uuid_fields(PyObject* self_obj, void* closure) {
+    UUIDObject* self = (UUIDObject*)self_obj;
+
     (void)closure;
     return Py_BuildValue("(kkkkkK)",
                          (unsigned long)(self->hi >> 32),
@@ -810,12 +838,12 @@ uuid_fields(UUIDObject* self, void* closure) {
 }
 
 static PyObject*
-uuid_urn(UUIDObject* self, void* closure) {
+uuid_urn(PyObject* self_obj, void* closure) {
     PyObject* text;
     PyObject* result;
 
     (void)closure;
-    text = uuid_str(self);
+    text = uuid_str(self_obj);
     if (text == NULL) {
         return NULL;
     }
@@ -826,25 +854,26 @@ uuid_urn(UUIDObject* self, void* closure) {
 }
 
 static PyObject*
-uuid_copy(UUIDObject* self, PyObject* Py_UNUSED(args)) {
-    Py_INCREF(self);
-    return (PyObject*)self;
+uuid_copy(PyObject* self_obj, PyObject* Py_UNUSED(args)) {
+    Py_INCREF(self_obj);
+    return self_obj;
 }
 
 static PyObject*
-uuid_deepcopy(UUIDObject* self, PyObject* args) {
+uuid_deepcopy(PyObject* self_obj, PyObject* args) {
     PyObject* memo;
 
     if (!PyArg_ParseTuple(args, "O:__deepcopy__", &memo)) {
         return NULL;
     }
 
-    Py_INCREF(self);
-    return (PyObject*)self;
+    Py_INCREF(self_obj);
+    return self_obj;
 }
 
 static Py_hash_t
-uuid_hash(UUIDObject* self) {
+uuid_hash(PyObject* self_obj) {
+    UUIDObject* self = (UUIDObject*)self_obj;
     Py_hash_t hash = (Py_hash_t)(self->hi ^ (self->hi >> 32) ^ self->lo ^ (self->lo >> 32));
 
     if (hash == -1) {
@@ -1035,7 +1064,7 @@ PyInit___core(void) {
     PyObject* module;
 
     memset(&uuid_as_number, 0, sizeof(uuid_as_number));
-    uuid_as_number.nb_int = (unaryfunc)uuid_int;
+    uuid_as_number.nb_int = (unaryfunc)uuid_nb_int;
 
     if (PyType_Ready(&UUIDType) < 0) {
         return NULL;
