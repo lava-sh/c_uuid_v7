@@ -59,6 +59,11 @@ uuid_self(PyObject* self_obj) {
     return (UUIDObject*)self_obj;
 }
 
+static inline const UUIDObject*
+uuid_self_const(PyObject* self_obj) {
+    return (const UUIDObject*)self_obj;
+}
+
 static uint64_t
 uuid7_system_ms(void) {
 #ifdef _WIN32
@@ -478,6 +483,20 @@ uuid_build_words(uint64_t timestamp_ms,
     *lo = UUID_VARIANT_BITS | tail62;
 }
 
+#define UUID_ULONG_GETTER(name, expr)                                                              \
+    static PyObject* name(PyObject* self_obj, void* closure) {                                     \
+        const UUIDObject* self = uuid_self_const(self_obj);                                        \
+        (void)closure;                                                                             \
+        return PyLong_FromUnsignedLong((unsigned long)(expr));                                     \
+    }
+
+#define UUID_ULL_GETTER(name, expr)                                                                \
+    static PyObject* name(PyObject* self_obj, void* closure) {                                     \
+        const UUIDObject* self = uuid_self_const(self_obj);                                        \
+        (void)closure;                                                                             \
+        return PyLong_FromUnsignedLongLong((unsigned long long)(expr));                            \
+    }
+
 static int
 build_uuid7_default(uint64_t* hi, uint64_t* lo) {
     uint64_t timestamp_ms;
@@ -673,7 +692,7 @@ uuid_str(PyObject* self_obj) {
     unsigned char bytes[16];
     int i;
     int j = 0;
-    UUIDObject* self = uuid_self(self_obj);
+    const UUIDObject* self = uuid_self_const(self_obj);
 
     uuid_pack_bytes(self->hi, self->lo, bytes);
 
@@ -708,7 +727,7 @@ uuid_hex(PyObject* self_obj, void* closure) {
     char out[32];
     unsigned char bytes[16];
     int i;
-    UUIDObject* self = uuid_self(self_obj);
+    const UUIDObject* self = uuid_self_const(self_obj);
 
     uuid_pack_bytes(self->hi, self->lo, bytes);
 
@@ -723,7 +742,7 @@ uuid_hex(PyObject* self_obj, void* closure) {
 static PyObject*
 uuid_bytes(PyObject* self_obj, void* closure) {
     unsigned char bytes[16];
-    UUIDObject* self = uuid_self(self_obj);
+    const UUIDObject* self = uuid_self_const(self_obj);
 
     (void)closure;
     uuid_pack_bytes(self->hi, self->lo, bytes);
@@ -734,7 +753,7 @@ static PyObject*
 uuid_bytes_le(PyObject* self_obj, void* closure) {
     unsigned char bytes[16];
     unsigned char reordered[16];
-    UUIDObject* self = uuid_self(self_obj);
+    const UUIDObject* self = uuid_self_const(self_obj);
 
     (void)closure;
     uuid_pack_bytes(self->hi, self->lo, bytes);
@@ -750,17 +769,11 @@ uuid_bytes_le(PyObject* self_obj, void* closure) {
     return PyBytes_FromStringAndSize((const char*)reordered, 16);
 }
 
-static PyObject*
-uuid_timestamp(PyObject* self_obj, void* closure) {
-    UUIDObject* self = uuid_self(self_obj);
-
-    (void)closure;
-    return PyLong_FromUnsignedLongLong(self->hi >> UUID_TIMESTAMP_SHIFT);
-}
+UUID_ULL_GETTER(uuid_timestamp, self->hi >> UUID_TIMESTAMP_SHIFT)
 
 static PyObject*
 uuid_int(PyObject* self_obj, void* closure) {
-    UUIDObject* self = uuid_self(self_obj);
+    const UUIDObject* self = uuid_self_const(self_obj);
 
 #if PY_VERSION_HEX >= 0x030D0000
     unsigned char bytes[16];
@@ -811,51 +824,17 @@ uuid_nb_int(PyObject* self_obj) {
     return uuid_int(self_obj, NULL);
 }
 
-static PyObject*
-uuid_time_low(PyObject* self_obj, void* closure) {
-    UUIDObject* self = uuid_self(self_obj);
-
-    (void)closure;
-    return PyLong_FromUnsignedLong(self->hi >> 32);
-}
-
-static PyObject*
-uuid_time_mid(PyObject* self_obj, void* closure) {
-    UUIDObject* self = uuid_self(self_obj);
-
-    (void)closure;
-    return PyLong_FromUnsignedLong((self->hi >> 16) & 0xFFFFULL);
-}
-
-static PyObject*
-uuid_time_hi_version(PyObject* self_obj, void* closure) {
-    UUIDObject* self = uuid_self(self_obj);
-
-    (void)closure;
-    return PyLong_FromUnsignedLong(self->hi & 0xFFFFULL);
-}
-
-static PyObject*
-uuid_clock_seq_hi_variant(PyObject* self_obj, void* closure) {
-    UUIDObject* self = uuid_self(self_obj);
-
-    (void)closure;
-    return PyLong_FromUnsignedLong(self->lo >> 56);
-}
-
-static PyObject*
-uuid_clock_seq_low(PyObject* self_obj, void* closure) {
-    UUIDObject* self = uuid_self(self_obj);
-
-    (void)closure;
-    return PyLong_FromUnsignedLong((self->lo >> 48) & 0xFFULL);
-}
+UUID_ULONG_GETTER(uuid_time_low, self->hi >> 32)
+UUID_ULONG_GETTER(uuid_time_mid, (self->hi >> 16) & 0xFFFFULL)
+UUID_ULONG_GETTER(uuid_time_hi_version, self->hi & 0xFFFFULL)
+UUID_ULONG_GETTER(uuid_clock_seq_hi_variant, self->lo >> 56)
+UUID_ULONG_GETTER(uuid_clock_seq_low, (self->lo >> 48) & 0xFFULL)
 
 static PyObject*
 uuid_clock_seq(PyObject* self_obj, void* closure) {
     unsigned long high;
     unsigned long low;
-    UUIDObject* self = uuid_self(self_obj);
+    const UUIDObject* self = uuid_self_const(self_obj);
 
     (void)closure;
     high = (unsigned long)((self->lo >> 56) & 0x3FULL);
@@ -863,17 +842,11 @@ uuid_clock_seq(PyObject* self_obj, void* closure) {
     return PyLong_FromUnsignedLong((high << 8) | low);
 }
 
-static PyObject*
-uuid_node(PyObject* self_obj, void* closure) {
-    UUIDObject* self = uuid_self(self_obj);
-
-    (void)closure;
-    return PyLong_FromUnsignedLongLong(self->lo & 0xFFFFFFFFFFFFULL);
-}
+UUID_ULL_GETTER(uuid_node, self->lo & 0xFFFFFFFFFFFFULL)
 
 static PyObject*
 uuid_fields(PyObject* self_obj, void* closure) {
-    UUIDObject* self = uuid_self(self_obj);
+    const UUIDObject* self = uuid_self_const(self_obj);
 
     (void)closure;
     return Py_BuildValue("(kkkkkK)",
@@ -921,7 +894,7 @@ uuid_deepcopy(PyObject* self_obj, PyObject* args) {
 
 static Py_hash_t
 uuid_hash(PyObject* self_obj) {
-    UUIDObject* self = uuid_self(self_obj);
+    const UUIDObject* self = uuid_self_const(self_obj);
     Py_hash_t hash = (Py_hash_t)(self->hi ^ (self->hi >> 32) ^ self->lo ^ (self->lo >> 32));
 
     if (hash == -1) {
