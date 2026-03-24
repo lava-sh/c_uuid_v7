@@ -29,6 +29,7 @@ typedef struct {
 
 static PyTypeObject UUIDType;
 static UUIDObject* uuid_cache = NULL;
+static PyNumberMethods uuid_as_number;
 
 static uint64_t rng_state0 = 0;
 static uint64_t rng_state1 = 0;
@@ -531,14 +532,35 @@ uuid_hex(UUIDObject* self, void* closure) {
 }
 
 static PyObject*
-uuid_version(UUIDObject* self, void* closure) {
-    (void)self;
+uuid_bytes(UUIDObject* self, void* closure) {
+    unsigned char bytes[16];
+
     (void)closure;
-    return PyLong_FromLong(7);
+    uuid_pack_bytes(self->hi, self->lo, bytes);
+    return PyBytes_FromStringAndSize((const char*)bytes, 16);
 }
 
 static PyObject*
+uuid_bytes_le(UUIDObject* self, void* closure) {
+    unsigned char bytes[16];
+    unsigned char reordered[16];
+
+    (void)closure;
+    uuid_pack_bytes(self->hi, self->lo, bytes);
+    reordered[0] = bytes[3];
+    reordered[1] = bytes[2];
+    reordered[2] = bytes[1];
+    reordered[3] = bytes[0];
+    reordered[4] = bytes[5];
+    reordered[5] = bytes[4];
+    reordered[6] = bytes[7];
+    reordered[7] = bytes[6];
+    memcpy(reordered + 8, bytes + 8, 8);
+    return PyBytes_FromStringAndSize((const char*)reordered, 16);
+}
+
 uuid_timestamp(UUIDObject* self, void* closure) {
+    (void)closure;
     return PyLong_FromUnsignedLongLong(self->hi >> UUID_TIMESTAMP_SHIFT);
 }
 
@@ -586,6 +608,100 @@ uuid_int(UUIDObject* self, void* closure) {
     Py_DECREF(low);
     return value;
 #endif
+}
+
+static PyObject*
+uuid_time_low(UUIDObject* self, void* closure) {
+    (void)closure;
+    return PyLong_FromUnsignedLong(self->hi >> 32);
+}
+
+static PyObject*
+uuid_time_mid(UUIDObject* self, void* closure) {
+    (void)closure;
+    return PyLong_FromUnsignedLong((self->hi >> 16) & 0xFFFFULL);
+}
+
+static PyObject*
+uuid_time_hi_version(UUIDObject* self, void* closure) {
+    (void)closure;
+    return PyLong_FromUnsignedLong(self->hi & 0xFFFFULL);
+}
+
+static PyObject*
+uuid_clock_seq_hi_variant(UUIDObject* self, void* closure) {
+    (void)closure;
+    return PyLong_FromUnsignedLong(self->lo >> 56);
+}
+
+static PyObject*
+uuid_clock_seq_low(UUIDObject* self, void* closure) {
+    (void)closure;
+    return PyLong_FromUnsignedLong((self->lo >> 48) & 0xFFULL);
+}
+
+static PyObject*
+uuid_clock_seq(UUIDObject* self, void* closure) {
+    unsigned long high;
+    unsigned long low;
+
+    (void)closure;
+    high = (unsigned long)((self->lo >> 56) & 0x3FULL);
+    low = (unsigned long)((self->lo >> 48) & 0xFFULL);
+    return PyLong_FromUnsignedLong((high << 8) | low);
+}
+
+static PyObject*
+uuid_node(UUIDObject* self, void* closure) {
+    (void)closure;
+    return PyLong_FromUnsignedLongLong(self->lo & 0xFFFFFFFFFFFFULL);
+}
+
+static PyObject*
+uuid_fields(UUIDObject* self, void* closure) {
+    (void)closure;
+    return Py_BuildValue(
+        "(kkkkkK)",
+        (unsigned long)(self->hi >> 32),
+        (unsigned long)((self->hi >> 16) & 0xFFFFULL),
+        (unsigned long)(self->hi & 0xFFFFULL),
+        (unsigned long)(self->lo >> 56),
+        (unsigned long)((self->lo >> 48) & 0xFFULL),
+        (unsigned long long)(self->lo & 0xFFFFFFFFFFFFULL));
+}
+
+static PyObject*
+uuid_urn(UUIDObject* self, void* closure) {
+    PyObject* text;
+    PyObject* result;
+
+    (void)closure;
+    text = uuid_str(self);
+    if (text == NULL) {
+        return NULL;
+    }
+
+    result = PyUnicode_FromFormat("urn:uuid:%U", text);
+    Py_DECREF(text);
+    return result;
+}
+
+static PyObject*
+uuid_copy(UUIDObject* self, PyObject* Py_UNUSED(args)) {
+    Py_INCREF(self);
+    return (PyObject*)self;
+}
+
+static PyObject*
+uuid_deepcopy(UUIDObject* self, PyObject* args) {
+    PyObject* memo;
+
+    if (!PyArg_ParseTuple(args, "O:__deepcopy__", &memo)) {
+        return NULL;
+    }
+
+    Py_INCREF(self);
+    return (PyObject*)self;
 }
 
 static Py_hash_t
@@ -642,11 +758,28 @@ uuid_richcompare(PyObject* a, PyObject* b, int op) {
     }
 }
 
+static PyMethodDef uuid_methods[] = {
+    { "__copy__", (PyCFunction)uuid_copy, METH_NOARGS, "Return self for copy.copy()." },
+    { "__deepcopy__", uuid_deepcopy, METH_VARARGS, "Return self for copy.deepcopy()." },
+    { NULL, NULL, 0, NULL },
+};
+
 static PyGetSetDef uuid_getset[] = {
+    { "bytes", (getter)uuid_bytes, NULL, "UUID as 16 big-endian bytes.", NULL },
+    { "bytes_le", (getter)uuid_bytes_le, NULL, "UUID as 16 little-endian bytes.", NULL },
+    { "clock_seq", (getter)uuid_clock_seq, NULL, "Clock sequence.", NULL },
+    { "clock_seq_hi_variant", (getter)uuid_clock_seq_hi_variant, NULL, "Clock sequence high byte with variant.", NULL },
+    { "clock_seq_low", (getter)uuid_clock_seq_low, NULL, "Clock sequence low byte.", NULL },
+    { "fields", (getter)uuid_fields, NULL, "UUID fields tuple.", NULL },
     { "hex", (getter)uuid_hex, NULL, "Hexadecimal string.", NULL },
     { "int", (getter)uuid_int, NULL, "128-bit integer value.", NULL },
+    { "node", (getter)uuid_node, NULL, "Node value.", NULL },
+    { "time", (getter)uuid_timestamp, NULL, "UUID time value.", NULL },
+    { "time_hi_version", (getter)uuid_time_hi_version, NULL, "Time high field with version bits.", NULL },
+    { "time_low", (getter)uuid_time_low, NULL, "Time low field.", NULL },
+    { "time_mid", (getter)uuid_time_mid, NULL, "Time middle field.", NULL },
     { "timestamp", (getter)uuid_timestamp, NULL, "Unix timestamp in milliseconds.", NULL },
-    { "version", (getter)uuid_version, NULL, "UUID version.", NULL },
+    { "urn", (getter)uuid_urn, NULL, "UUID URN string.", NULL },
     { NULL, NULL, NULL, NULL, NULL },
 };
 
@@ -659,7 +792,9 @@ static PyTypeObject UUIDType = {
     .tp_str = (reprfunc)uuid_str,
     .tp_hash = (hashfunc)uuid_hash,
     .tp_richcompare = uuid_richcompare,
+    .tp_methods = uuid_methods,
     .tp_getset = uuid_getset,
+    .tp_as_number = &uuid_as_number,
 };
 
 static PyObject*
@@ -734,6 +869,9 @@ static struct PyModuleDef module_def = {
 PyMODINIT_FUNC
 PyInit___core(void) {
     PyObject* module;
+
+    memset(&uuid_as_number, 0, sizeof(uuid_as_number));
+    uuid_as_number.nb_int = (unaryfunc)uuid_int;
 
     if (PyType_Ready(&UUIDType) < 0) {
         return NULL;
