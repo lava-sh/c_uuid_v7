@@ -193,7 +193,7 @@ unpack_u64_be(const unsigned char bytes[8]) {
 }
 
 static int
-random_u64_secure(uint64_t* out) {
+rnd_u64_secure(uint64_t* out) {
     unsigned char bytes[8];
 
     if (fill_random(bytes, (Py_ssize_t)sizeof(bytes)) != 0) {
@@ -206,15 +206,15 @@ random_u64_secure(uint64_t* out) {
 }
 
 static inline uint64_t
-random_counter42_fast(void) {
+rnd_counter42(void) {
     return next_u64() & UUID_V7_RESEED_MASK;
 }
 
 static int
-random_counter42_secure(uint64_t* counter) {
+rnd_counter42_secure(uint64_t* counter) {
     uint64_t random64;
 
-    if (random_u64_secure(&random64) != 0) {
+    if (rnd_u64_secure(&random64) != 0) {
         return -1;
     }
 
@@ -229,7 +229,7 @@ split_counter_random32(uint64_t counter, uint32_t low32, uint16_t* rand_a, uint6
 }
 
 static inline void
-next_low32_and_increment_fast(uint32_t* low32, uint64_t* increment) {
+next_low32_and_increment(uint32_t* low32, uint64_t* increment) {
     uint64_t random64 = next_u64();
 
     *low32 = (uint32_t)random64;
@@ -240,7 +240,7 @@ static int
 next_low32_and_increment_secure(uint32_t* low32, uint64_t* increment) {
     uint64_t random64;
 
-    if (random_u64_secure(&random64) != 0) {
+    if (rnd_u64_secure(&random64) != 0) {
         return -1;
     }
 
@@ -250,23 +250,38 @@ next_low32_and_increment_secure(uint32_t* low32, uint64_t* increment) {
 }
 
 static void
-random_v7_payload_fast(uint16_t* rand_a, uint64_t* tail62) {
-    split_counter_random32(random_counter42_fast(), (uint32_t)next_u64(), rand_a, tail62);
+random_payload(uint16_t* rand_a, uint64_t* tail62) {
+    split_counter_random32(rnd_counter42(), (uint32_t)next_u64(), rand_a, tail62);
 }
 
 static int
-random_v7_payload_secure(uint16_t* rand_a, uint64_t* tail62) {
+random_payload_secure(uint16_t* rand_a, uint64_t* tail62) {
     uint64_t counter;
     uint64_t random64;
 
-    if (random_counter42_secure(&counter) != 0) {
+    if (rnd_counter42_secure(&counter) != 0) {
         return -1;
     }
-    if (random_u64_secure(&random64) != 0) {
+    if (rnd_u64_secure(&random64) != 0) {
         return -1;
     }
 
     split_counter_random32(counter, (uint32_t)random64, rand_a, tail62);
+    return 0;
+}
+
+static int
+random_tail62(int mode, uint64_t* tail62) {
+    if (mode == UUID_MODE_FAST) {
+        *tail62 = next_u64() & UUID_RAND_MASK;
+        return 0;
+    }
+
+    if (rnd_u64_secure(tail62) != 0) {
+        return -1;
+    }
+
+    *tail62 &= UUID_RAND_MASK;
     return 0;
 }
 
@@ -330,25 +345,25 @@ build_timestamp_ms(uint64_t timestamp_s,
 }
 
 static void
-advance_monotonic_state_fast(uint64_t observed_ms,
-                             uint64_t* timestamp_ms,
-                             uint16_t* rand_a,
-                             uint64_t* tail62) {
+advance_monotonic_state_internal(uint64_t observed_ms,
+                                 uint64_t* timestamp_ms,
+                                 uint16_t* rand_a,
+                                 uint64_t* tail62) {
     uint64_t counter = counter42;
     uint64_t current_ms = last_timestamp_ms;
     uint64_t increment;
     uint32_t low32;
 
-    next_low32_and_increment_fast(&low32, &increment);
+    next_low32_and_increment(&low32, &increment);
 
     if (observed_ms > current_ms) {
         current_ms = observed_ms;
-        counter = random_counter42_fast();
+        counter = rnd_counter42();
     } else {
         counter += increment;
         if (counter > UUID_V7_MAX_COUNTER) {
             current_ms += 1U;
-            counter = random_counter42_fast();
+            counter = rnd_counter42();
         }
     }
 
@@ -374,14 +389,14 @@ advance_monotonic_state_secure(uint64_t observed_ms,
 
     if (observed_ms > current_ms) {
         current_ms = observed_ms;
-        if (random_counter42_secure(&counter) != 0) {
+        if (rnd_counter42_secure(&counter) != 0) {
             return -1;
         }
     } else {
         counter += increment;
         if (counter > UUID_V7_MAX_COUNTER) {
             current_ms += 1U;
-            if (random_counter42_secure(&counter) != 0) {
+            if (rnd_counter42_secure(&counter) != 0) {
                 return -1;
             }
         }
@@ -392,6 +407,43 @@ advance_monotonic_state_secure(uint64_t observed_ms,
     *timestamp_ms = current_ms;
     split_counter_random32(counter, low32, rand_a, tail62);
     return 0;
+}
+
+static int
+ensure_generator_state(int mode) {
+    if (mode != UUID_MODE_FAST) {
+        return 0;
+    }
+
+    if (!generator_seeded && seed_generator() != 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int
+random_payload_for_mode(int mode, uint16_t* rand_a, uint64_t* tail62) {
+    if (mode == UUID_MODE_FAST) {
+        random_payload(rand_a, tail62);
+        return 0;
+    }
+
+    return random_payload_secure(rand_a, tail62);
+}
+
+static int
+advance_monotonic_state(int mode,
+                        uint64_t observed_ms,
+                        uint64_t* timestamp_ms,
+                        uint16_t* rand_a,
+                        uint64_t* tail62) {
+    if (mode == UUID_MODE_FAST) {
+        advance_monotonic_state_internal(observed_ms, timestamp_ms, rand_a, tail62);
+        return 0;
+    }
+
+    return advance_monotonic_state_secure(observed_ms, timestamp_ms, rand_a, tail62);
 }
 
 static inline void
@@ -420,14 +472,11 @@ build_uuid7_default(int mode, uint64_t* hi, uint64_t* lo) {
     uint64_t tail62;
     uint16_t rand_a;
 
-    if (mode == UUID_MODE_FAST && !generator_seeded && seed_generator() != 0) {
+    if (ensure_generator_state(mode) != 0) {
         return -1;
     }
 
-    if (mode == UUID_MODE_FAST) {
-        advance_monotonic_state_fast(uuid7_now_ms(), &timestamp_ms, &rand_a, &tail62);
-    } else if (advance_monotonic_state_secure(uuid7_now_ms(), &timestamp_ms, &rand_a, &tail62) !=
-               0) {
+    if (advance_monotonic_state(mode, uuid7_now_ms(), &timestamp_ms, &rand_a, &tail62) != 0) {
         return -1;
     }
 
@@ -449,7 +498,7 @@ build_uuid7_parts_from_args(PyObject* timestamp_obj,
     int has_timestamp;
     int has_nanos;
 
-    if (mode == UUID_MODE_FAST && !generator_seeded && seed_generator() != 0) {
+    if (ensure_generator_state(mode) != 0) {
         return -1;
     }
 
@@ -473,26 +522,15 @@ build_uuid7_parts_from_args(PyObject* timestamp_obj,
 
     if (has_timestamp && has_nanos) {
         rand_a = (uint16_t)(nanos & 0x0FFFU);
-        if (mode == UUID_MODE_FAST) {
-            tail62 = next_u64() & UUID_RAND_MASK;
-        } else if (random_u64_secure(&tail62) != 0) {
+        if (random_tail62(mode, &tail62) != 0) {
             return -1;
-        } else {
-            tail62 &= UUID_RAND_MASK;
         }
     } else if (has_timestamp || has_nanos) {
-        if (mode == UUID_MODE_FAST) {
-            random_v7_payload_fast(&rand_a, &tail62);
-        } else if (random_v7_payload_secure(&rand_a, &tail62) != 0) {
+        if (random_payload_for_mode(mode, &rand_a, &tail62) != 0) {
             return -1;
         }
-    } else {
-        if (mode == UUID_MODE_FAST) {
-            advance_monotonic_state_fast(timestamp_ms, &timestamp_ms, &rand_a, &tail62);
-        } else if (advance_monotonic_state_secure(timestamp_ms, &timestamp_ms, &rand_a, &tail62) !=
-                   0) {
-            return -1;
-        }
+    } else if (advance_monotonic_state(mode, timestamp_ms, &timestamp_ms, &rand_a, &tail62) != 0) {
+        return -1;
     }
 
     uuid_build_words(timestamp_ms, rand_a, tail62, hi, lo);
@@ -500,7 +538,7 @@ build_uuid7_parts_from_args(PyObject* timestamp_obj,
 }
 
 static int
-parse_mode_optional(PyObject* value, int* mode) {
+parse_mode(PyObject* value, int* mode) {
     if (value == NULL || value == Py_None) {
         *mode = UUID_MODE_FAST;
         return 0;
@@ -929,7 +967,7 @@ py_uuid7(PyObject* self, PyObject* const* args, Py_ssize_t nargs, PyObject* kwna
         }
     }
 
-    if (parse_mode_optional(mode_obj, &mode) != 0) {
+    if (parse_mode(mode_obj, &mode) != 0) {
         return NULL;
     }
 

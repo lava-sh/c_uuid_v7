@@ -94,8 +94,14 @@ def test_uuid7_object_properties_match_stdlib_uuid() -> None:
     assert uuid_.clock_seq_low == stdlib_uuid.clock_seq_low
     assert uuid_.clock_seq == stdlib_uuid.clock_seq
     assert uuid_.node == stdlib_uuid.node
-    assert uuid_.time == stdlib_uuid.time
-    assert uuid_.timestamp == stdlib_uuid.time
+
+    if sys.version_info >= (3, 14):
+        assert uuid_.time == stdlib_uuid.time
+        assert uuid_.timestamp == stdlib_uuid.time
+    else:
+        assert uuid_.time == (stdlib_uuid.int >> 80)
+        assert uuid_.timestamp == (stdlib_uuid.int >> 80)
+
     assert uuid_.urn == stdlib_uuid.urn
 
 
