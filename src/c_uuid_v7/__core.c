@@ -270,13 +270,13 @@ random_payload_secure(uint16_t* rand_a, uint64_t* tail62) {
     return 0;
 }
 
-static int
-random_tail62(int mode, uint64_t* tail62) {
-    if (mode == UUID_MODE_FAST) {
-        *tail62 = next_u64() & UUID_RAND_MASK;
-        return 0;
-    }
+static inline uint64_t
+random_tail62(void) {
+    return next_u64() & UUID_RAND_MASK;
+}
 
+static int
+random_tail62_secure(uint64_t* tail62) {
     if (rnd_u64_secure(tail62) != 0) {
         return -1;
     }
@@ -302,6 +302,13 @@ parse_u64_optional(PyObject* value, uint64_t* out, const char* name) {
     *out = (uint64_t)temp;
     return 1;
 }
+
+typedef struct {
+    uint64_t timestamp_ms;
+    uint64_t nanos;
+    int has_timestamp;
+    int has_nanos;
+} UUID7Args;
 
 static int
 validate_nanos(uint64_t nanos) {
@@ -344,11 +351,39 @@ build_timestamp_ms(uint64_t timestamp_s,
     return 0;
 }
 
+static int
+parse_uuid7_args(PyObject* timestamp_obj, PyObject* nanos_obj, UUID7Args* parsed) {
+    uint64_t timestamp_s = 0;
+
+    parsed->nanos = 0;
+    parsed->timestamp_ms = 0;
+
+    parsed->has_timestamp = parse_u64_optional(timestamp_obj, &timestamp_s, "timestamp");
+    if (parsed->has_timestamp < 0) {
+        return -1;
+    }
+
+    parsed->has_nanos = parse_u64_optional(nanos_obj, &parsed->nanos, "nanos");
+    if (parsed->has_nanos < 0) {
+        return -1;
+    }
+
+    if (parsed->has_nanos && validate_nanos(parsed->nanos) != 0) {
+        return -1;
+    }
+
+    return build_timestamp_ms(timestamp_s,
+                              parsed->has_timestamp,
+                              parsed->nanos,
+                              parsed->has_nanos,
+                              &parsed->timestamp_ms);
+}
+
 static void
-advance_monotonic_state_internal(uint64_t observed_ms,
-                                 uint64_t* timestamp_ms,
-                                 uint16_t* rand_a,
-                                 uint64_t* tail62) {
+advance_monotonic_state(uint64_t observed_ms,
+                        uint64_t* timestamp_ms,
+                        uint16_t* rand_a,
+                        uint64_t* tail62) {
     uint64_t counter = counter42;
     uint64_t current_ms = last_timestamp_ms;
     uint64_t increment;
@@ -409,43 +444,6 @@ advance_monotonic_state_secure(uint64_t observed_ms,
     return 0;
 }
 
-static int
-ensure_generator_state(int mode) {
-    if (mode != UUID_MODE_FAST) {
-        return 0;
-    }
-
-    if (!generator_seeded && seed_generator() != 0) {
-        return -1;
-    }
-
-    return 0;
-}
-
-static int
-random_payload_for_mode(int mode, uint16_t* rand_a, uint64_t* tail62) {
-    if (mode == UUID_MODE_FAST) {
-        random_payload(rand_a, tail62);
-        return 0;
-    }
-
-    return random_payload_secure(rand_a, tail62);
-}
-
-static int
-advance_monotonic_state(int mode,
-                        uint64_t observed_ms,
-                        uint64_t* timestamp_ms,
-                        uint16_t* rand_a,
-                        uint64_t* tail62) {
-    if (mode == UUID_MODE_FAST) {
-        advance_monotonic_state_internal(observed_ms, timestamp_ms, rand_a, tail62);
-        return 0;
-    }
-
-    return advance_monotonic_state_secure(observed_ms, timestamp_ms, rand_a, tail62);
-}
-
 static inline void
 uuid_pack_bytes(uint64_t hi, uint64_t lo, unsigned char bytes[16]) {
     int i;
@@ -467,20 +465,84 @@ uuid_build_words(uint64_t timestamp_ms,
 }
 
 static int
-build_uuid7_default(int mode, uint64_t* hi, uint64_t* lo) {
+build_uuid7_default(uint64_t* hi, uint64_t* lo) {
     uint64_t timestamp_ms;
     uint64_t tail62;
     uint16_t rand_a;
 
-    if (ensure_generator_state(mode) != 0) {
+    if (!generator_seeded && seed_generator() != 0) {
         return -1;
     }
 
-    if (advance_monotonic_state(mode, uuid7_now_ms(), &timestamp_ms, &rand_a, &tail62) != 0) {
-        return -1;
-    }
-
+    advance_monotonic_state(uuid7_now_ms(), &timestamp_ms, &rand_a, &tail62);
     uuid_build_words(timestamp_ms, rand_a, tail62, hi, lo);
+    return 0;
+}
+
+static int
+build_uuid7_default_secure(uint64_t* hi, uint64_t* lo) {
+    uint64_t timestamp_ms;
+    uint64_t tail62;
+    uint16_t rand_a;
+
+    if (advance_monotonic_state_secure(uuid7_now_ms(), &timestamp_ms, &rand_a, &tail62) != 0) {
+        return -1;
+    }
+    uuid_build_words(timestamp_ms, rand_a, tail62, hi, lo);
+    return 0;
+}
+
+static int
+build_uuid7_with_parsed_args(const UUID7Args* args, uint64_t* hi, uint64_t* lo) {
+    uint64_t tail62;
+    uint16_t rand_a;
+
+    if (!generator_seeded && seed_generator() != 0) {
+        return -1;
+    }
+
+    if (args->has_timestamp && args->has_nanos) {
+        rand_a = (uint16_t)(args->nanos & 0x0FFFU);
+        tail62 = random_tail62();
+    } else if (args->has_timestamp || args->has_nanos) {
+        random_payload(&rand_a, &tail62);
+    } else {
+        uint64_t timestamp_ms = args->timestamp_ms;
+
+        advance_monotonic_state(timestamp_ms, &timestamp_ms, &rand_a, &tail62);
+        uuid_build_words(timestamp_ms, rand_a, tail62, hi, lo);
+        return 0;
+    }
+
+    uuid_build_words(args->timestamp_ms, rand_a, tail62, hi, lo);
+    return 0;
+}
+
+static int
+build_uuid7_with_parsed_args_secure(const UUID7Args* args, uint64_t* hi, uint64_t* lo) {
+    uint64_t tail62;
+    uint16_t rand_a;
+
+    if (args->has_timestamp && args->has_nanos) {
+        rand_a = (uint16_t)(args->nanos & 0x0FFFU);
+        if (random_tail62_secure(&tail62) != 0) {
+            return -1;
+        }
+    } else if (args->has_timestamp || args->has_nanos) {
+        if (random_payload_secure(&rand_a, &tail62) != 0) {
+            return -1;
+        }
+    } else {
+        uint64_t timestamp_ms = args->timestamp_ms;
+
+        if (advance_monotonic_state_secure(timestamp_ms, &timestamp_ms, &rand_a, &tail62) != 0) {
+            return -1;
+        }
+        uuid_build_words(timestamp_ms, rand_a, tail62, hi, lo);
+        return 0;
+    }
+
+    uuid_build_words(args->timestamp_ms, rand_a, tail62, hi, lo);
     return 0;
 }
 
@@ -490,51 +552,17 @@ build_uuid7_parts_from_args(PyObject* timestamp_obj,
                             int mode,
                             uint64_t* hi,
                             uint64_t* lo) {
-    uint64_t timestamp_s = 0;
-    uint64_t timestamp_ms = 0;
-    uint64_t nanos = 0;
-    uint64_t tail62;
-    uint16_t rand_a;
-    int has_timestamp;
-    int has_nanos;
+    UUID7Args parsed;
 
-    if (ensure_generator_state(mode) != 0) {
+    if (parse_uuid7_args(timestamp_obj, nanos_obj, &parsed) != 0) {
         return -1;
     }
 
-    has_timestamp = parse_u64_optional(timestamp_obj, &timestamp_s, "timestamp");
-    if (has_timestamp < 0) {
-        return -1;
+    if (mode == UUID_MODE_SECURE) {
+        return build_uuid7_with_parsed_args_secure(&parsed, hi, lo);
     }
 
-    has_nanos = parse_u64_optional(nanos_obj, &nanos, "nanos");
-    if (has_nanos < 0) {
-        return -1;
-    }
-
-    if (has_nanos && validate_nanos(nanos) != 0) {
-        return -1;
-    }
-
-    if (build_timestamp_ms(timestamp_s, has_timestamp, nanos, has_nanos, &timestamp_ms) != 0) {
-        return -1;
-    }
-
-    if (has_timestamp && has_nanos) {
-        rand_a = (uint16_t)(nanos & 0x0FFFU);
-        if (random_tail62(mode, &tail62) != 0) {
-            return -1;
-        }
-    } else if (has_timestamp || has_nanos) {
-        if (random_payload_for_mode(mode, &rand_a, &tail62) != 0) {
-            return -1;
-        }
-    } else if (advance_monotonic_state(mode, timestamp_ms, &timestamp_ms, &rand_a, &tail62) != 0) {
-        return -1;
-    }
-
-    uuid_build_words(timestamp_ms, rand_a, tail62, hi, lo);
-    return 0;
+    return build_uuid7_with_parsed_args(&parsed, hi, lo);
 }
 
 static int
@@ -564,7 +592,7 @@ parse_mode(PyObject* value, int* mode) {
 }
 
 static inline UUIDObject*
-uuid_new_fast(uint64_t hi, uint64_t lo) {
+uuid_new(uint64_t hi, uint64_t lo) {
     UUIDObject* obj;
 
     if (uuid_cache != NULL && Py_REFCNT(uuid_cache) == 1) {
@@ -931,10 +959,10 @@ py_uuid7(PyObject* self, PyObject* const* args, Py_ssize_t nargs, PyObject* kwna
     int mode = UUID_MODE_FAST;
 
     if (nargs == 0 && nkw == 0) {
-        if (build_uuid7_default(mode, &hi, &lo) != 0) {
+        if (build_uuid7_default(&hi, &lo) != 0) {
             return NULL;
         }
-        return (PyObject*)uuid_new_fast(hi, lo);
+        return (PyObject*)uuid_new(hi, lo);
     }
 
     if (nargs > 3) {
@@ -971,11 +999,15 @@ py_uuid7(PyObject* self, PyObject* const* args, Py_ssize_t nargs, PyObject* kwna
         return NULL;
     }
 
-    if (build_uuid7_parts_from_args(timestamp_obj, nanos_obj, mode, &hi, &lo) != 0) {
+    if (mode == UUID_MODE_SECURE && timestamp_obj == Py_None && nanos_obj == Py_None) {
+        if (build_uuid7_default_secure(&hi, &lo) != 0) {
+            return NULL;
+        }
+    } else if (build_uuid7_parts_from_args(timestamp_obj, nanos_obj, mode, &hi, &lo) != 0) {
         return NULL;
     }
 
-    return (PyObject*)uuid_new_fast(hi, lo);
+    return (PyObject*)uuid_new(hi, lo);
 }
 
 static PyObject*
