@@ -485,6 +485,10 @@ build_uuid7_default_secure(uint64_t* hi, uint64_t* lo) {
     uint64_t tail62;
     uint16_t rand_a;
 
+    if (!generator_seeded && seed_generator() != 0) {
+        return -1;
+    }
+
     if (advance_monotonic_state_secure(uuid7_now_ms(), &timestamp_ms, &rand_a, &tail62) != 0) {
         return -1;
     }
@@ -553,6 +557,10 @@ build_uuid7_parts_from_args(PyObject* timestamp_obj,
                             uint64_t* hi,
                             uint64_t* lo) {
     UUID7Args parsed;
+
+    if (!generator_seeded && seed_generator() != 0) {
+        return -1;
+    }
 
     if (parse_uuid7_args(timestamp_obj, nanos_obj, &parsed) != 0) {
         return -1;
