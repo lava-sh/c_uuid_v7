@@ -1007,7 +1007,7 @@ static PyObject *py_reseed_rng(PyObject *Py_UNUSED(self), PyObject *Py_UNUSED(ar
 
 static PyMethodDef module_methods[] = {
     {"_uuid7",
-     (PyCFunction)(PyCFunctionFastWithKeywords)py_uuid7,
+     (PyCFunction)(void (*)(void))py_uuid7,
      METH_FASTCALL | METH_KEYWORDS,
      "Generate a fast UUIDv7 object."},
     {"_reseed_rng", py_reseed_rng, METH_NOARGS, "Reseed the internal RNG state."},
