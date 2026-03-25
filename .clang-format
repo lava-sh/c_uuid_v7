@@ -1,6 +1,13 @@
-BasedOnStyle: Mozilla
+Language: C
+BasedOnStyle: LLVM
+
 ColumnLimit: 100
 IndentWidth: 4
 ContinuationIndentWidth: 4
+
 AllowShortFunctionsOnASingleLine: None
 BreakBeforeBraces: Attach
+BinPackParameters: false
+BinPackArguments: false
+AllowAllParametersOfDeclarationOnNextLine: false
+PenaltyBreakBeforeFirstCallParameter: 1
