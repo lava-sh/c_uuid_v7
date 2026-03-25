@@ -58,7 +58,7 @@ static inline UUIDObject *uuid_self(PyObject *self_obj) {
     return (UUIDObject *)self_obj;
 }
 
-static inline const UUIDObject *uuid_self_const(PyObject *self_obj) {
+static inline const UUIDObject *uuid_self_const(const PyObject *self_obj) {
     return (const UUIDObject *)self_obj;
 }
 
@@ -854,6 +854,18 @@ static Py_hash_t uuid_hash(PyObject *self_obj) {
     return hash;
 }
 
+static int uuid_compare(const UUIDObject *left, const UUIDObject *right) {
+    if (left->hi != right->hi) {
+        return left->hi < right->hi ? -1 : 1;
+    }
+
+    if (left->lo != right->lo) {
+        return left->lo < right->lo ? -1 : 1;
+    }
+
+    return 0;
+}
+
 static PyObject *uuid_richcompare(PyObject *a, PyObject *b, int op) {
     const UUIDObject *ua;
     const UUIDObject *ub;
@@ -866,34 +878,29 @@ static PyObject *uuid_richcompare(PyObject *a, PyObject *b, int op) {
     ua = (const UUIDObject *)a;
     ub = (const UUIDObject *)b;
 
-    if (ua->hi < ub->hi) {
-        cmp = -1;
-    } else if (ua->hi > ub->hi) {
-        cmp = 1;
-    } else if (ua->lo < ub->lo) {
-        cmp = -1;
-    } else if (ua->lo > ub->lo) {
-        cmp = 1;
-    } else {
-        cmp = 0;
+    cmp = uuid_compare(ua, ub);
+
+    if (op == Py_LT) {
+        return PyBool_FromLong(cmp < 0);
+    }
+    if (op == Py_LE) {
+        return PyBool_FromLong(cmp <= 0);
+    }
+    if (op == Py_EQ) {
+        return PyBool_FromLong(cmp == 0);
+    }
+    if (op == Py_NE) {
+        return PyBool_FromLong(cmp != 0);
+    }
+    if (op == Py_GT) {
+        return PyBool_FromLong(cmp > 0);
+    }
+    if (op == Py_GE) {
+        return PyBool_FromLong(cmp >= 0);
     }
 
-    switch (op) {
-    case Py_LT:
-        return PyBool_FromLong(cmp < 0);
-    case Py_LE:
-        return PyBool_FromLong(cmp <= 0);
-    case Py_EQ:
-        return PyBool_FromLong(cmp == 0);
-    case Py_NE:
-        return PyBool_FromLong(cmp != 0);
-    case Py_GT:
-        return PyBool_FromLong(cmp > 0);
-    case Py_GE:
-        return PyBool_FromLong(cmp >= 0);
-    default:
-        Py_RETURN_NOTIMPLEMENTED;
-    }
+    Py_INCREF(Py_NotImplemented);
+    return Py_NotImplemented;
 }
 
 static PyMethodDef uuid_methods[] = {
