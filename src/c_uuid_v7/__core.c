@@ -7,10 +7,12 @@
 #define WIN32_LEAN_AND_MEAN
 
 /* clang-format off */
+#include <intrin.h>
 #include <windows.h>
 #include <bcrypt.h>
 /* clang-format on */
 
+#pragma intrinsic(_umul128)
 #pragma comment(lib, "bcrypt.lib")
 #else
 #include <fcntl.h>
@@ -31,8 +33,7 @@ static PyTypeObject UUIDType;
 static UUIDObject *uuid_cache = NULL;
 static PyNumberMethods uuid_as_number;
 
-static uint64_t rng_state0 = 0;
-static uint64_t rng_state1 = 0;
+static uint64_t rng_state = 0;
 static uint64_t last_timestamp_ms = 0;
 static uint64_t counter42 = 0;
 static int generator_seeded = 0;
@@ -133,10 +134,6 @@ static int fill_random(unsigned char *buf, Py_ssize_t len) {
 #endif
 }
 
-static uint64_t rotl64(const uint64_t x, const int k) {
-    return x << k | x >> (64 - k);
-}
-
 static int seed_generator(void) {
     unsigned char seed[16];
 
@@ -149,11 +146,17 @@ static int seed_generator(void) {
         return -1;
     }
 
-    memcpy(&rng_state0, seed, 8);
-    memcpy(&rng_state1, seed + 8, 8);
+    memcpy(&rng_state, seed, 8);
 
-    if ((rng_state0 | rng_state1) == 0) {
-        rng_state1 = 0x9e3779b97f4a7c15ULL;
+    {
+        uint64_t seed_tail;
+
+        memcpy(&seed_tail, seed + 8, 8);
+        rng_state ^= seed_tail;
+    }
+
+    if (rng_state == 0) {
+        rng_state = 0x2d358dccaa6c78a5ULL;
     }
 
 #ifdef _WIN32
@@ -179,15 +182,40 @@ static int ensure_seeded(void) {
     return 0;
 }
 
-static uint64_t next_u64(void) {
-    const uint64_t s0 = rng_state0;
-    uint64_t s1 = rng_state1;
-    const uint64_t result = s0 + s1;
+static uint64_t prng_mix64(uint64_t left, uint64_t right) {
+#if defined(__SIZEOF_INT128__)
+    const __uint128_t product = (__uint128_t)left * right;
 
-    s1 ^= s0;
-    rng_state0 = rotl64(s0, 55) ^ s1 ^ s1 << 14;
-    rng_state1 = rotl64(s1, 36);
-    return result;
+    return (uint64_t)product ^ (uint64_t)(product >> 64);
+#elif defined(_MSC_VER) && defined(_M_X64)
+    uint64_t high;
+    const uint64_t low = _umul128(left, right, &high);
+
+    return low ^ high;
+#else
+    const uint64_t left_hi = left >> 32;
+    const uint64_t left_lo = (uint32_t)left;
+    const uint64_t right_hi = right >> 32;
+    const uint64_t right_lo = (uint32_t)right;
+    const uint64_t rh = left_hi * right_hi;
+    const uint64_t rm0 = left_hi * right_lo;
+    const uint64_t rm1 = right_hi * left_lo;
+    const uint64_t rl = left_lo * right_lo;
+    const uint64_t t = rl + (rm0 << 32);
+    uint64_t carry = t < rl;
+    const uint64_t low = t + (rm1 << 32);
+    const uint64_t high = rh + (rm0 >> 32) + (rm1 >> 32) + carry + (low < t);
+
+    return low ^ high;
+#endif
+}
+
+static uint64_t next_u64(void) {
+    const uint64_t increment = 0x2d358dccaa6c78a5ULL;
+    const uint64_t mixer = 0x8bb84b93962eacc9ULL;
+
+    rng_state += increment;
+    return prng_mix64(rng_state, rng_state ^ mixer);
 }
 
 static uint64_t unpack_u64_be(const unsigned char bytes[8]) {
