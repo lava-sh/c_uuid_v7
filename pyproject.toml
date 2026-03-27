@@ -70,7 +70,6 @@ ext-modules = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["c_uuid_v7*"]
 
 [tool.setuptools_scm]
 version_file = "src/c_uuid_v7/_version.py"
