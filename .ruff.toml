@@ -29,7 +29,6 @@ ignore = [
     "D104",   # Missing docstring in public package
     "D203",
     "D212",
-    #"D",      # Docstring's
     ########
     "CPY001", # Check copyright notices within Python files
     "S311",   # Forces `random` -> `secrets`
