@@ -1,6 +1,6 @@
 #ifndef _WIN32
 
-#include "platform.h"
+#include "_platform.h"
 
 #include <fcntl.h>
 #include <sys/time.h>
