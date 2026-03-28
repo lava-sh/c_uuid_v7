@@ -24,8 +24,8 @@ int fill_random(unsigned char *buf, const Py_ssize_t len) {
 }
 
 void platform_seeded(void) {
-    /* Prefer QueryInterruptTime when available because it includes suspend time. */
-    /* Fall back to GetTickCount64 on systems where QueryInterruptTime is unavailable. */
+    /* Prefer `QueryInterruptTime` when available because it includes suspend time. */
+    /* Fall back to `GetTickCount64` on systems where `QueryInterruptTime` is unavailable. */
     const HMODULE kernel32 = GetModuleHandleA("kernel32.dll");
 
     epoch_base_ms = system_ms();
