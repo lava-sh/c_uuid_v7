@@ -14,7 +14,10 @@
 #pragma intrinsic(_umul128)
 
 extern uint64_t epoch_base_ms;
-extern uint64_t interrupt_base_ms;
+extern uint64_t tick_base_ms;
+#if PY_VERSION_HEX < 0x030E0000
+extern VOID(WINAPI *query_interrupt_time_ptr)(PULONGLONG);
+#endif
 #endif
 
 uint64_t system_ms(void);
@@ -25,10 +28,21 @@ void platform_seeded(void);
 
 static uint64_t now_ms(void) {
 #ifdef _WIN32
+#if PY_VERSION_HEX >= 0x030E0000
     ULONGLONG interrupt_time = 0;
 
-    QueryUnbiasedInterruptTime(&interrupt_time);
-    return epoch_base_ms + interrupt_time / 10000ULL - interrupt_base_ms;
+    QueryInterruptTime(&interrupt_time);
+    return epoch_base_ms + interrupt_time / 10000ULL - tick_base_ms;
+#else
+    if (query_interrupt_time_ptr != NULL) {
+        ULONGLONG interrupt_time = 0;
+
+        query_interrupt_time_ptr(&interrupt_time);
+        return epoch_base_ms + interrupt_time / 10000ULL - tick_base_ms;
+    }
+
+    return epoch_base_ms + GetTickCount64() - tick_base_ms;
+#endif
 #else
     return system_ms();
 #endif
