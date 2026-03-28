@@ -1,28 +1,10 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
+#include "_hex_pairs.h"
+#include "_platform.h"
+
 #include <stdint.h>
-
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-
-/* clang-format off */
-#include <intrin.h>
-#include <windows.h>
-#include <bcrypt.h>
-/* clang-format on */
-
-#pragma intrinsic(_umul128)
-#pragma comment(lib, "bcrypt.lib")
-#else
-#include <fcntl.h>
-#include <sys/time.h>
-#include <time.h>
-#include <unistd.h>
-#if defined(__linux__)
-#include <sys/random.h>
-#endif
-#endif
 
 typedef struct {
     PyObject_HEAD uint64_t hi;
@@ -50,88 +32,9 @@ static int generator_seeded = 0;
 #define UUID_V7_LOW30_MASK ((1ULL << 30) - 1ULL)
 #define UUID_MODE_FAST 0
 #define UUID_MODE_SECURE 1
-#ifdef _WIN32
-static uint64_t epoch_base_ms = 0;
-static uint64_t tick_base_ms = 0;
-#endif
 
 static const UUIDObject *uuid_self_const(const PyObject *self_obj) {
     return (const UUIDObject *)self_obj;
-}
-
-static uint64_t system_ms(void) {
-#ifdef _WIN32
-    FILETIME ft;
-    ULARGE_INTEGER ticks;
-
-    GetSystemTimeAsFileTime(&ft);
-    ticks.QuadPart = (uint64_t)ft.dwHighDateTime << 32 | (uint64_t)ft.dwLowDateTime;
-    return (ticks.QuadPart - 116444736000000000ULL) / 10000ULL;
-#elif defined(CLOCK_REALTIME)
-    struct timespec ts;
-
-    if (clock_gettime(CLOCK_REALTIME, &ts) == 0) {
-        return ((uint64_t)ts.tv_sec * 1000ULL) + ((uint64_t)ts.tv_nsec / 1000000ULL);
-    }
-#endif
-
-#ifndef _WIN32
-    struct timeval tv;
-
-    gettimeofday(&tv, NULL);
-    return ((uint64_t)tv.tv_sec * 1000ULL) + ((uint64_t)tv.tv_usec / 1000ULL);
-#endif
-}
-
-#ifdef _WIN32
-static uint64_t now_ms(void) {
-    return epoch_base_ms + (GetTickCount64() - tick_base_ms);
-}
-#else
-static inline uint64_t now_ms(void) {
-    return system_ms();
-}
-#endif
-
-static int fill_random(unsigned char *buf, Py_ssize_t len) {
-#ifdef _WIN32
-    const NTSTATUS status = BCryptGenRandom(NULL, buf, (ULONG)len, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
-    return status >= 0 ? 0 : -1;
-#else
-    Py_ssize_t offset = 0;
-
-#if defined(__linux__)
-    while (offset < len) {
-        ssize_t rc = getrandom(buf + offset, (size_t)(len - offset), 0);
-        if (rc < 0) {
-            break;
-        }
-        offset += (Py_ssize_t)rc;
-    }
-    if (offset == len) {
-        return 0;
-    }
-#endif
-
-    int fd = open("/dev/urandom", O_RDONLY);
-    offset = 0;
-
-    if (fd < 0) {
-        return -1;
-    }
-
-    while (offset < len) {
-        ssize_t rc = read(fd, buf + offset, (size_t)(len - offset));
-        if (rc <= 0) {
-            close(fd);
-            return -1;
-        }
-        offset += (Py_ssize_t)rc;
-    }
-
-    close(fd);
-    return 0;
-#endif
 }
 
 static int seed_generator(void) {
@@ -160,10 +63,8 @@ static int seed_generator(void) {
     }
 
 #ifdef _WIN32
-    epoch_base_ms = system_ms();
-    tick_base_ms = GetTickCount64();
+    platform_seeded();
 #endif
-
     last_timestamp_ms = 0;
     counter42 = 0;
     generator_seeded = 1;
@@ -180,34 +81,6 @@ static int ensure_seeded(void) {
     }
 
     return 0;
-}
-
-static uint64_t prng_mix64(uint64_t left, uint64_t right) {
-#if defined(__SIZEOF_INT128__)
-    const __uint128_t product = (__uint128_t)left * right;
-
-    return (uint64_t)product ^ (uint64_t)(product >> 64);
-#elif defined(_MSC_VER) && defined(_M_X64)
-    uint64_t high;
-    const uint64_t low = _umul128(left, right, &high);
-
-    return low ^ high;
-#else
-    const uint64_t left_hi = left >> 32;
-    const uint64_t left_lo = (uint32_t)left;
-    const uint64_t right_hi = right >> 32;
-    const uint64_t right_lo = (uint32_t)right;
-    const uint64_t rh = left_hi * right_hi;
-    const uint64_t rm0 = left_hi * right_lo;
-    const uint64_t rm1 = right_hi * left_lo;
-    const uint64_t rl = left_lo * right_lo;
-    const uint64_t t = rl + (rm0 << 32);
-    uint64_t carry = t < rl;
-    const uint64_t low = t + (rm1 << 32);
-    const uint64_t high = rh + (rm0 >> 32) + (rm1 >> 32) + carry + (low < t);
-
-    return low ^ high;
-#endif
 }
 
 static uint64_t next_u64(void) {
@@ -670,20 +543,24 @@ static UUIDObject *uuid_new(const uint64_t hi, const uint64_t lo) {
 
 // ReSharper disable once CppParameterMayBeConstPtrOrRef
 static PyObject *uuid_str(PyObject *self_obj) {
-    static const char HEX[] = "0123456789abcdef";
     char out[36];
-    unsigned char bytes[16];
-    int j = 0;
     const UUIDObject *self = uuid_self_const(self_obj);
+    int j = 0;
 
-    uuid_pack_bytes(self->hi, self->lo, bytes);
-
-    for (int i = 0; i < 16; ++i) {
-        if (i == 4 || i == 6 || i == 8 || i == 10) {
+    for (int shift = 56; shift >= 0; shift -= 8) {
+        if (j == 8 || j == 13) {
             out[j++] = '-';
         }
-        out[j++] = HEX[bytes[i] >> 4];
-        out[j++] = HEX[bytes[i] & 0x0F];
+        hex_pair(out + j, (unsigned char)(self->hi >> shift));
+        j += 2;
+    }
+
+    for (int shift = 56; shift >= 0; shift -= 8) {
+        if (j == 18 || j == 23) {
+            out[j++] = '-';
+        }
+        hex_pair(out + j, (unsigned char)(self->lo >> shift));
+        j += 2;
     }
 
     return PyUnicode_FromStringAndSize(out, 36);
@@ -704,16 +581,18 @@ static PyObject *uuid_repr(PyObject *self_obj) {
 
 // ReSharper disable once CppParameterMayBeConstPtrOrRef
 static PyObject *uuid_hex(PyObject *self_obj, void *Py_UNUSED(closure)) {
-    static const char HEX[] = "0123456789abcdef";
     char out[32];
-    unsigned char bytes[16];
     const UUIDObject *self = uuid_self_const(self_obj);
+    int j = 0;
 
-    uuid_pack_bytes(self->hi, self->lo, bytes);
+    for (int shift = 56; shift >= 0; shift -= 8) {
+        hex_pair(out + j, (unsigned char)(self->hi >> shift));
+        j += 2;
+    }
 
-    for (int i = 0; i < 16; ++i) {
-        out[i * 2] = HEX[bytes[i] >> 4];
-        out[i * 2 + 1] = HEX[bytes[i] & 0x0F];
+    for (int shift = 56; shift >= 0; shift -= 8) {
+        hex_pair(out + j, (unsigned char)(self->lo >> shift));
+        j += 2;
     }
 
     return PyUnicode_FromStringAndSize(out, 32);
