@@ -7,17 +7,17 @@
 extern const uint16_t HEX_PAIRS[256];
 
 #if defined(__GNUC__) || defined(__clang__)
-#define C_UUID_V7_ __attribute__((unused))
+#define NOT_UNUSED __attribute__((unused))
 #else
-#define C_UUID_V7_
+#define NOT_UNUSED
 #endif
 
-static C_UUID_V7_ void hex_pair(char *out, const unsigned char byte) {
+static NOT_UNUSED void hex_pair(char *out, const unsigned char byte) {
     const uint16_t pair = HEX_PAIRS[byte];
 
     memcpy(out, &pair, sizeof(pair));
 }
 
-#undef C_UUID_V7_
+#undef NOT_UNUSED
 
 #endif
