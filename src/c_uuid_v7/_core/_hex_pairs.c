@@ -1,6 +1,6 @@
 #include "_hex_pairs.h"
 
-static_assert(sizeof(uint16_t) == 2U, "uint16_t must be 16-bit");
+_Static_assert(sizeof(uint16_t) == 2U, "uint16_t must be 16-bit");
 
 #if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 #define HEX_U16(a, b) ((uint16_t)((uint16_t)(a) << 8 | (uint16_t)(b)))
