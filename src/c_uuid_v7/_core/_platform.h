@@ -24,7 +24,13 @@ int fill_random(unsigned char *buf, Py_ssize_t len);
 void platform_seeded(void);
 #endif
 
-static uint64_t now_ms(void) {
+#if defined(__GNUC__) || defined(__clang__)
+#define NOT_UNUSED __attribute__((unused))
+#else
+#define NOT_UNUSED
+#endif
+
+static NOT_UNUSED uint64_t now_ms(void) {
 #ifdef _WIN32
     if (query_interrupt_time_ptr != NULL) {
         ULONGLONG interrupt_time = 0;
@@ -39,7 +45,7 @@ static uint64_t now_ms(void) {
 #endif
 }
 
-static uint64_t prng_mix64(const uint64_t left, const uint64_t right) {
+static NOT_UNUSED uint64_t prng_mix64(const uint64_t left, const uint64_t right) {
 #if defined(__SIZEOF_INT128__)
     const __uint128_t product = (__uint128_t)left * right;
 
@@ -66,5 +72,7 @@ static uint64_t prng_mix64(const uint64_t left, const uint64_t right) {
     return low ^ high;
 #endif
 }
+
+#undef NOT_UNUSED
 
 #endif
