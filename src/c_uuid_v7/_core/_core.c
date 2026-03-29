@@ -763,7 +763,7 @@ static int uuid_compare(const UUIDObject *left, const UUIDObject *right) {
     return 0;
 }
 
-static PyObject *uuid_richcmp(PyObject *a, PyObject *b, const int op) {
+static PyObject *uuid_richcompare(PyObject *a, PyObject *b, const int op) {
     if (!PyObject_TypeCheck(a, &UUIDType) || !PyObject_TypeCheck(b, &UUIDType)) {
         Py_RETURN_NOTIMPLEMENTED;
     }
@@ -837,7 +837,7 @@ static PyTypeObject UUIDType = {
     .tp_repr = (reprfunc)uuid_repr,
     .tp_str = (reprfunc)uuid_str,
     .tp_hash = (hashfunc)uuid_hash,
-    .tp_richcompare = uuid_richcmp,
+    .tp_richcompare = uuid_richcompare,
     .tp_methods = uuid_methods,
     .tp_getset = uuid_getset,
     .tp_as_number = &uuid_as_number,
