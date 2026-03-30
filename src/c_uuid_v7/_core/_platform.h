@@ -6,12 +6,12 @@
 #include <stdint.h>
 
 #ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
+    #define WIN32_LEAN_AND_MEAN
 
-#include <intrin.h>
-#include <windows.h>
+    #include <intrin.h>
+    #include <windows.h>
 
-#pragma intrinsic(_umul128)
+    #pragma intrinsic(_umul128)
 
 extern uint64_t epoch_base_ms;
 extern uint64_t tick_base_ms;
@@ -25,9 +25,9 @@ void platform_seeded(void);
 #endif
 
 #if defined(__GNUC__) || defined(__clang__)
-#define NOT_UNUSED __attribute__((unused))
+    #define NOT_UNUSED __attribute__((unused))
 #else
-#define NOT_UNUSED
+    #define NOT_UNUSED
 #endif
 
 static NOT_UNUSED uint64_t now_ms(void) {

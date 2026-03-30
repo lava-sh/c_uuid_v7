@@ -1,12 +1,15 @@
 #ifdef _WIN32
 
+// clang-format off
 #include "_platform.h"
 
 #include <bcrypt.h>
 #pragma comment(lib, "bcrypt.lib")
+// clang-format on
 
 uint64_t epoch_base_ms = 0;
 uint64_t tick_base_ms = 0;
+
 VOID(WINAPI *query_interrupt_time_ptr)(PULONGLONG) = NULL;
 
 uint64_t system_ms(void) {
