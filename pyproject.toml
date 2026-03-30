@@ -69,6 +69,7 @@ ext-modules = [
         "src/c_uuid_v7/_core/_core.c",
         "src/c_uuid_v7/_core/_hex_pairs.c",
         "src/c_uuid_v7/_core/_posix.c",
+        "src/c_uuid_v7/_core/_random.c",
         "src/c_uuid_v7/_core/_windows.c",
     ] },
 ]

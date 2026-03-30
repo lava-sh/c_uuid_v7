@@ -6,18 +6,19 @@
 
 extern const uint16_t HEX_PAIRS[256];
 
-#if defined(__GNUC__) || defined(__clang__)
-#define NOT_UNUSED __attribute__((unused))
-#else
-#define NOT_UNUSED
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4505)
 #endif
 
-static NOT_UNUSED void hex_pair(char *out, const unsigned char byte) {
+static void hex_pair(char *out, const unsigned char byte) {
     const uint16_t pair = HEX_PAIRS[byte];
 
     memcpy(out, &pair, sizeof(pair));
 }
 
-#undef NOT_UNUSED
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
 
 #endif

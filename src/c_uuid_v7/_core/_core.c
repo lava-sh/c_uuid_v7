@@ -3,6 +3,7 @@
 
 #include "_hex_pairs.h"
 #include "_platform.h"
+#include "_random.h"
 
 #include <stdint.h>
 
@@ -15,21 +16,16 @@ static PyTypeObject UUIDType;
 static UUIDObject *uuid_cache = NULL;
 static PyNumberMethods uuid_as_number;
 
-static uint64_t rng_state = 0;
 static uint64_t last_timestamp_ms = 0;
 static uint64_t counter42 = 0;
-static int generator_seeded = 0;
 
 #define UUID_TIMESTAMP_SHIFT 16
 #define UUID_VERSION_BITS 0x7000ULL
 #define UUID_VARIANT_BITS 0x8000000000000000ULL
-#define UUID_RAND_MASK 0x3FFFFFFFFFFFFFFFULL
 #define UUID_MAX_TIMESTAMP_MS 0xFFFFFFFFFFFFULL
 #define UUID_MAX_TIMESTAMP_S (UUID_MAX_TIMESTAMP_MS / 1000ULL)
 #define UUID_MAX_NANOS 1000000000ULL
-#define UUID_V7_RESEED_MASK ((1ULL << 41) - 1ULL)
 #define UUID_V7_MAX_COUNTER ((1ULL << 42) - 1ULL)
-#define UUID_V7_LOW30_MASK ((1ULL << 30) - 1ULL)
 #define UUID_MODE_FAST 0
 #define UUID_MODE_SECURE 1
 
@@ -37,149 +33,17 @@ static const UUIDObject *uuid_self_const(const PyObject *self_obj) {
     return (const UUIDObject *)self_obj;
 }
 
-static int seed_generator(void) {
-    unsigned char seed[16];
-
-    if (generator_seeded) {
-        return 0;
-    }
-
-    if (fill_random(seed, sizeof(seed)) != 0) {
-        PyErr_SetString(PyExc_OSError, "unable to seed UUIDv7 generator");
-        return -1;
-    }
-
-    memcpy(&rng_state, seed, 8);
-
-    {
-        uint64_t seed_tail;
-
-        memcpy(&seed_tail, seed + 8, 8);
-        rng_state ^= seed_tail;
-    }
-
-    if (rng_state == 0) {
-        rng_state = 0x2d358dccaa6c78a5ULL;
-    }
-
-#ifdef _WIN32
-    platform_seeded();
-#endif
+static void reseed_generator_state(void) {
+    random_reseed();
     last_timestamp_ms = 0;
     counter42 = 0;
-    generator_seeded = 1;
-    return 0;
-}
-
-static void reseed_generator_state(void) {
-    generator_seeded = 0;
 }
 
 static int ensure_seeded(void) {
-    if (!generator_seeded && seed_generator() != 0) {
+    if (random_ensure_seeded() != 0) {
         return -1;
     }
 
-    return 0;
-}
-
-static uint64_t next_u64(void) {
-    const uint64_t increment = 0x2d358dccaa6c78a5ULL;
-    const uint64_t mixer = 0x8bb84b93962eacc9ULL;
-
-    rng_state += increment;
-    return prng_mix64(rng_state, rng_state ^ mixer);
-}
-
-static uint64_t unpack_u64_be(const unsigned char bytes[8]) {
-    return (uint64_t)bytes[0] << 56 | (uint64_t)bytes[1] << 48 | (uint64_t)bytes[2] << 40 |
-           (uint64_t)bytes[3] << 32 | (uint64_t)bytes[4] << 24 | (uint64_t)bytes[5] << 16 |
-           (uint64_t)bytes[6] << 8 | (uint64_t)bytes[7];
-}
-
-static int rnd_u64_secure(uint64_t *out) {
-    unsigned char bytes[8];
-
-    if (fill_random(bytes, sizeof(bytes)) != 0) {
-        PyErr_SetString(PyExc_OSError, "unable to generate random bytes");
-        return -1;
-    }
-
-    *out = unpack_u64_be(bytes);
-    return 0;
-}
-
-static uint64_t rnd_counter42(void) {
-    return next_u64() & UUID_V7_RESEED_MASK;
-}
-
-static int rnd_counter42_secure(uint64_t *counter) {
-    uint64_t random64;
-
-    if (rnd_u64_secure(&random64) != 0) {
-        return -1;
-    }
-
-    *counter = random64 & UUID_V7_RESEED_MASK;
-    return 0;
-}
-
-static void split_counter_random32(const uint64_t counter,
-                                   const uint32_t low32,
-                                   uint16_t *rand_a,
-                                   uint64_t *tail62) {
-    *rand_a = (uint16_t)(counter >> 30);
-    *tail62 = (counter & UUID_V7_LOW30_MASK) << 32 | (uint64_t)low32;
-}
-
-static void next_low32_and_increment(uint32_t *low32, uint64_t *increment) {
-    const uint64_t random64 = next_u64();
-
-    *low32 = (uint32_t)random64;
-    *increment = 1U + (random64 >> 32 & 0x0FU);
-}
-
-static int next_low32_and_increment_secure(uint32_t *low32, uint64_t *increment) {
-    uint64_t random64;
-
-    if (rnd_u64_secure(&random64) != 0) {
-        return -1;
-    }
-
-    *low32 = (uint32_t)random64;
-    *increment = 1U + (random64 >> 32 & 0x0FU);
-    return 0;
-}
-
-static void random_payload(uint16_t *rand_a, uint64_t *tail62) {
-    split_counter_random32(rnd_counter42(), (uint32_t)next_u64(), rand_a, tail62);
-}
-
-static int random_payload_secure(uint16_t *rand_a, uint64_t *tail62) {
-    uint64_t counter;
-    uint64_t random64;
-
-    if (rnd_counter42_secure(&counter) != 0) {
-        return -1;
-    }
-    if (rnd_u64_secure(&random64) != 0) {
-        return -1;
-    }
-
-    split_counter_random32(counter, (uint32_t)random64, rand_a, tail62);
-    return 0;
-}
-
-static uint64_t random_tail62(void) {
-    return next_u64() & UUID_RAND_MASK;
-}
-
-static int random_tail62_secure(uint64_t *tail62) {
-    if (rnd_u64_secure(tail62) != 0) {
-        return -1;
-    }
-
-    *tail62 &= UUID_RAND_MASK;
     return 0;
 }
 
@@ -282,23 +146,23 @@ static void advance_monotonic_state(const uint64_t observed_ms,
     uint64_t increment;
     uint32_t low32;
 
-    next_low32_and_increment(&low32, &increment);
+    random_next_low32_and_increment(&low32, &increment);
 
     if (observed_ms > current_ms) {
         current_ms = observed_ms;
-        counter = rnd_counter42();
+        counter = random_counter42();
     } else {
         counter += increment;
         if (counter > UUID_V7_MAX_COUNTER) {
             current_ms += 1U;
-            counter = rnd_counter42();
+            counter = random_counter42();
         }
     }
 
     last_timestamp_ms = current_ms;
     counter42 = counter;
     *timestamp_ms = current_ms;
-    split_counter_random32(counter, low32, rand_a, tail62);
+    random_split_counter42(counter, low32, rand_a, tail62);
 }
 
 static int advance_monotonic_state_secure(const uint64_t observed_ms,
@@ -310,20 +174,20 @@ static int advance_monotonic_state_secure(const uint64_t observed_ms,
     uint64_t increment;
     uint32_t low32;
 
-    if (next_low32_and_increment_secure(&low32, &increment) != 0) {
+    if (random_next_low32_and_increment_secure(&low32, &increment) != 0) {
         return -1;
     }
 
     if (observed_ms > current_ms) {
         current_ms = observed_ms;
-        if (rnd_counter42_secure(&counter) != 0) {
+        if (random_counter42_secure(&counter) != 0) {
             return -1;
         }
     } else {
         counter += increment;
         if (counter > UUID_V7_MAX_COUNTER) {
             current_ms += 1U;
-            if (rnd_counter42_secure(&counter) != 0) {
+            if (random_counter42_secure(&counter) != 0) {
                 return -1;
             }
         }
@@ -332,7 +196,7 @@ static int advance_monotonic_state_secure(const uint64_t observed_ms,
     last_timestamp_ms = current_ms;
     counter42 = counter;
     *timestamp_ms = current_ms;
-    split_counter_random32(counter, low32, rand_a, tail62);
+    random_split_counter42(counter, low32, rand_a, tail62);
     return 0;
 }
 
