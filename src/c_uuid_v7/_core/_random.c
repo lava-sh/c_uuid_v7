@@ -42,8 +42,8 @@
 #define PCG_OUTPUT_MULTIPLIER_64 12605985483714917081ULL
 
 #define UUID_RAND_MASK 0x3FFFFFFFFFFFFFFFULL
-#define UUID_V7_RESEED_MASK ((1ULL << 41) - 1ULL)
-#define UUID_V7_LOW30_MASK ((1ULL << 30) - 1ULL)
+#define RESEED_MASK ((1ULL << 41) - 1ULL)
+#define LOW30_MASK ((1ULL << 30) - 1ULL)
 
 typedef struct {
     uint64_t state;
@@ -130,7 +130,7 @@ void random_reseed(void) {
 }
 
 uint64_t random_counter42(void) {
-    return next_u64() & UUID_V7_RESEED_MASK;
+    return next_u64() & RESEED_MASK;
 }
 
 int random_counter42_secure(uint64_t *counter) {
@@ -140,7 +140,7 @@ int random_counter42_secure(uint64_t *counter) {
         return -1;
     }
 
-    *counter = random64 & UUID_V7_RESEED_MASK;
+    *counter = random64 & RESEED_MASK;
     return 0;
 }
 
@@ -149,7 +149,7 @@ void random_split_counter42(const uint64_t counter,
                             uint16_t *rand_a,
                             uint64_t *tail62) {
     *rand_a = (uint16_t)(counter >> 30);
-    *tail62 = (counter & UUID_V7_LOW30_MASK) << 32 | (uint64_t)low32;
+    *tail62 = (counter & LOW30_MASK) << 32 | (uint64_t)low32;
 }
 
 void random_next_low32_and_increment(uint32_t *low32, uint64_t *increment) {
