@@ -47,10 +47,10 @@
 
 typedef struct {
     uint64_t state;
-} PCGState64;
+} pcg64si_random_t;
 
-static PCGState64 fast_rng = {0};
-static int fast_rng_seeded = 0;
+static pcg64si_random_t pcg64si_global = {0};
+static int pcg64si_seeded = 0;
 
 static uint64_t unpack_u64_be(const unsigned char bytes[8]) {
     return (uint64_t)bytes[0] << 56 | (uint64_t)bytes[1] << 48 | (uint64_t)bytes[2] << 40 |
@@ -64,18 +64,18 @@ static uint64_t pcg_output_rxs_m_xs_64_64(const uint64_t state) {
     return word >> 43u ^ word;
 }
 
-static void pcg_oneseq_64_step_r(PCGState64 *rng) {
+static void pcg_oneseq_64_step_r(pcg64si_random_t *rng) {
     rng->state = rng->state * PCG_DEFAULT_MULTIPLIER_64 + PCG_DEFAULT_INCREMENT_64;
 }
 
-static void pcg_oneseq_64_srandom_r(PCGState64 *rng, const uint64_t initstate) {
+static void pcg_oneseq_64_srandom_r(pcg64si_random_t *rng, const uint64_t initstate) {
     rng->state = 0U;
     pcg_oneseq_64_step_r(rng);
     rng->state += initstate;
     pcg_oneseq_64_step_r(rng);
 }
 
-static uint64_t pcg_oneseq_64_rxs_m_xs_64_random_r(PCGState64 *rng) {
+static uint64_t pcg_oneseq_64_rxs_m_xs_64_random_r(pcg64si_random_t *rng) {
     const uint64_t oldstate = rng->state;
 
     pcg_oneseq_64_step_r(rng);
@@ -95,7 +95,7 @@ static int rnd_u64_secure(uint64_t *out) {
 }
 
 static uint64_t next_u64(void) {
-    return pcg_oneseq_64_rxs_m_xs_64_random_r(&fast_rng);
+    return pcg_oneseq_64_rxs_m_xs_64_random_r(&pcg64si_global);
 }
 
 int random_ensure_seeded(void) {
@@ -104,7 +104,7 @@ int random_ensure_seeded(void) {
     uint64_t right = 0;
     uint64_t initstate = 0;
 
-    if (fast_rng_seeded) {
+    if (pcg64si_seeded) {
         return 0;
     }
 
@@ -116,17 +116,17 @@ int random_ensure_seeded(void) {
     memcpy(&left, seed, sizeof(left));
     memcpy(&right, seed + sizeof(left), sizeof(right));
     initstate = left ^ pcg_output_rxs_m_xs_64_64(right);
-    pcg_oneseq_64_srandom_r(&fast_rng, initstate);
+    pcg_oneseq_64_srandom_r(&pcg64si_global, initstate);
 
 #ifdef _WIN32
     platform_seeded();
 #endif
-    fast_rng_seeded = 1;
+    pcg64si_seeded = 1;
     return 0;
 }
 
 void random_reseed(void) {
-    fast_rng_seeded = 0;
+    pcg64si_seeded = 0;
 }
 
 uint64_t random_counter42(void) {
