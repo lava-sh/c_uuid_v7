@@ -1,23 +1,26 @@
 #ifndef _WIN32
 
+// clang-format off
 #include "_platform.h"
 
 #include <fcntl.h>
 #include <sys/time.h>
 #include <time.h>
 #include <unistd.h>
+
 #if defined(__linux__)
-#include <sys/random.h>
+    #include <sys/random.h>
 #endif
+// clang-format on
 
 uint64_t system_ms(void) {
-#if defined(CLOCK_REALTIME)
+    #if defined(CLOCK_REALTIME)
     struct timespec ts;
 
     if (clock_gettime(CLOCK_REALTIME, &ts) == 0) {
         return ((uint64_t)ts.tv_sec * 1000ULL) + ((uint64_t)ts.tv_nsec / 1000000ULL);
     }
-#endif
+    #endif
 
     struct timeval tv;
 
@@ -28,7 +31,7 @@ uint64_t system_ms(void) {
 int fill_random(unsigned char *buf, const Py_ssize_t len) {
     Py_ssize_t offset = 0;
 
-#if defined(__linux__)
+    #if defined(__linux__)
     while (offset < len) {
         const ssize_t rc = getrandom(buf + offset, (size_t)(len - offset), 0);
         if (rc < 0) {
@@ -39,7 +42,7 @@ int fill_random(unsigned char *buf, const Py_ssize_t len) {
     if (offset == len) {
         return 0;
     }
-#endif
+    #endif
 
     const int fd = open("/dev/urandom", O_RDONLY);
     offset = 0;

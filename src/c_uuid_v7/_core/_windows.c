@@ -1,12 +1,15 @@
 #ifdef _WIN32
 
+// clang-format off
 #include "_platform.h"
 
 #include <bcrypt.h>
 #pragma comment(lib, "bcrypt.lib")
+// clang-format on
 
 uint64_t epoch_base_ms = 0;
 uint64_t tick_base_ms = 0;
+
 VOID(WINAPI *query_interrupt_time_ptr)(PULONGLONG) = NULL;
 
 uint64_t system_ms(void) {
@@ -30,6 +33,7 @@ void platform_seeded(void) {
 
     epoch_base_ms = system_ms();
     query_interrupt_time_ptr = NULL;
+
     if (kernel32 != NULL) {
         query_interrupt_time_ptr =
             (VOID(WINAPI *)(PULONGLONG))GetProcAddress(kernel32, "QueryInterruptTime");

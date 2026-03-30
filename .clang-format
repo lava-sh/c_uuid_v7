@@ -7,7 +7,9 @@ ContinuationIndentWidth: 4
 
 AllowShortFunctionsOnASingleLine: None
 BreakBeforeBraces: Attach
-BinPackParameters: false
+BinPackParameters: OnePerLine
 BinPackArguments: false
 AllowAllParametersOfDeclarationOnNextLine: false
 PenaltyBreakBeforeFirstCallParameter: 1
+AllowShortBlocksOnASingleLine: Always
+IndentPPDirectives: BeforeHash
