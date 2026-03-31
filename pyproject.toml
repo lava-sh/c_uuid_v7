@@ -117,10 +117,10 @@ build-frontend = "build"
 [[tool.cibuildwheel.overrides]]
 select = "*-manylinux_ppc64le"
 before-all = [
-    "uv tool install ziglang==0.14.1 --tool-dir /opt/zig-0.14.1 --force",
+    "env UV_TOOL_DIR=/opt/uv-tools UV_TOOL_BIN_DIR=/opt/uv-bin uv tool install ziglang==0.14.1 --force",
 ]
 inherit.environment = "append"
-environment = { PY_ZIG = "/opt/zig-0.14.1/zig" }
+environment = { UV_TOOL_DIR = "/opt/uv-tools", UV_TOOL_BIN_DIR = "/opt/uv-bin", PY_ZIG = "/opt/uv-bin/zig" }
 
 [[tool.cibuildwheel.overrides]]
 select = "cp3{13,14}-*"
