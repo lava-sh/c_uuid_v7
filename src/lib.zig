@@ -5,8 +5,8 @@ const uuid7 = @import("uuid7.zig");
 const c = @import("c.zig").c;
 
 const UUIDObject = state.UUIDObject;
-const PyModuleDef_Base = @TypeOf(c.c_uuid_v7_module_def_head_init());
-const PyModuleDef_HEAD_INIT: PyModuleDef_Base = c.c_uuid_v7_module_def_head_init();
+const PyModuleDef_Base = @TypeOf(c.py_module_def_head_init());
+const PyModuleDef_HEAD_INIT: PyModuleDef_Base = c.py_module_def_head_init();
 
 const PyMethodDef = extern struct {
     ml_name: [*c]const u8 = null,
@@ -45,7 +45,7 @@ fn pyDecRef(obj: ?*c.PyObject) void {
 }
 
 fn pyRefcnt(obj: *UUIDObject) usize {
-    return @intCast(c.c_uuid_v7_py_refcnt(@ptrCast(obj)));
+    return @intCast(c.py_refcnt(@ptrCast(obj)));
 }
 
 fn noneObject() ?*c.PyObject {

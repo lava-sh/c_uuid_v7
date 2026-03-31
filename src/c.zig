@@ -3,7 +3,7 @@ pub const builtin = @import("builtin");
 pub const c = @cImport({
     @cDefine("PY_SSIZE_T_CLEAN", "1");
     @cInclude("Python.h");
-    @cInclude("python_compat.h");
+    @cInclude("_python.h");
 
     if (builtin.os.tag == .windows) {
         @cDefine("WIN32_LEAN_AND_MEAN", "1");
