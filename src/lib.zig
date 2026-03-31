@@ -57,7 +57,7 @@ fn notImplementedObject() ?*c.PyObject {
 }
 
 fn uuidSelf(self_obj: ?*c.PyObject) *UUIDObject {
-    return @alignCast(@ptrCast(self_obj.?));
+    return @ptrCast(@alignCast(self_obj.?));
 }
 
 fn uuidNew(hi: u64, lo: u64) ?*UUIDObject {
@@ -73,7 +73,7 @@ fn uuidNew(hi: u64, lo: u64) ?*UUIDObject {
     const type_object = state.runtime.uuid_type orelse return null;
     const alloc = type_object.tp_alloc orelse return null;
     const raw = alloc(type_object, 0) orelse return null;
-    const obj: *UUIDObject = @alignCast(@ptrCast(raw));
+    const obj: *UUIDObject = @ptrCast(@alignCast(raw));
 
     obj.hi = hi;
     obj.lo = lo;
@@ -317,7 +317,7 @@ fn uuidRichcompare(a: ?*c.PyObject, b: ?*c.PyObject, op: c_int) callconv(.c) ?*c
         return pyIncRef(notImplementedObject());
     }
 
-    const cmp = uuidCompare(@alignCast(@ptrCast(a.?)), @alignCast(@ptrCast(b.?)));
+    const cmp = uuidCompare(@ptrCast(@alignCast(a.?)), @ptrCast(@alignCast(b.?)));
 
     if (op == c.Py_LT) {
         return c.PyBool_FromLong(@intFromBool(cmp < 0));
@@ -462,11 +462,13 @@ var zigmodule = PyModuleDef{
 
 pub export fn PyInit__core() [*c]c.PyObject {
     const module = c.PyModule_Create(@as([*c]c.struct_PyModuleDef, @ptrCast(&zigmodule)));
+
     if (module == null) {
         return null;
     }
 
     const type_object = c.PyType_FromSpec(&uuid_spec);
+
     if (type_object == null) {
         pyDecRef(module);
         return null;

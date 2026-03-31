@@ -1,8 +1,10 @@
 import os
 import sys
 import sysconfig
+from pathlib import Path
 
 from setuptools import Extension, setup
+from setuptools_zig import BuildExt as ZigBuildExt
 
 
 def _platform_parts() -> list[str]:
@@ -65,8 +67,38 @@ def _zig_compile_args() -> list[str]:
     return args
 
 
+class _PatchedZigBuildExt(ZigBuildExt):
+    def build_extension(self, ext: Extension) -> None:
+        if sys.platform == "win32":
+            python_lib_name = (
+                f"python{sys.version_info.major}{sys.version_info.minor}.lib"
+            )
+            sanitized_library_dirs: list[str] = []
+
+            for raw_dir in self.compiler.library_dirs:
+                library_dir = Path(raw_dir)
+                dll_path = library_dir / python_lib_name.replace(".lib", ".dll")
+
+                if dll_path.exists() and not (library_dir / python_lib_name).exists():
+                    continue
+
+                sanitized_library_dirs.append(raw_dir)
+
+            self.compiler.library_dirs = sanitized_library_dirs
+
+        super().build_extension(ext)
+
+
+class _PatchedZigBuildExtension:
+    def __init__(self, *, enabled: bool) -> None:
+        self._enabled = enabled
+
+    def __call__(self, dist: object) -> _PatchedZigBuildExt:
+        return _PatchedZigBuildExt(dist, zig_value=self._enabled)
+
+
 setup(
-    build_zig=True,
+    cmdclass={"build_ext": _PatchedZigBuildExtension(enabled=True)},
     ext_modules=[
         Extension(
             "c_uuid_v7._core",
