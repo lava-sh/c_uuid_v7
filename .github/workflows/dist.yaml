@@ -31,15 +31,16 @@ jobs:
           persist-credentials: false
 
       - name: "Set up QEMU"
+        if: runner.os == 'Linux' && runner.arch == 'X64'
         uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
         with:
-          platforms: arm,ppc64le,s390x
+          platforms: all
 
       - uses: pypa/cibuildwheel@ee02a1537ce3071a004a6b08c41e72f0fdc42d9a # v3.4.0
         with:
           extras: uv
         env:
-          CIBW_ARCHS_LINUX: "x86_64 i686 ppc64le s390x armv7l"
+          CIBW_ARCHS_LINUX: "auto ppc64le s390x armv7l"
           CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
           CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
 
@@ -62,7 +63,7 @@ jobs:
         with:
           extras: uv
         env:
-          CIBW_ARCHS_LINUX: "aarch64"
+          CIBW_ARCHS_LINUX: "auto"
           CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
           CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
 
