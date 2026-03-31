@@ -1,7 +1,5 @@
 #include "hexpairs.h"
 
-#include <assert.h>
-
 #if defined(_MSC_VER)
 static_assert(sizeof(uint16_t) == 2U, "uint16_t must be 16-bit");
 #else
