@@ -134,7 +134,7 @@ def _compile_args(ext: Extension, zig_target: str | None) -> list[str]:
     if sys.platform == "darwin":
         sysroot = _macos_sysroot()
         if sysroot is not None:
-            compile_args.extend(["-isysroot", sysroot])
+            compile_args.extend(["--sysroot", sysroot])
 
     return compile_args
 
