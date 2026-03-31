@@ -5,25 +5,22 @@ import sysconfig
 from setuptools import Extension, setup
 
 
-def _macos_arch() -> str | None:
-    archflags = os.environ.get("ARCHFLAGS", "").split()
-
-    for index, flag in enumerate(archflags[:-1]):
-        if flag == "-arch":
-            return archflags[index + 1]
-
-    platform_name = sysconfig.get_platform()
-    parts = platform_name.split("-")
-    if len(parts) >= 3 and parts[0] == "macosx":
-        return parts[-1]
-
-    return None
+def _platform_parts() -> list[str]:
+    return sysconfig.get_platform().split("-")
 
 
 def _macos_target() -> str | None:
-    arch = _macos_arch()
-    if arch is None:
-        return None
+    arch_flags = os.environ.get("ARCHFLAGS", "").split()
+
+    for index, flag in enumerate(arch_flags[:-1]):
+        if flag == "-arch":
+            arch = arch_flags[index + 1]
+            break
+    else:
+        parts = _platform_parts()
+        if len(parts) < 3 or parts[0] != "macosx":
+            return None
+        arch = parts[-1]
 
     zig_arch = {
         "x86_64": "x86_64",
@@ -34,39 +31,37 @@ def _macos_target() -> str | None:
 
     deployment_target = os.environ.get("MACOSX_DEPLOYMENT_TARGET")
     if deployment_target:
-        return f"{zig_arch}-macos.{deployment_target.replace('_', '.')}"
+        version = deployment_target.replace("_", ".")
+    else:
+        parts = _platform_parts()
+        version = (
+            parts[1].replace("_", ".")
+            if len(parts) >= 3 and parts[0] == "macosx" else ""
+        )
 
-    platform_name = sysconfig.get_platform()
-    parts = platform_name.split("-")
-    if len(parts) >= 3 and parts[0] == "macosx":
-        return f"{zig_arch}-macos.{parts[1].replace('_', '.')}"
-
-    return f"{zig_arch}-macos"
+    return f"{zig_arch}-macos.{version}" if version else f"{zig_arch}-macos"
 
 
 def _windows_target() -> str | None:
-    zig_arch = {
-        "win32": "x86",
-        "win-amd64": "x86_64",
-        "win-arm64": "aarch64",
+    return {
+        "win32": "x86-windows-msvc",
+        "win-arm64": "aarch64-windows-msvc",
     }.get(sysconfig.get_platform())
-    if zig_arch is None:
-        return None
-    return f"{zig_arch}-windows-msvc"
+
+
+def _zig_target() -> str | None:
+    if sys.platform == "darwin":
+        return _macos_target()
+    if sys.platform == "win32":
+        return _windows_target()
+    return None
 
 
 def _zig_compile_args() -> list[str]:
     args = ["-O", "ReleaseFast", "-I", "src"]
-
-    if sys.platform == "darwin":
-        target = _macos_target()
-        if target is not None:
-            args.extend(["-target", target])
-    elif sys.platform == "win32":
-        target = _windows_target()
-        if target is not None:
-            args.extend(["-target", target])
-
+    target = _zig_target()
+    if target is not None:
+        args.extend(["-target", target])
     return args
 
 
