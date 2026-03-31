@@ -124,19 +124,31 @@ def _macos_sysroot() -> str | None:
 def _compile_args(ext: Extension, zig_target: str | None) -> list[str]:
     compile_args: list[str] = []
     skip_next = False
+    known_targets = {
+        "x86_64-macos",
+        "aarch64-macos",
+        "x86-windows-msvc",
+        "aarch64-windows-msvc",
+    }
 
     for arg in ext.extra_compile_args:
         if skip_next:
             skip_next = False
             continue
-        if arg == "-target":
+        if arg in {"-target", "--target"}:
             skip_next = True
+            continue
+        if arg.startswith(("-target=", "--target=")):
+            continue
+        if arg in known_targets or any(
+            arg.startswith(f"{target}.") for target in known_targets
+        ):
             continue
         if arg.startswith("macosx-"):
             continue
         compile_args.append(arg)
 
-    if zig_target is not None and "-target" not in compile_args:
+    if zig_target is not None:
         compile_args.extend(["-target", zig_target])
 
     if sys.platform == "darwin":
