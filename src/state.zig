@@ -1,5 +1,6 @@
 const RomuTrio = @import("romu_trio.zig");
 
+const builtin = @import("c.zig").builtin;
 const c = @import("c.zig").c;
 
 pub const UUIDObject = extern struct {
@@ -29,8 +30,15 @@ pub const UUID_RAND_MASK: u64 = 0x3FFF_FFFF_FFFF_FFFF;
 pub const RESEED_MASK: u64 = (1 << 41) - 1;
 pub const LOW30_MASK: u64 = (1 << 30) - 1;
 
-pub const QueryInterruptTimeFn = *const fn (?*c.ULONGLONG) callconv(.winapi) void;
-pub const BCryptGenRandomFn = *const fn (c.BCRYPT_ALG_HANDLE, [*]u8, c.ULONG, c.ULONG) callconv(.winapi) c.NTSTATUS;
+pub const QueryInterruptTimeFn = if (builtin.os.tag == .windows)
+    *const fn (?*u64) callconv(.winapi) void
+else
+    *const fn (?*u64) callconv(.c) void;
+
+pub const BCryptGenRandomFn = if (builtin.os.tag == .windows)
+    *const fn (?*anyopaque, [*]u8, c_uint, c_uint) callconv(.winapi) c_int
+else
+    *const fn (?*anyopaque, [*]u8, c_uint, c_uint) callconv(.c) c_int;
 
 pub const RuntimeState = struct {
     uuid_type: ?*c.PyTypeObject = null,

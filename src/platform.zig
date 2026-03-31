@@ -24,7 +24,7 @@ fn ensureBcryptGenRandom() ?state.BCryptGenRandomFn {
 pub fn nowMs() u64 {
     if (builtin.os.tag == .windows) {
         if (state.runtime.query_interrupt_time_ptr) |query_interrupt_time| {
-            var interrupt_time: c.ULONGLONG = 0;
+            var interrupt_time: u64 = 0;
             query_interrupt_time(&interrupt_time);
             return state.runtime.epoch_base_ms + @as(u64, interrupt_time / 10_000) - state.runtime.tick_base_ms;
         }
@@ -114,7 +114,7 @@ pub fn platformSeeded() void {
     }
 
     if (state.runtime.query_interrupt_time_ptr) |query_interrupt_time| {
-        var interrupt_time: c.ULONGLONG = 0;
+        var interrupt_time: u64 = 0;
 
         query_interrupt_time(&interrupt_time);
         state.runtime.tick_base_ms = @as(u64, interrupt_time / 10_000);
