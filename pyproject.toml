@@ -107,7 +107,7 @@ build = [
     "pp311-*", # PyPy 3.11
 ]
 skip = [
-    "*t-*", # Free-threading"
+    "*t-*", # Free-threading
     "*-musllinux_ppc64le",
     "*-musllinux_s390x",
 ]
