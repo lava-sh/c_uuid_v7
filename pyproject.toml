@@ -108,6 +108,10 @@ test-skip = "*-macosx_arm64"
 
 [tool.cibuildwheel.windows]
 archs = ["AMD64", "x86", "ARM64"]
+before-all = [
+    "uv venv %LOCALAPPDATA%\\zig0141 --seed",
+    "uv pip install --python %LOCALAPPDATA%\\zig0141\\Scripts\\python.exe ziglang==0.14.1",
+]
 test-skip = "*-win_arm64"
 
 [[tool.cibuildwheel.overrides]]
@@ -125,10 +129,6 @@ environment = { PY_ZIG = "/opt/zig0141/bin/zig" }
 
 [[tool.cibuildwheel.overrides]]
 select = "*-win32"
-before-all = [
-    "uv venv %LOCALAPPDATA%\\zig0141 --seed",
-    "uv pip install --python %LOCALAPPDATA%\\zig0141\\Scripts\\python.exe ziglang==0.14.1",
-]
 inherit.environment = "append"
 environment = { PY_ZIG = 'C:\Users\runneradmin\AppData\Local\zig0141\Scripts\zig.exe' }
 
