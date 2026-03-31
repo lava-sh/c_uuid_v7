@@ -99,9 +99,6 @@ build = [
 ]
 skip = [
     "*t-*", # Free-threading
-    "*_i686",
-    "*_s390x",
-    "*_armv7l",
 ]
 build-frontend = "uv"
 test-command = "pytest {project}/tests"

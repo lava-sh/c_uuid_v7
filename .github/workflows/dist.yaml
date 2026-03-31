@@ -21,8 +21,29 @@ env:
   UV_PYTHON_DOWNLOADS: 0
 
 jobs:
-  wheels-linux-x64:
-    name: "ubuntu-latest / wheels x64"
+  wheels-linux-x86_64:
+    name: "ubuntu-latest / wheels x86_64"
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - uses: pypa/cibuildwheel@ee02a1537ce3071a004a6b08c41e72f0fdc42d9a # v3.4.0
+        env:
+          CIBW_ARCHS_LINUX: "x86_64"
+          CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
+          CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
+
+      - name: "Upload wheels"
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: wheels-ubuntu-latest-x86_64
+          path: wheelhouse/*.whl
+
+  wheels-linux-emulated:
+    name: "ubuntu-latest / wheels emulated"
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -39,14 +60,14 @@ jobs:
         with:
           extras: uv
         env:
-          CIBW_ARCHS_LINUX: "x86_64 i686 ppc64le s390x armv7l"
+          CIBW_ARCHS_LINUX: "i686 ppc64le s390x armv7l"
           CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
           CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
 
       - name: "Upload wheels"
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: wheels-ubuntu-latest-x64
+          name: wheels-ubuntu-latest-emulated
           path: wheelhouse/*.whl
 
   wheels-linux-arm:
@@ -59,8 +80,6 @@ jobs:
           persist-credentials: false
 
       - uses: pypa/cibuildwheel@ee02a1537ce3071a004a6b08c41e72f0fdc42d9a # v3.4.0
-        with:
-          extras: uv
         env:
           CIBW_ARCHS_LINUX: "aarch64"
           CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
