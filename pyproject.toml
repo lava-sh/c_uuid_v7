@@ -117,10 +117,24 @@ build-frontend = "build"
 [[tool.cibuildwheel.overrides]]
 select = "*-manylinux_ppc64le"
 before-all = [
-    "env UV_TOOL_DIR=/opt/uv-tools UV_TOOL_BIN_DIR=/opt/uv-bin uv tool install ziglang==0.14.1 --force",
+    "uv venv /opt/zig0141 --seed",
+    "uv pip install --python /opt/zig0141/bin/python ziglang==0.14.1",
 ]
 inherit.environment = "append"
-environment = { UV_TOOL_DIR = "/opt/uv-tools", UV_TOOL_BIN_DIR = "/opt/uv-bin", PY_ZIG = "/opt/uv-bin/zig" }
+environment = {
+    PY_ZIG = "/opt/zig0141/bin/zig",
+}
+
+[[tool.cibuildwheel.overrides]]
+select = "*-win32"
+before-all = [
+    "uv venv %LOCALAPPDATA%\\zig0141 --seed",
+    "uv pip install --python %LOCALAPPDATA%\\zig0141\\Scripts\\python.exe ziglang==0.14.1",
+]
+inherit.environment = "append"
+environment = {
+    PY_ZIG = "C:\\Users\\runneradmin\\AppData\\Local\\zig0141\\Scripts\\zig.exe",
+}
 
 [[tool.cibuildwheel.overrides]]
 select = "cp3{13,14}-*"
