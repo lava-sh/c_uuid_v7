@@ -7,6 +7,7 @@ include = [
     "py-src/**.py",
     "py-src/**.pyi",
     "tests/**.py",
+    "setup.py",
     "benchmark/run.py",
     "pyproject.toml",
     "README.md"
@@ -54,6 +55,9 @@ ignore = [
 # benchmark
 "benchmark/**.py" = [
     "INP001",
+]
+"setup.py" = [
+    "PLR2004"
 ]
 
 [lint.flake8-tidy-imports.banned-api]

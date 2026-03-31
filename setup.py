@@ -12,4 +12,5 @@ setup(
             libraries=["bcrypt"] if sys.platform == "win32" else [],
         ),
     ],
+    setup_requires=["setuptools-zig>=0.5.0", "ziglang==0.15.2"],
 )

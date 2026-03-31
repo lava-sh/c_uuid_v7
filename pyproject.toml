@@ -10,7 +10,7 @@ build-backend = "setuptools.build_meta"
 name = "c_uuid_v7"
 dynamic = ["version"]
 requires-python = ">=3.10"
-description = "Fast UUID v7 generator implemented as a CPython C extension"
+description = "Fast UUID v7 generator implemented as a CPython Zig extension"
 readme = "README.md"
 license = "Unlicense"
 license-files = ["UNLICENSE"]
@@ -19,7 +19,7 @@ authors = [
 ]
 classifiers = [
     "Typing :: Typed",
-    "Programming Language :: C",
+    "Programming Language :: Zig",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
