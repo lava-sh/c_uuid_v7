@@ -81,16 +81,14 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: "Install uv"
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          enable-cache: false
+
       - name: "Install Zig 0.14.1"
         shell: pwsh
-        run: |
-          $url = 'https://ziglang.org/download/0.14.1/zig-windows-x86_64-0.14.1.zip'
-          $zip = Join-Path $env:RUNNER_TEMP 'zig-0.14.1.zip'
-          $dir = Join-Path $env:RUNNER_TEMP 'zig-0.14.1'
-
-          Invoke-WebRequest -Uri $url -OutFile $zip
-          New-Item -ItemType Directory -Force -Path $dir | Out-Null
-          tar -xf $zip -C $dir --strip-components=1
+        run: uv tool install ziglang==0.14.1 --tool-dir "${env:RUNNER_TEMP}\zig-0.14.1" --force
 
       - uses: pypa/cibuildwheel@ee02a1537ce3071a004a6b08c41e72f0fdc42d9a # v3.4.0
         with:
