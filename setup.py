@@ -50,8 +50,11 @@ def _macos_targets() -> list[str]:
         }.get(arch)
         if zig_arch is None:
             continue
+        target_version = _normalize_macos_target_version(zig_arch, version)
         targets.append(
-            f"{zig_arch}-macos.{version}" if version else f"{zig_arch}-macos",
+            f"{zig_arch}-macos.{target_version}"
+            if target_version
+            else f"{zig_arch}-macos",
         )
 
     return targets
@@ -62,6 +65,21 @@ def _windows_target() -> str | None:
         "win32": "x86-windows-msvc",
         "win-arm64": "aarch64-windows-msvc",
     }.get(sysconfig.get_platform())
+
+
+def _normalize_macos_target_version(
+    zig_arch: str,
+    version: str,
+) -> str:
+    if zig_arch != "aarch64":
+        return version
+    if not version:
+        return "11.0"
+
+    version_parts = version.split(".")
+    major = int(version_parts[0])
+    minor = int(version_parts[1]) if len(version_parts) > 1 else 0
+    return "11.0" if (major, minor) < (11, 0) else version
 
 
 def _zig_target() -> str | None:
@@ -230,6 +248,17 @@ class _ZigBuildExt(build_ext):
                 if include_dir.exists() and include_dir not in include_dirs:
                     include_dirs.append(include_dir)
                     include_args.extend(["-I", str(include_dir)])
+
+        if sys.platform == "darwin":
+            sysroot = _macos_sysroot()
+            if sysroot is not None:
+                sdk_include_dir = Path(sysroot) / "usr" / "include"
+                if (
+                    sdk_include_dir.exists()
+                    and sdk_include_dir not in include_dirs
+                ):
+                    include_dirs.append(sdk_include_dir)
+                    include_args.extend(["-I", str(sdk_include_dir)])
 
         return include_args
 
