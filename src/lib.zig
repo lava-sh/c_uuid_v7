@@ -340,7 +340,10 @@ fn uuidDeepcopy(self_obj: ?*c.PyObject, args: ?*c.PyObject) callconv(.c) ?*c.PyO
 fn uuidHash(self_obj: ?*c.PyObject) callconv(.c) c.Py_hash_t {
     const self = uuidSelf(self_obj);
     const mixed = self.hi ^ (self.hi >> 32) ^ self.lo ^ (self.lo >> 32);
-    var hash: c.Py_hash_t = @bitCast(mixed);
+    var hash: c.Py_hash_t = if (@bitSizeOf(c.Py_hash_t) == 64)
+        @bitCast(mixed)
+    else
+        @bitCast(@as(u32, @truncate(mixed ^ (mixed >> 32))));
 
     if (hash == -1) {
         hash = -2;
