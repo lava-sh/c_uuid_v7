@@ -278,7 +278,16 @@ class _ZigBuildExt(build_ext):
         )
         self._emit_output(result)
         if result.returncode != 0:
-            raise CompileError(result.stderr or "zig build-lib failed")
+            details: list[str] = [
+                "zig build-lib failed",
+                f"command: {' '.join(command)}",
+                f"exit code: {result.returncode}",
+            ]
+            if result.stdout:
+                details.extend(["stdout:", result.stdout])
+            if result.stderr:
+                details.extend(["stderr:", result.stderr])
+            raise CompileError("\n".join(details))
 
     def _build_macos_universal2(self, ext: Extension) -> None:
         target_path = Path(self.get_ext_fullpath(ext.name))
@@ -316,7 +325,19 @@ class _ZigBuildExt(build_ext):
             )
             self._emit_output(result)
             if result.returncode != 0:
-                raise CompileError(result.stderr or "lipo failed for universal2 build")
+                command_repr = (
+                    f"{lipo} -create -output {target_path} {' '.join(built_slices)}"
+                )
+                details: list[str] = [
+                    "lipo failed for universal2 build",
+                    f"command: {command_repr}",
+                    f"exit code: {result.returncode}",
+                ]
+                if result.stdout:
+                    details.extend(["stdout:", result.stdout])
+                if result.stderr:
+                    details.extend(["stderr:", result.stderr])
+                raise CompileError("\n".join(details))
 
 
 setup(
