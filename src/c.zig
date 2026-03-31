@@ -5,11 +5,7 @@ pub const c = @cImport({
     @cInclude("Python.h");
     @cInclude("_python.h");
 
-    if (builtin.os.tag == .windows) {
-        @cDefine("WIN32_LEAN_AND_MEAN", "1");
-        @cInclude("windows.h");
-        @cInclude("bcrypt.h");
-    } else {
+    if (builtin.os.tag != .windows) {
         @cInclude("fcntl.h");
         @cInclude("sys/time.h");
         @cInclude("time.h");

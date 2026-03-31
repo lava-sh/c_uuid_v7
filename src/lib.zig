@@ -57,7 +57,7 @@ fn notImplementedObject() ?*c.PyObject {
 }
 
 fn uuidSelf(self_obj: ?*c.PyObject) *UUIDObject {
-    return @ptrCast(self_obj.?);
+    return @alignCast(@ptrCast(self_obj.?));
 }
 
 fn uuidNew(hi: u64, lo: u64) ?*UUIDObject {
@@ -73,7 +73,7 @@ fn uuidNew(hi: u64, lo: u64) ?*UUIDObject {
     const type_object = state.runtime.uuid_type orelse return null;
     const alloc = type_object.tp_alloc orelse return null;
     const raw = alloc(type_object, 0) orelse return null;
-    const obj: *UUIDObject = @ptrCast(raw);
+    const obj: *UUIDObject = @alignCast(@ptrCast(raw));
 
     obj.hi = hi;
     obj.lo = lo;
@@ -317,7 +317,7 @@ fn uuidRichcompare(a: ?*c.PyObject, b: ?*c.PyObject, op: c_int) callconv(.c) ?*c
         return pyIncRef(notImplementedObject());
     }
 
-    const cmp = uuidCompare(@ptrCast(a.?), @ptrCast(b.?));
+    const cmp = uuidCompare(@alignCast(@ptrCast(a.?)), @alignCast(@ptrCast(b.?)));
 
     if (op == c.Py_LT) {
         return c.PyBool_FromLong(@intFromBool(cmp < 0));
