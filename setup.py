@@ -44,11 +44,26 @@ def _macos_target() -> str | None:
     return f"{zig_arch}-macos"
 
 
+def _windows_target() -> str | None:
+    zig_arch = {
+        "win32": "x86",
+        "win-amd64": "x86_64",
+        "win-arm64": "aarch64",
+    }.get(sysconfig.get_platform())
+    if zig_arch is None:
+        return None
+    return f"{zig_arch}-windows-msvc"
+
+
 def _zig_compile_args() -> list[str]:
     args = ["-O", "ReleaseFast", "-I", "src"]
 
     if sys.platform == "darwin":
         target = _macos_target()
+        if target is not None:
+            args.extend(["-target", target])
+    elif sys.platform == "win32":
+        target = _windows_target()
         if target is not None:
             args.extend(["-target", target])
 
