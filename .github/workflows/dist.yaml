@@ -54,11 +54,11 @@ jobs:
       - name: "Set up QEMU"
         uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
         with:
-          platforms: arm,ppc64le,s390x
+          platforms: arm,s390x
 
       - uses: pypa/cibuildwheel@ee02a1537ce3071a004a6b08c41e72f0fdc42d9a # v3.4.0
         env:
-          CIBW_ARCHS_LINUX: "i686 ppc64le s390x armv7l"
+          CIBW_ARCHS_LINUX: "i686 s390x armv7l"
           CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
           CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
 
