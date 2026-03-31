@@ -18,7 +18,16 @@ class _UUID:
     def clock_seq_low(self) -> builtins.int: ...
 
     @property
-    def fields(self) -> tuple[int, int, int, int, int, int]: ...
+    def fields(
+        self,
+    ) -> tuple[
+        builtins.int,
+        builtins.int,
+        builtins.int,
+        builtins.int,
+        builtins.int,
+        builtins.int,
+    ]: ...
 
     @property
     def hex(self) -> str: ...
