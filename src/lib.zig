@@ -87,10 +87,6 @@ fn pyDecRef(obj: ?*c.PyObject) void {
 fn pyRefcnt(obj: *UUIDObject) usize {
     const py_obj: *c.PyObject = @ptrCast(obj);
 
-    if (@hasDecl(c, "Py_REFCNT")) {
-        return @intCast(c.Py_REFCNT(py_obj));
-    }
-
     if ((c.PY_MAJOR_VERSION > 2) and (c.PY_MINOR_VERSION > 13)) {
         return @intCast(py_obj.unnamed_0.ob_refcnt_full);
     }
