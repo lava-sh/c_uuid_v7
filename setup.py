@@ -28,7 +28,8 @@ def _macos_targets() -> list[str]:
         parts = _platform_parts()
         if len(parts) < 3 or parts[0] != "macosx":
             return []
-        archs = [parts[-1]]
+        arch = parts[-1]
+        archs = ["x86_64", "arm64"] if arch == "universal2" else [arch]
 
     deployment_target = os.environ.get("MACOSX_DEPLOYMENT_TARGET")
     if deployment_target:
@@ -109,7 +110,7 @@ def _macos_sysroot() -> str | None:
         return None
 
     result = subprocess.run(
-        [xcrun, "--show-sdk-path"],
+        [xcrun, "--sdk", "macosx", "--show-sdk-path"],
         capture_output=True,
         encoding="utf-8",
         check=False,
