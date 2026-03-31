@@ -38,7 +38,7 @@ zizmor = ["zizmor == 1.23.1"]
 rumdl = ["rumdl == 0.1.63"]
 pytest = ["pytest == 9.0.2"]
 ci = [
-    "ty == 0.0.26",
+    "ty == 0.0.27",
     "ruff == 0.15.8",
     { include-group = "pytest" },
 ]
@@ -96,29 +96,35 @@ commit_count_since_tag: int = {scm_version.distance}
 """
 
 [tool.cibuildwheel]
-build = "cp310-* cp311-* cp312-* cp313-* cp314-* pp311-*"
-build-frontend = "build[uv]"
+build-frontend = "uv"
 enable = ["pypy"]
-skip = "*t-* *-musllinux_{ppc64le,s390x}"
+build = [
+    "cp310-*", # Python 3.10
+    "cp311-*", # Python 3.11
+    "cp312-*", # Python 3.12
+    "cp313-*", # Python 3.13
+    "cp314-*", # Python 3.14
+    "pp311-*", # PyPy 3.11
+]
+skip = [
+    "*t-*", # Free-threading
+    "*-musllinux_ppc64le",
+    "*-musllinux_s390x",
+]
 test-command = "pytest {project}/tests"
-test-groups = ["pytest"]
-test-sources = ["tests"]
+test-groups = ["pytest"] # uv pip install --group test
 
 [tool.cibuildwheel.linux]
 archs = ["x86_64", "i686", "aarch64", "ppc64le", "s390x", "armv7l"]
 test-skip = "*-manylinux_{aarch64,ppc64le,s390x,armv7l} *-musllinux_{i686,aarch64,armv7l}"
 
 [tool.cibuildwheel.macos]
-archs = ["x86_64", "arm64"]
+archs = ["x86_64", "arm64", "universal2"]
 test-skip = "*-macosx_arm64"
 
 [tool.cibuildwheel.windows]
 archs = ["AMD64", "x86", "ARM64"]
 test-skip = "*-win_arm64"
-
-[[tool.cibuildwheel.overrides]]
-select = "*-musllinux_{ppc64le,s390x}"
-build-frontend = "build"
 
 [[tool.cibuildwheel.overrides]]
 select = "cp3{13,14}-*"
