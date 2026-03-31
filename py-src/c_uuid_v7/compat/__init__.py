@@ -2,7 +2,7 @@ import sys
 from typing import Literal
 from uuid import UUID
 
-from c_uuid_v7.__core import _uuid7
+from c_uuid_v7._core import _uuid7
 
 if sys.version_info >= (3, 14):
 
