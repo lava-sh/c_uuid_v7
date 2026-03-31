@@ -1,10 +1,14 @@
 import os
+import shutil
+import subprocess  # noqa: S404
 import sys
 import sysconfig
 from pathlib import Path
 
+import ziglang
 from setuptools import Extension, setup
-from setuptools_zig import BuildExt as ZigBuildExt
+from setuptools.command.build_ext import build_ext
+from setuptools.errors import CompileError
 
 
 def _platform_parts() -> list[str]:
@@ -38,7 +42,8 @@ def _macos_target() -> str | None:
         parts = _platform_parts()
         version = (
             parts[1].replace("_", ".")
-            if len(parts) >= 3 and parts[0] == "macosx" else ""
+            if len(parts) >= 3 and parts[0] == "macosx"
+            else ""
         )
 
     return f"{zig_arch}-macos.{version}" if version else f"{zig_arch}-macos"
@@ -67,38 +72,129 @@ def _zig_compile_args() -> list[str]:
     return args
 
 
-class _PatchedZigBuildExt(ZigBuildExt):
+def _find_zig() -> str:
+    zig = os.environ.get("PY_ZIG")
+    if zig:
+        return zig
+
+    if ziglang is not None:
+        zig_path = Path(ziglang.__file__).parent / (
+            "zig.exe" if sys.platform == "win32" else "zig"
+        )
+        zig_path.chmod(0o755)
+        return str(zig_path)
+
+    zig = shutil.which("zig")
+    if zig is None:
+        msg = "could not find Zig compiler; set PY_ZIG or install ziglang"
+        raise CompileError(msg)
+    return zig
+
+
+class _ZigBuildExt(build_ext):
     def build_extension(self, ext: Extension) -> None:
+        if not any(source.endswith(".zig") for source in ext.sources):
+            super().build_extension(ext)
+            return
+
+        result = subprocess.run(  # noqa: S603
+            self._build_command(ext),
+            capture_output=True,
+            encoding="utf-8",
+            check=False,
+        )
+        self._emit_output(result)
+        if result.returncode != 0:
+            raise CompileError(result.stderr or "zig build-lib failed")
+
+    def _build_command(self, ext: Extension) -> list[str]:
+        target = Path(self.get_ext_fullpath(ext.name))
+        target.parent.mkdir(parents=True, exist_ok=True)
+
+        command = [
+            _find_zig(),
+            "build-lib",
+            "-dynamic",
+            "-fallow-shlib-undefined",
+            f"-femit-bin={target.resolve()}",
+            "-lc",
+        ]
+        command.extend(self._include_args(ext))
+        command.extend(self._library_args(ext))
+        command.extend(ext.extra_compile_args)
+
         if sys.platform == "win32":
-            python_lib_name = (
-                f"python{sys.version_info.major}{sys.version_info.minor}.lib"
-            )
-            sanitized_library_dirs: list[str] = []
+            command.append(f"-lpython{sys.version_info.major}{sys.version_info.minor}")
 
-            for raw_dir in self.compiler.library_dirs:
-                library_dir = Path(raw_dir)
-                dll_path = library_dir / python_lib_name.replace(".lib", ".dll")
+        command.extend(
+            f"-l{library}"
+            for library in ext.libraries
+            if sys.platform != "win32" or library != "python"
+        )
+        command.extend(ext.sources)
+        return command
 
-                if dll_path.exists() and not (library_dir / python_lib_name).exists():
+    def _include_args(self, ext: Extension) -> list[str]:
+        include_args: list[str] = []
+        include_dirs: list[Path] = []
+
+        for raw_dir in [*self.compiler.include_dirs, *ext.include_dirs]:
+            include_dir = Path(raw_dir).resolve()
+            if include_dir.exists() and include_dir not in include_dirs:
+                include_dirs.append(include_dir)
+                include_args.extend(["-I", str(include_dir)])
+
+        if os.name != "nt":
+            system_include_dirs = [
+                Path("/usr/include"),
+                *Path("/usr/include").glob("*-linux-gnu"),
+            ]
+            for include_dir in system_include_dirs:
+                if include_dir.exists() and include_dir not in include_dirs:
+                    include_dirs.append(include_dir)
+                    include_args.extend(["-I", str(include_dir)])
+
+        return include_args
+
+    def _library_args(self, ext: Extension) -> list[str]:
+        library_args: list[str] = []
+        for library_dir in self._library_dirs(ext):
+            library_args.extend(["-L", library_dir])
+        return library_args
+
+    def _library_dirs(self, ext: Extension) -> list[str]:
+        seen: set[str] = set()
+        directories: list[str] = []
+        python_lib_name = f"python{sys.version_info.major}{sys.version_info.minor}"
+
+        for raw_dir in [*self.compiler.library_dirs, *ext.library_dirs]:
+            library_dir = Path(raw_dir)
+            if not library_dir.exists():
+                continue
+
+            if sys.platform == "win32":
+                dll_path = library_dir / f"{python_lib_name}.dll"
+                lib_path = library_dir / f"{python_lib_name}.lib"
+                if dll_path.exists() and not lib_path.exists():
                     continue
 
-                sanitized_library_dirs.append(raw_dir)
+            resolved = str(library_dir.resolve())
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            directories.append(resolved)
 
-            self.compiler.library_dirs = sanitized_library_dirs
+        return directories
 
-        super().build_extension(ext)
-
-
-class _PatchedZigBuildExtension:
-    def __init__(self, *, enabled: bool) -> None:
-        self._enabled = enabled
-
-    def __call__(self, dist: object) -> _PatchedZigBuildExt:
-        return _PatchedZigBuildExt(dist, zig_value=self._enabled)
+    def _emit_output(self, result: subprocess.CompletedProcess[str]) -> None:
+        if result.stdout:
+            self.announce(result.stdout, level=2)
+        if result.stderr:
+            self.announce(result.stderr, level=3)
 
 
 setup(
-    cmdclass={"build_ext": _PatchedZigBuildExtension(enabled=True)},
+    cmdclass={"build_ext": _ZigBuildExt},
     ext_modules=[
         Extension(
             "c_uuid_v7._core",
