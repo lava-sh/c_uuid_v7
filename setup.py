@@ -45,7 +45,7 @@ def _macos_target() -> str | None:
 
 
 def _zig_compile_args() -> list[str]:
-    args = ["-O", "ReleaseFast"]
+    args = ["-O", "ReleaseFast", "-I", "src"]
 
     if sys.platform == "darwin":
         target = _macos_target()
