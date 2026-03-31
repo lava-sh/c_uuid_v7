@@ -122,11 +122,19 @@ def _macos_sysroot() -> str | None:
 
 
 def _compile_args(ext: Extension, zig_target: str | None) -> list[str]:
-    compile_args = [
-        arg
-        for arg in ext.extra_compile_args
-        if arg != "-target" and not arg.startswith("macosx-")
-    ]
+    compile_args: list[str] = []
+    skip_next = False
+
+    for arg in ext.extra_compile_args:
+        if skip_next:
+            skip_next = False
+            continue
+        if arg == "-target":
+            skip_next = True
+            continue
+        if arg.startswith("macosx-"):
+            continue
+        compile_args.append(arg)
 
     if zig_target is not None and "-target" not in compile_args:
         compile_args.extend(["-target", zig_target])
