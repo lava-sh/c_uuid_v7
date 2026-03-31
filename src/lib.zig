@@ -41,10 +41,11 @@ fn pyModuleDefHeadInitLegacy() PyModuleDef_Base {
     };
 }
 
-const PyObjectRefcntUnion = @TypeOf((PyObject{ .unnamed_0 = undefined, .ob_type = null }).unnamed_0);
+const has_refcnt_container = @hasField(PyObject, "unnamed_0");
+const PyObjectRefcntContainer = if (has_refcnt_container) @FieldType(PyObject, "unnamed_0") else void;
 
-const has_refcnt_full = @hasField(PyObjectRefcntUnion, "ob_refcnt_full");
-const has_refcnt_inline = @hasField(PyObjectRefcntUnion, "ob_refcnt");
+const has_refcnt_full = has_refcnt_container and @hasField(PyObjectRefcntContainer, "ob_refcnt_full");
+const has_refcnt_inline = has_refcnt_container and @hasField(PyObjectRefcntContainer, "ob_refcnt");
 
 const PyModuleDef_HEAD_INIT = if (has_refcnt_full)
     pyModuleDefHeadInitRefcntFull()
