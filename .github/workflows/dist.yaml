@@ -81,10 +81,22 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: "Install Zig 0.14.1"
+        shell: pwsh
+        run: |
+          $url = 'https://ziglang.org/download/0.14.1/zig-windows-x86_64-0.14.1.zip'
+          $zip = Join-Path $env:RUNNER_TEMP 'zig-0.14.1.zip'
+          $dir = Join-Path $env:RUNNER_TEMP 'zig-0.14.1'
+
+          Invoke-WebRequest -Uri $url -OutFile $zip
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          tar -xf $zip -C $dir --strip-components=1
+
       - uses: pypa/cibuildwheel@ee02a1537ce3071a004a6b08c41e72f0fdc42d9a # v3.4.0
         with:
           extras: uv
         env:
+          PY_ZIG: ${{ runner.temp }}\zig-0.14.1\zig.exe
           CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
           CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
 

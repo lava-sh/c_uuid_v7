@@ -115,5 +115,14 @@ select = "*-musllinux_{ppc64le,s390x}"
 build-frontend = "build"
 
 [[tool.cibuildwheel.overrides]]
+select = "*-manylinux_ppc64le"
+before-all = [
+    "python -c \"import pathlib, urllib.request; pathlib.Path('/opt/zig-0.14.1').mkdir(parents=True, exist_ok=True); urllib.request.urlretrieve('https://ziglang.org/download/0.14.1/zig-linux-x86_64-0.14.1.tar.xz', '/tmp/zig-0.14.1.tar.xz')\"",
+    "tar -xf /tmp/zig-0.14.1.tar.xz -C /opt/zig-0.14.1 --strip-components=1",
+]
+inherit.environment = "append"
+environment = { PY_ZIG = "/opt/zig-0.14.1/zig" }
+
+[[tool.cibuildwheel.overrides]]
 select = "cp3{13,14}-*"
 test-environment = { PYTHONMALLOC = "mimalloc" }
