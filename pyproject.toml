@@ -121,9 +121,7 @@ before-all = [
     "uv pip install --python /opt/zig0141/bin/python ziglang==0.14.1",
 ]
 inherit.environment = "append"
-environment = {
-    PY_ZIG = "/opt/zig0141/bin/zig",
-}
+environment = { PY_ZIG = "/opt/zig0141/bin/zig" }
 
 [[tool.cibuildwheel.overrides]]
 select = "*-win32"
@@ -132,9 +130,7 @@ before-all = [
     "uv pip install --python %LOCALAPPDATA%\\zig0141\\Scripts\\python.exe ziglang==0.14.1",
 ]
 inherit.environment = "append"
-environment = {
-    PY_ZIG = "C:\\Users\\runneradmin\\AppData\\Local\\zig0141\\Scripts\\zig.exe",
-}
+environment = { PY_ZIG = 'C:\Users\runneradmin\AppData\Local\zig0141\Scripts\zig.exe' }
 
 [[tool.cibuildwheel.overrides]]
 select = "cp3{13,14}-*"
