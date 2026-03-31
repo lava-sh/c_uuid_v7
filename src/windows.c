@@ -1,7 +1,7 @@
 #ifdef _WIN32
 
 // clang-format off
-#include "_platform.h"
+#include "platform.h"
 
 #include <bcrypt.h>
 #pragma comment(lib, "bcrypt.lib")

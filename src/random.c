@@ -1,6 +1,6 @@
-#include "_random.h"
+#include "random.h"
 
-#include "_platform.h"
+#include "platform.h"
 
 /*
  * PCG Random Number Generation for C.

@@ -1,4 +1,4 @@
-#include "_hex_pairs.h"
+#include "hexpairs.h"
 
 #include <assert.h>
 

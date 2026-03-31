@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import TypeAlias
 
 import altair as alt
+import c_uuid_v7
+import c_uuid_v7.compat as c_uuid_v7_compat
 import cpuinfo
 import fastuuid
 import lastuuid
@@ -19,9 +21,6 @@ import uuid7 as uuid7gen
 import uuid_utils
 import uuid_utils.compat as uuid_utils_compat
 from uuid_v7.base import uuid7 as uuid_v7_uuid7
-
-import c_uuid_v7
-import c_uuid_v7.compat as c_uuid_v7_compat
 
 N = 500_000
 

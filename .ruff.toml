@@ -4,8 +4,8 @@ line-length = 90
 indent-width = 4
 
 include = [
-    "src/**.py",
-    "src/**.pyi",
+    "py-src/**.py",
+    "py-src/**.pyi",
     "tests/**.py",
     "benchmark/run.py",
     "pyproject.toml",
@@ -42,9 +42,9 @@ ignore = [
 ]
 
 [lint.per-file-ignores]
-"src/c_uuid_v7/__init__.py" = ["RUF067"]
-"src/c_uuid_v7/compat/__init__.py" = ["RUF067"]
-"src/c_uuid_v7/__core.pyi" = ["PYI021"]
+"py-src/c_uuid_v7/__init__.py" = ["RUF067"]
+"py-src/c_uuid_v7/compat/__init__.py" = ["RUF067"]
+"py-src/c_uuid_v7/_core.pyi" = ["PYI021"]
 # tests
 "tests/**.py" = [
     "S101",    # Check `assert`'s

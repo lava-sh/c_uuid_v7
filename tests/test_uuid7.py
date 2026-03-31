@@ -6,9 +6,8 @@ import sys
 import uuid
 from typing import Any, Literal
 
-import pytest
-
 import c_uuid_v7
+import pytest
 
 Mode = Literal["fast", "secure"]
 
@@ -251,7 +250,7 @@ def test_reseed_is_called_when_forking() -> None:
     read_end, write_end = os.pipe()
     c_uuid_v7.uuid7()
 
-    pid = os.fork()  # ty: ignore
+    pid = os.fork()  # ty: ignore[unresolved-attribute]
     if pid == 0:
         os.close(read_end)
         next_uuid_child = str(c_uuid_v7.uuid7())

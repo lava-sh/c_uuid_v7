@@ -1,7 +1,7 @@
 #ifndef _WIN32
 
 // clang-format off
-#include "_platform.h"
+#include "platform.h"
 
 #include <fcntl.h>
 #include <sys/time.h>
