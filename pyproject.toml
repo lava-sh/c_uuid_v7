@@ -123,6 +123,7 @@ select = "*-manylinux_ppc64le"
 before-all = [
     "uv venv /opt/zig0141 --seed",
     "uv pip install --python /opt/zig0141/bin/python ziglang==0.14.1",
+    "/opt/zig0141/bin/python -c \"import os, pathlib, ziglang; src = pathlib.Path(ziglang.__file__).parent / 'zig'; dst = pathlib.Path('/opt/zig0141/bin/zig'); dst.unlink(missing_ok=True); os.symlink(src, dst)\"",
 ]
 inherit.environment = "append"
 environment = { PY_ZIG = "/opt/zig0141/bin/zig" }
