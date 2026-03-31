@@ -41,9 +41,14 @@ fn pyModuleDefHeadInitLegacy() PyModuleDef_Base {
     };
 }
 
-const PyModuleDef_HEAD_INIT = if ((c.PY_MAJOR_VERSION > 2) and (c.PY_MINOR_VERSION > 13))
+const PyObjectRefcntUnion = @TypeOf((PyObject{ .unnamed_0 = undefined, .ob_type = null }).unnamed_0);
+
+const has_refcnt_full = @hasField(PyObjectRefcntUnion, "ob_refcnt_full");
+const has_refcnt_inline = @hasField(PyObjectRefcntUnion, "ob_refcnt");
+
+const PyModuleDef_HEAD_INIT = if (has_refcnt_full)
     pyModuleDefHeadInitRefcntFull()
-else if ((c.PY_MAJOR_VERSION > 2) and (c.PY_MINOR_VERSION > 11))
+else if (has_refcnt_inline)
     pyModuleDefHeadInitRefcntInline()
 else
     pyModuleDefHeadInitLegacy();
@@ -87,11 +92,11 @@ fn pyDecRef(obj: ?*c.PyObject) void {
 fn pyRefcnt(obj: *UUIDObject) usize {
     const py_obj: *c.PyObject = @ptrCast(obj);
 
-    if ((c.PY_MAJOR_VERSION > 2) and (c.PY_MINOR_VERSION > 13)) {
+    if (has_refcnt_full) {
         return @intCast(py_obj.unnamed_0.ob_refcnt_full);
     }
 
-    if ((c.PY_MAJOR_VERSION > 2) and (c.PY_MINOR_VERSION > 11)) {
+    if (has_refcnt_inline) {
         return @intCast(py_obj.unnamed_0.ob_refcnt);
     }
 

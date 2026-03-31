@@ -2,6 +2,7 @@ const builtin = @import("c.zig").builtin;
 const state = @import("state.zig");
 
 const c = @import("c.zig").c;
+const has_timespec_layout = @typeInfo(c.timespec) != .@"opaque";
 
 fn ensureBcryptGenRandom() ?state.BCryptGenRandomFn {
     if (builtin.os.tag != .windows) {
@@ -44,7 +45,7 @@ pub fn systemMs() u64 {
         return (ticks - 116_444_736_000_000_000) / 10_000;
     }
 
-    if (@hasDecl(c, "CLOCK_REALTIME")) {
+    if (@hasDecl(c, "CLOCK_REALTIME") and has_timespec_layout) {
         var ts: c.timespec = undefined;
 
         if (c.clock_gettime(c.CLOCK_REALTIME, &ts) == 0) {
