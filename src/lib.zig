@@ -5,54 +5,8 @@ const uuid7 = @import("uuid7.zig");
 const c = @import("c.zig").c;
 
 const UUIDObject = state.UUIDObject;
-const PyObject = c.PyObject;
-
-const PyModuleDef_Base = extern struct {
-    ob_base: PyObject,
-    m_init: ?*const fn () callconv(.c) [*c]PyObject = null,
-    m_index: c.Py_ssize_t = 0,
-    m_copy: [*c]PyObject = null,
-};
-
-fn pyModuleDefHeadInitRefcntFull() PyModuleDef_Base {
-    return .{
-        .ob_base = PyObject{
-            .unnamed_0 = .{ .ob_refcnt_full = 1 },
-            .ob_type = null,
-        },
-    };
-}
-
-fn pyModuleDefHeadInitRefcntInline() PyModuleDef_Base {
-    return .{
-        .ob_base = PyObject{
-            .unnamed_0 = .{ .ob_refcnt = 1 },
-            .ob_type = null,
-        },
-    };
-}
-
-fn pyModuleDefHeadInitLegacy() PyModuleDef_Base {
-    return .{
-        .ob_base = PyObject{
-            .ob_refcnt = 1,
-            .ob_type = null,
-        },
-    };
-}
-
-const has_refcnt_container = @hasField(PyObject, "unnamed_0");
-const PyObjectRefcntContainer = if (has_refcnt_container) @FieldType(PyObject, "unnamed_0") else void;
-
-const has_refcnt_full = has_refcnt_container and @hasField(PyObjectRefcntContainer, "ob_refcnt_full");
-const has_refcnt_inline = has_refcnt_container and @hasField(PyObjectRefcntContainer, "ob_refcnt");
-
-const PyModuleDef_HEAD_INIT = if (has_refcnt_full)
-    pyModuleDefHeadInitRefcntFull()
-else if (has_refcnt_inline)
-    pyModuleDefHeadInitRefcntInline()
-else
-    pyModuleDefHeadInitLegacy();
+const PyModuleDef_Base = @TypeOf(c.c_uuid_v7_module_def_head_init());
+const PyModuleDef_HEAD_INIT: PyModuleDef_Base = c.c_uuid_v7_module_def_head_init();
 
 const PyMethodDef = extern struct {
     ml_name: [*c]const u8 = null,
@@ -91,17 +45,7 @@ fn pyDecRef(obj: ?*c.PyObject) void {
 }
 
 fn pyRefcnt(obj: *UUIDObject) usize {
-    const py_obj: *c.PyObject = @ptrCast(obj);
-
-    if (has_refcnt_full) {
-        return @intCast(py_obj.unnamed_0.ob_refcnt_full);
-    }
-
-    if (has_refcnt_inline) {
-        return @intCast(py_obj.unnamed_0.ob_refcnt);
-    }
-
-    return @intCast(py_obj.ob_refcnt);
+    return @intCast(c.c_uuid_v7_py_refcnt(@ptrCast(obj)));
 }
 
 fn noneObject() ?*c.PyObject {
