@@ -97,8 +97,9 @@ build = [
 ]
 skip = [
     "*t-*", # Free-threading
-    "*-manylinux_ppc64le",
     "*-win32",
+    "*-manylinux_s390x",
+    "*-manylinux_ppc64le",
 ]
 build-frontend = "uv"
 test-command = "pytest {project}/tests"
