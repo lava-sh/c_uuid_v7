@@ -115,7 +115,7 @@ archs = ["x86_64", "arm64", "universal2"]
 test-skip = "*-macosx_arm64"
 
 [tool.cibuildwheel.windows]
-archs = ["amd64", "x86", "arm64"]
+archs = ["AMD64", "x86", "ARM64"]
 test-skip = "*-win_arm64"
 
 [[tool.cibuildwheel.overrides]]
