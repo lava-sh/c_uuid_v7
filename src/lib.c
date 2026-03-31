@@ -787,13 +787,13 @@ static PyMethodDef module_methods[] = {
 
 static PyModuleDef module_def = {
     PyModuleDef_HEAD_INIT,
-    "__core",
+    "_core",
     "Fast UUIDv7 generator.",
     -1,
     module_methods,
 };
 
-PyMODINIT_FUNC PyInit___core(void) {
+PyMODINIT_FUNC PyInit__core(void) {
     memset(&uuid_as_number, 0, sizeof(uuid_as_number));
     uuid_as_number.nb_int = (unaryfunc)uuid_nb_int;
 

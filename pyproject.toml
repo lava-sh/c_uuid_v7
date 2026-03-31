@@ -65,8 +65,8 @@ bench = [
 [tool.setuptools]
 package-dir = { "" = "py-src" }
 ext-modules = [
-    { name = "c_uuid_v7.__core", sources = [
-        "src/core.c",
+    { name = "c_uuid_v7._core", sources = [
+        "src/lib.c",
         "src/hexpairs.c",
         "src/posix.c",
         "src/random.c",
