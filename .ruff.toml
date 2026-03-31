@@ -57,7 +57,10 @@ ignore = [
     "INP001",
 ]
 "setup.py" = [
-    "PLR2004"
+    "S404",    # Check for imports of the `subprocess` module
+    "S603",    # Check for method calls that initiate a subprocess without a shell
+    ########
+    "PLR2004", # Check magic value's
 ]
 
 [lint.flake8-tidy-imports.banned-api]
