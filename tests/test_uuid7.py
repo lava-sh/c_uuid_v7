@@ -6,9 +6,8 @@ import sys
 import uuid
 from typing import Any, Literal
 
-import pytest
-
 import c_uuid_v7
+import pytest
 
 Mode = Literal["fast", "secure"]
 
