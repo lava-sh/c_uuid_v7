@@ -1,7 +1,9 @@
 [build-system]
 requires = [
     "setuptools == 82.0.1",
+    "setuptools-zig == 0.5.3",
     "setuptools-scm == 10.0.5",
+    "ziglang == 0.15.2",
 ]
 build-backend = "setuptools.build_meta"
 
@@ -64,15 +66,6 @@ bench = [
 
 [tool.setuptools]
 package-dir = { "" = "py-src" }
-ext-modules = [
-    { name = "c_uuid_v7._core", sources = [
-        "src/lib.c",
-        "src/hexpairs.c",
-        "src/posix.c",
-        "src/random.c",
-        "src/windows.c",
-    ] },
-]
 
 [tool.setuptools.packages.find]
 where = ["py-src"]
