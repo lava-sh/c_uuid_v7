@@ -59,7 +59,7 @@ def _python_link_args() -> list[str]:
         str(Path(sys.base_prefix) / "libs"),
         str(Path(sys.exec_prefix) / "libs"),
     ):
-        if library_dir and library_dir not in link_args:
+        if library_dir and Path(library_dir).exists() and library_dir not in link_args:
             link_args.extend(["-L", library_dir])
 
     py_version = sysconfig.get_config_var("py_version_nodot")
@@ -130,6 +130,48 @@ def _macos_targets() -> list[str]:
     return targets
 
 
+def _platform_targets() -> list[str]:
+    if sys.platform == "darwin":
+        return _macos_targets()
+
+    platform_tag = sysconfig.get_platform()
+
+    if sys.platform == "win32":
+        windows_target = {
+            "win-amd64": "x86_64-windows-msvc",
+            "win-arm64": "aarch64-windows-msvc",
+            "win32": "x86-windows-msvc",
+        }.get(platform_tag)
+        return [windows_target] if windows_target is not None else []
+
+    if sys.platform != "linux":
+        return []
+
+    linux_target = {
+        "linux-aarch64": "aarch64-linux-gnu",
+        "linux-armv7l": "arm-linux-gnueabihf",
+        "linux-i686": "x86-linux-gnu",
+        "linux-ppc64le": "powerpc64le-linux-gnu",
+        "linux-s390x": "s390x-linux-gnu",
+        "linux-x86_64": "x86_64-linux-gnu",
+    }.get(platform_tag)
+    return [linux_target] if linux_target is not None else []
+
+
+def _zig_optimize_mode(target: str | None) -> str:
+    if target is None:
+        return "ReleaseFast"
+
+    problematic_targets = (
+        "powerpc64le-linux-gnu",
+        "x86-windows-msvc",
+    )
+    if target in problematic_targets:
+        return "ReleaseSafe"
+
+    return "ReleaseFast"
+
+
 def _macos_sdk_path() -> str | None:
     if sys.platform != "darwin":
         return None
@@ -176,7 +218,7 @@ class _ZigBuildExt(build_ext):
             "--global-cache-dir",
             str(build_temp / f"zig-global-cache-{cache_suffix}"),
             "-O",
-            "Debug" if self.debug else "ReleaseFast",
+            "Debug" if self.debug else _zig_optimize_mode(target),
         ]
 
         if target is not None:
@@ -215,18 +257,18 @@ class _ZigBuildExt(build_ext):
         ext_path = Path(self.get_ext_fullpath(ext.name)).resolve()
         ext_path.parent.mkdir(parents=True, exist_ok=True)
 
-        macos_targets = _macos_targets()
-        if len(macos_targets) <= 1:
+        platform_targets = _platform_targets()
+        if len(platform_targets) <= 1:
             self._build_zig_extension(
                 zig_sources[0],
                 ext,
                 ext_path,
-                target=macos_targets[0] if macos_targets else None,
+                target=platform_targets[0] if platform_targets else None,
             )
             return
 
         slice_paths = []
-        for target in macos_targets:
+        for target in platform_targets:
             target_suffix = target.replace("-", "_").replace(".", "_")
             slice_path = ext_path.with_name(
                 f"{ext_path.stem}.{target_suffix}{ext_path.suffix}",
