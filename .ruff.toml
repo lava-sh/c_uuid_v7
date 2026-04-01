@@ -59,6 +59,7 @@ ignore = [
 "setup.py" = [
     "S404",    # Check for imports of the `subprocess` module
     "S603",    # Check for method calls that initiate a subprocess without a shell
+    "S607",
     ########
     "PLR2004", # Check magic value's
 ]
