@@ -5,6 +5,7 @@ import sys
 import sysconfig
 from copy import copy
 from pathlib import Path
+from textwrap import dedent
 
 from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext
@@ -36,6 +37,14 @@ def _python_include_dirs() -> list[str]:
             sysconfig.get_config_var("INCLUDEPY"),
         ],
     )
+
+
+def _python_header_path() -> Path | None:
+    for include_dir in _python_include_dirs():
+        header_path = Path(include_dir) / "Python.h"
+        if header_path.exists():
+            return header_path
+    return None
 
 
 def _windows_python_info(ext: Extension) -> tuple[list[str], list[str]]:
@@ -196,6 +205,64 @@ class _ZigBuildExt(build_ext):
         for value in values or []:
             command.extend([prefix, value])
 
+    def _windows_python_compat(self) -> tuple[Path, Path] | None:
+        python_header = _python_header_path()
+        if python_header is None:
+            return None
+
+        compat_dir = Path(self.build_temp).resolve() / "python-compat"
+        compat_dir.mkdir(parents=True, exist_ok=True)
+
+        wrapper_header = compat_dir / "Python.h"
+        wrapper_header.write_text(
+            dedent(
+                f"""\
+                #ifndef PYTHON_COMPAT_WRAPPER_H
+                #define PYTHON_COMPAT_WRAPPER_H
+
+                #include "{python_header.as_posix()}"
+
+                PyAPI_FUNC(PyObject*) PyCompat_TypeError(void);
+                PyAPI_FUNC(PyObject*) PyCompat_ValueError(void);
+                PyAPI_FUNC(PyObject*) PyCompat_OSError(void);
+                PyAPI_FUNC(PyObject*) PyCompat_None(void);
+                PyAPI_FUNC(PyObject*) PyCompat_NotImplemented(void);
+
+                #undef PyExc_TypeError
+                #define PyExc_TypeError PyCompat_TypeError()
+                #undef PyExc_ValueError
+                #define PyExc_ValueError PyCompat_ValueError()
+                #undef PyExc_OSError
+                #define PyExc_OSError PyCompat_OSError()
+                #undef Py_None
+                #define Py_None PyCompat_None()
+                #undef Py_NotImplemented
+                #define Py_NotImplemented PyCompat_NotImplemented()
+
+                #endif
+                """,
+            ),
+            encoding="utf-8",
+        )
+
+        compat_source = compat_dir / "python_compat.c"
+        compat_source.write_text(
+            dedent(
+                f"""\
+                #define PY_SSIZE_T_CLEAN
+                #include "{python_header.as_posix()}"
+
+                PyObject* PyCompat_TypeError(void) {{ return PyExc_TypeError; }}
+                PyObject* PyCompat_ValueError(void) {{ return PyExc_ValueError; }}
+                PyObject* PyCompat_OSError(void) {{ return PyExc_OSError; }}
+                PyObject* PyCompat_None(void) {{ return Py_None; }}
+                PyObject* PyCompat_NotImplemented(void) {{ return Py_NotImplemented; }}
+                """,
+            ),
+            encoding="utf-8",
+        )
+        return wrapper_header.parent, compat_source
+
     def _zig_command(
         self,
         action: str,
@@ -228,6 +295,13 @@ class _ZigBuildExt(build_ext):
             command.append("-dynamic")
         if target is not None:
             command.extend(["-target", target])
+
+        if sys.platform == "win32":
+            compat = self._windows_python_compat()
+            if compat is not None:
+                compat_dir, compat_source = compat
+                command.insert(5, str(compat_source))
+                command.extend(["-I", str(compat_dir)])
 
         sdk_path = _macos_sdk_path()
         if sdk_path is not None:
