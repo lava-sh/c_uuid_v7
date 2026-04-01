@@ -80,6 +80,19 @@ def _windows_python_library_name() -> str | None:
     return None
 
 
+def _windows_link_args() -> list[str]:
+    return [
+        "/DEFAULTLIB:ucrt",
+        "/DEFAULTLIB:vcruntime",
+        "/DEFAULTLIB:msvcrt",
+        "/alternatename:PyExc_TypeError=__imp_PyExc_TypeError",
+        "/alternatename:PyExc_ValueError=__imp_PyExc_ValueError",
+        "/alternatename:PyExc_OSError=__imp_PyExc_OSError",
+        "/alternatename:_Py_NoneStruct=__imp__Py_NoneStruct",
+        "/alternatename:_Py_NotImplementedStruct=__imp__Py_NotImplementedStruct",
+    ]
+
+
 def _python_link_args() -> list[str]:
     if sys.platform == "darwin":
         return ["-fallow-shlib-undefined"]
@@ -296,6 +309,9 @@ class _ZigBuildExt(build_ext):
         windows_ext.sources = []
         windows_ext.extra_objects = [str(object_path), *(ext.extra_objects or [])]
         windows_ext.extra_compile_args = []
+        windows_ext.extra_link_args = [
+            *dict.fromkeys([*_windows_link_args(), *(ext.extra_link_args or [])]),
+        ]
         windows_ext.library_dirs = [
             *dict.fromkeys(
                 [
