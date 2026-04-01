@@ -224,19 +224,19 @@ class _ZigBuildExt(build_ext):
 
                 #include_next <Python.h>
 
-                PyAPI_DATA(PyObject*) PyCompat_TypeError;
-                PyAPI_DATA(PyObject*) PyCompat_ValueError;
-                PyAPI_DATA(PyObject*) PyCompat_OSError;
+                PyAPI_FUNC(PyObject*) PyCompat_TypeError(void);
+                PyAPI_FUNC(PyObject*) PyCompat_ValueError(void);
+                PyAPI_FUNC(PyObject*) PyCompat_OSError(void);
 
                 PyAPI_FUNC(PyObject*) PyCompat_None(void);
                 PyAPI_FUNC(PyObject*) PyCompat_NotImplemented(void);
 
                 #undef PyExc_TypeError
-                #define PyExc_TypeError PyCompat_TypeError
+                #define PyExc_TypeError PyCompat_TypeError()
                 #undef PyExc_ValueError
-                #define PyExc_ValueError PyCompat_ValueError
+                #define PyExc_ValueError PyCompat_ValueError()
                 #undef PyExc_OSError
-                #define PyExc_OSError PyCompat_OSError
+                #define PyExc_OSError PyCompat_OSError()
                 #undef Py_None
                 #define Py_None() PyCompat_None()
                 #undef Py_NotImplemented
@@ -258,37 +258,25 @@ class _ZigBuildExt(build_ext):
                 """\
                 #define PY_SSIZE_T_CLEAN
                 #include <Python.h>
-                #include <windows.h>
 
-                __declspec(dllimport) PyObject* __imp_PyExc_TypeError;
-                __declspec(dllimport) PyObject* __imp_PyExc_ValueError;
-                __declspec(dllimport) PyObject* __imp_PyExc_OSError;
-                __declspec(dllimport) PyObject* __imp__Py_NoneStruct;
-                __declspec(dllimport) PyObject* __imp__Py_NotImplementedStruct;
+                PyObject* PyCompat_TypeError(void) {
+                    return PyExc_TypeError;
+                }
 
-                PyObject* PyCompat_TypeError = NULL;
-                PyObject* PyCompat_ValueError = NULL;
-                PyObject* PyCompat_OSError = NULL;
+                PyObject* PyCompat_ValueError(void) {
+                    return PyExc_ValueError;
+                }
+
+                PyObject* PyCompat_OSError(void) {
+                    return PyExc_OSError;
+                }
 
                 PyObject* PyCompat_None(void) {
-                    return __imp__Py_NoneStruct;
+                    return Py_None;
                 }
 
                 PyObject* PyCompat_NotImplemented(void) {
-                    return __imp__Py_NotImplementedStruct;
-                }
-
-                BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved) {
-                    (void)instance;
-                    (void)reserved;
-
-                    if (reason == DLL_PROCESS_ATTACH) {
-                        PyCompat_TypeError = __imp_PyExc_TypeError;
-                        PyCompat_ValueError = __imp_PyExc_ValueError;
-                        PyCompat_OSError = __imp_PyExc_OSError;
-                    }
-
-                    return TRUE;
+                    return Py_NotImplemented;
                 }
                 """,
             ),
