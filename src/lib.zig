@@ -40,9 +40,9 @@ fn pyModuleDefHeadInitLegacy() PyModuleDef_Base {
     };
 }
 
-const PyModuleDef_HEAD_INIT = if ((c.PY_MAJOR_VERSION > 2) and (c.PY_MINOR_VERSION > 13))
+const PyModuleDef_HEAD_INIT = if ((c.PY_MAJOR_VERSION > 3) or ((c.PY_MAJOR_VERSION == 3) and (c.PY_MINOR_VERSION >= 14)))
     pyModuleDefHeadInitRefcntFull()
-else if ((c.PY_MAJOR_VERSION > 2) and (c.PY_MINOR_VERSION > 11))
+else if ((c.PY_MAJOR_VERSION > 3) or ((c.PY_MAJOR_VERSION == 3) and (c.PY_MINOR_VERSION >= 13)))
     pyModuleDefHeadInitRefcntInline()
 else
     pyModuleDefHeadInitLegacy();
@@ -86,11 +86,11 @@ fn pyDecRef(obj: ?*c.PyObject) void {
 fn pyRefcnt(obj: *UUIDObject) usize {
     const py_obj: *c.PyObject = @ptrCast(obj);
 
-    if ((c.PY_MAJOR_VERSION > 2) and (c.PY_MINOR_VERSION > 13)) {
+    if ((c.PY_MAJOR_VERSION > 3) or ((c.PY_MAJOR_VERSION == 3) and (c.PY_MINOR_VERSION >= 14))) {
         return @intCast(py_obj.unnamed_0.ob_refcnt_full);
     }
 
-    if ((c.PY_MAJOR_VERSION > 2) and (c.PY_MINOR_VERSION > 11)) {
+    if ((c.PY_MAJOR_VERSION > 3) or ((c.PY_MAJOR_VERSION == 3) and (c.PY_MINOR_VERSION >= 13))) {
         return @intCast(py_obj.unnamed_0.ob_refcnt);
     }
 
