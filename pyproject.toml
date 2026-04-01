@@ -1,6 +1,7 @@
 [build-system]
 requires = [
-    "hpy == 0.9.0; implementation_name != 'pypy'",
+    "hpy == 0.9.0; implementation_name != 'pypy' and sys_platform != 'darwin'",
+    "hpy @ https://files.pythonhosted.org/packages/source/h/hpy/hpy-0.9.0.tar.gz ; implementation_name != 'pypy' and sys_platform == 'darwin'",
     "ziglang == 0.15.2",
     "setuptools == 82.0.1",
     "setuptools-scm == 10.0.5",
