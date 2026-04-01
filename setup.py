@@ -3,7 +3,6 @@ import re
 import subprocess
 import sys
 import sysconfig
-from copy import copy
 from pathlib import Path
 
 from setuptools import Extension, setup
@@ -80,24 +79,31 @@ def _windows_python_library_name() -> str | None:
     return None
 
 
-def _windows_link_args() -> list[str]:
-    return [
-        "/DEFAULTLIB:ucrt",
-        "/DEFAULTLIB:vcruntime",
-        "/DEFAULTLIB:msvcrt",
-        "/alternatename:PyExc_TypeError=__imp_PyExc_TypeError",
-        "/alternatename:PyExc_ValueError=__imp_PyExc_ValueError",
-        "/alternatename:PyExc_OSError=__imp_PyExc_OSError",
-        "/alternatename:_Py_NoneStruct=__imp__Py_NoneStruct",
-        "/alternatename:_Py_NotImplementedStruct=__imp__Py_NotImplementedStruct",
-    ]
-
-
 def _python_link_args() -> list[str]:
     if sys.platform == "darwin":
         return ["-fallow-shlib-undefined"]
 
-    return []
+    if sys.platform != "win32":
+        return []
+
+    link_args = []
+    library_dirs = _windows_python_library_dirs()
+
+    for library_dir in library_dirs:
+        link_args.extend(["-L", library_dir])
+
+    python_library = _windows_python_library_name()
+    if python_library is not None:
+        link_args.append(f"-l{python_library}")
+
+    return link_args
+
+
+def _windows_zig_args() -> list[str]:
+    if sys.platform != "win32":
+        return []
+
+    return ["-fdeclspec"]
 
 
 def _macos_targets() -> list[str]:
@@ -260,6 +266,7 @@ class _ZigBuildExt(build_ext):
             command.extend(["-I", include_dir])
 
         command.extend(_python_link_args())
+        command.extend(_windows_zig_args())
         command.extend(f"-l{library}" for library in ext.libraries or [])
         command.extend(ext.extra_compile_args or [])
 
@@ -283,60 +290,6 @@ class _ZigBuildExt(build_ext):
             ),
         )
 
-    def _build_windows_extension(
-        self,
-        zig_source: str,
-        ext: Extension,
-        ext_path: Path,
-        *,
-        target: str | None = None,
-    ) -> None:
-        build_temp = Path(self.build_temp).resolve()
-        build_temp.mkdir(parents=True, exist_ok=True)
-        object_path = build_temp / f"{ext.name.rsplit('.', 1)[-1]}.obj"
-
-        self.spawn(
-            self._zig_command(
-                "build-obj",
-                zig_source,
-                object_path,
-                ext,
-                target=target,
-            ),
-        )
-
-        windows_ext = copy(ext)
-        windows_ext.sources = []
-        windows_ext.extra_objects = [str(object_path), *(ext.extra_objects or [])]
-        windows_ext.extra_compile_args = []
-        windows_ext.extra_link_args = [
-            *dict.fromkeys([*_windows_link_args(), *(ext.extra_link_args or [])]),
-        ]
-        windows_ext.library_dirs = [
-            *dict.fromkeys(
-                [
-                    *(_windows_python_library_dirs()),
-                    *(ext.library_dirs or []),
-                ],
-            ),
-        ]
-
-        python_library = _windows_python_library_name()
-        windows_libraries = [
-            "advapi32",
-            "bcrypt",
-            "kernel32",
-            "ntdll",
-            "user32",
-        ]
-        if python_library is not None:
-            windows_libraries.insert(0, python_library)
-        windows_ext.libraries = [
-            *dict.fromkeys([*windows_libraries, *(ext.libraries or [])]),
-        ]
-
-        super().build_extension(windows_ext)
-
     def build_extension(self, ext: Extension) -> None:
         zig_sources = [source for source in ext.sources if source.endswith(".zig")]
 
@@ -352,15 +305,6 @@ class _ZigBuildExt(build_ext):
         ext_path.parent.mkdir(parents=True, exist_ok=True)
 
         platform_targets = _platform_targets()
-        if sys.platform == "win32":
-            self._build_windows_extension(
-                zig_sources[0],
-                ext,
-                ext_path,
-                target=platform_targets[0] if platform_targets else None,
-            )
-            return
-
         if len(platform_targets) <= 1:
             self._build_zig_extension(
                 zig_sources[0],
