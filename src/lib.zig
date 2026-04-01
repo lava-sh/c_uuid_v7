@@ -1,541 +1,358 @@
-const hex_pairs = @import("hex_pairs.zig");
+const std = @import("std");
+const builtin = @import("builtin");
+
+const platform = @import("platform.zig");
 const state = @import("state.zig");
-const uuid7 = @import("uuid7.zig");
 
-const c = @import("c.zig").c;
-
-const UUIDObject = state.UUIDObject;
-
-const PyModuleDef_Base = extern struct {
-    ob_base: c.PyObject,
-    m_init: ?*const fn () callconv(.c) [*c]c.PyObject = null,
-    m_index: c.Py_ssize_t = 0,
-    m_copy: [*c]c.PyObject = null,
+pub const UUIDWords = extern struct {
+    hi: u64,
+    lo: u64,
 };
 
-fn pyModuleDefHeadInitRefcntFull() PyModuleDef_Base {
-    return .{
-        .ob_base = c.PyObject{
-            .unnamed_0 = .{ .ob_refcnt_full = 1 },
-            .ob_type = null,
-        },
-    };
-}
-
-fn pyModuleDefHeadInitRefcntInline() PyModuleDef_Base {
-    return .{
-        .ob_base = c.PyObject{
-            .unnamed_0 = .{ .ob_refcnt = 1 },
-            .ob_type = null,
-        },
-    };
-}
-
-fn pyModuleDefHeadInitLegacy() PyModuleDef_Base {
-    return .{
-        .ob_base = c.PyObject{
-            .ob_refcnt = 1,
-            .ob_type = null,
-        },
-    };
-}
-
-const PyModuleDef_HEAD_INIT = if ((c.PY_MAJOR_VERSION > 3) or ((c.PY_MAJOR_VERSION == 3) and (c.PY_MINOR_VERSION >= 14)))
-    pyModuleDefHeadInitRefcntFull()
-else if ((c.PY_MAJOR_VERSION > 3) or ((c.PY_MAJOR_VERSION == 3) and (c.PY_MINOR_VERSION >= 12)))
-    pyModuleDefHeadInitRefcntInline()
-else
-    pyModuleDefHeadInitLegacy();
-
-const PyMethodDef = extern struct {
-    ml_name: [*c]const u8 = null,
-    ml_meth: c.PyCFunction = null,
-    ml_flags: c_int = 0,
-    ml_doc: [*c]const u8 = null,
+const Mode = enum(c_int) {
+    fast = 0,
+    secure = 1,
 };
 
-const PyGetSetDef = extern struct {
-    name: [*c]const u8 = null,
-    get: c.getter = null,
-    set: c.setter = null,
-    doc: [*c]const u8 = null,
-    closure: ?*anyopaque = null,
-};
-
-const PyModuleDef = extern struct {
-    m_base: PyModuleDef_Base = PyModuleDef_HEAD_INIT,
-    m_name: [*c]const u8,
-    m_doc: [*c]const u8 = null,
-    m_size: c.Py_ssize_t = -1,
-    m_methods: [*]PyMethodDef,
-    m_slots: [*c]c.struct_PyModuleDef_Slot = null,
-    m_traverse: c.traverseproc = null,
-    m_clear: c.inquiry = null,
-    m_free: c.freefunc = null,
-};
-
-fn pyIncRef(obj: ?*c.PyObject) ?*c.PyObject {
-    c.Py_IncRef(obj);
-    return obj;
+fn parseMode(mode: c_int) Mode {
+    return if (mode == @intFromEnum(Mode.secure)) .secure else .fast;
 }
 
-fn pyDecRef(obj: ?*c.PyObject) void {
-    c.Py_DecRef(obj);
+fn randomU64Secure() u64 {
+    var bytes: [8]u8 = undefined;
+    std.crypto.random.bytes(&bytes);
+    return std.mem.readInt(u64, &bytes, .big);
 }
 
-fn pyRefcnt(obj: *UUIDObject) usize {
-    const py_obj: *c.PyObject = @ptrCast(obj);
+fn randomEnsureSeeded() bool {
+    var seed: [24]u8 = undefined;
 
-    if ((c.PY_MAJOR_VERSION > 3) or ((c.PY_MAJOR_VERSION == 3) and (c.PY_MINOR_VERSION >= 14))) {
-        return @intCast(py_obj.unnamed_0.ob_refcnt_full);
+    if (state.runtime.prng_seeded) {
+        return true;
+    }
+    if (platform.fillRandom(&seed, seed.len) != 0) {
+        return false;
     }
 
-    if ((c.PY_MAJOR_VERSION > 3) or ((c.PY_MAJOR_VERSION == 3) and (c.PY_MINOR_VERSION >= 12))) {
-        return @intCast(py_obj.unnamed_0.ob_refcnt);
+    state.runtime.prng.seedWithBuf(seed);
+    if (builtin.os.tag == .windows) {
+        platform.platformSeeded();
     }
-
-    return @intCast(py_obj.ob_refcnt);
+    state.runtime.prng_seeded = true;
+    return true;
 }
 
-fn noneObject() ?*c.PyObject {
-    return state.pyNone();
+fn randomReseed() void {
+    state.runtime.prng_seeded = false;
 }
 
-fn notImplementedObject() ?*c.PyObject {
-    return state.pyNotImplemented();
+fn randomCounter42() u64 {
+    return state.runtime.prng.next() & state.RESEED_MASK;
 }
 
-fn uuidSelf(self_obj: ?*c.PyObject) *UUIDObject {
-    return @alignCast(@ptrCast(self_obj.?));
+fn randomCounter42Secure(counter: *u64) void {
+    counter.* = randomU64Secure() & state.RESEED_MASK;
 }
 
-fn uuidNew(hi: u64, lo: u64) ?*UUIDObject {
-    if (state.runtime.reusable_uuid) |reusable_uuid| {
-        if (pyRefcnt(reusable_uuid) == 1) {
-            _ = pyIncRef(@ptrCast(reusable_uuid));
-            reusable_uuid.hi = hi;
-            reusable_uuid.lo = lo;
-            return reusable_uuid;
-        }
-    }
-
-    const type_object = state.runtime.uuid_type orelse return null;
-    const alloc = type_object.tp_alloc orelse return null;
-    const raw = alloc(type_object, 0) orelse return null;
-    const obj: *UUIDObject = @alignCast(@ptrCast(raw));
-
-    obj.hi = hi;
-    obj.lo = lo;
-
-    if (state.runtime.reusable_uuid) |reusable_uuid| {
-        pyDecRef(@ptrCast(reusable_uuid));
-    }
-    state.runtime.reusable_uuid = obj;
-    _ = pyIncRef(@ptrCast(obj));
-
-    return obj;
+fn randomSplitCounter42(counter: u64, low32: u32, rand_a: *u16, tail62: *u64) void {
+    rand_a.* = @intCast(counter >> 30);
+    tail62.* = ((counter & state.LOW30_MASK) << 32) | @as(u64, low32);
 }
 
-fn uuidStr(self_obj: ?*c.PyObject) callconv(.c) ?*c.PyObject {
-    var out: [36]u8 = undefined;
-    const self = uuidSelf(self_obj);
-    var j: usize = 0;
-    var shift: i32 = 56;
+fn randomNextLow32AndIncrement(low32: *u32, increment: *u64) void {
+    const random64 = state.runtime.prng.next();
 
-    while (shift >= 0) : (shift -= 8) {
-        if (j == 8 or j == 13) {
-            out[j] = '-';
-            j += 1;
-        }
-        hex_pairs.hexPair(&out[j], @truncate(self.hi >> @intCast(shift)));
-        j += 2;
-    }
-
-    shift = 56;
-    while (shift >= 0) : (shift -= 8) {
-        if (j == 18 or j == 23) {
-            out[j] = '-';
-            j += 1;
-        }
-        hex_pairs.hexPair(&out[j], @truncate(self.lo >> @intCast(shift)));
-        j += 2;
-    }
-
-    return c.PyUnicode_FromStringAndSize(&out, out.len);
+    low32.* = @truncate(random64);
+    increment.* = 1 + ((random64 >> 32) & 0x0F);
 }
 
-fn uuidRepr(self_obj: ?*c.PyObject) callconv(.c) ?*c.PyObject {
-    const text = uuidStr(self_obj);
-    defer if (text != null) pyDecRef(text);
+fn randomNextLow32AndIncrementSecure(low32: *u32, increment: *u64) void {
+    const random64 = randomU64Secure();
 
-    if (text == null) {
-        return null;
-    }
-
-    return c.PyUnicode_FromFormat("UUID('%U')", text);
+    low32.* = @truncate(random64);
+    increment.* = 1 + ((random64 >> 32) & 0x0F);
 }
 
-fn uuidHex(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
-    var out: [32]u8 = undefined;
-    const self = uuidSelf(self_obj);
-    var j: usize = 0;
-    var shift: i32 = 56;
-
-    while (shift >= 0) : (shift -= 8) {
-        hex_pairs.hexPair(&out[j], @truncate(self.hi >> @intCast(shift)));
-        j += 2;
-    }
-
-    shift = 56;
-    while (shift >= 0) : (shift -= 8) {
-        hex_pairs.hexPair(&out[j], @truncate(self.lo >> @intCast(shift)));
-        j += 2;
-    }
-
-    return c.PyUnicode_FromStringAndSize(&out, out.len);
+fn randomPayload(rand_a: *u16, tail62: *u64) void {
+    randomSplitCounter42(randomCounter42(), @truncate(state.runtime.prng.next()), rand_a, tail62);
 }
 
-fn uuidBytes(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
-    var bytes: [16]u8 = undefined;
-    const self = uuidSelf(self_obj);
+fn randomPayloadSecure(rand_a: *u16, tail62: *u64) void {
+    var counter: u64 = 0;
 
-    uuid7.uuidPackBytes(self.hi, self.lo, &bytes);
-    return c.PyBytes_FromStringAndSize(@ptrCast(&bytes), bytes.len);
+    randomCounter42Secure(&counter);
+    randomSplitCounter42(counter, @truncate(randomU64Secure()), rand_a, tail62);
 }
 
-fn uuidBytesLe(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
-    var bytes: [16]u8 = undefined;
-    var reordered: [16]u8 = undefined;
-    const self = uuidSelf(self_obj);
-
-    uuid7.uuidPackBytes(self.hi, self.lo, &bytes);
-    reordered[0] = bytes[3];
-    reordered[1] = bytes[2];
-    reordered[2] = bytes[1];
-    reordered[3] = bytes[0];
-    reordered[4] = bytes[5];
-    reordered[5] = bytes[4];
-    reordered[6] = bytes[7];
-    reordered[7] = bytes[6];
-    @memcpy(reordered[8..16], bytes[8..16]);
-    return c.PyBytes_FromStringAndSize(@ptrCast(&reordered), reordered.len);
+fn randomTail62() u64 {
+    return state.runtime.prng.next() & state.UUID_RAND_MASK;
 }
 
-fn uuidTimestamp(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
-    const self = uuidSelf(self_obj);
-    return c.PyLong_FromUnsignedLongLong(self.hi >> state.UUID_TIMESTAMP_SHIFT);
+fn randomTail62Secure(tail62: *u64) void {
+    tail62.* = randomU64Secure() & state.UUID_RAND_MASK;
 }
 
-fn uuidInt(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
-    const self = uuidSelf(self_obj);
-
-    if (@hasDecl(c, "PyLong_FromUnsignedNativeBytes")) {
-        var bytes: [16]u8 = undefined;
-
-        uuid7.uuidPackBytes(self.hi, self.lo, &bytes);
-        return c.PyLong_FromUnsignedNativeBytes(&bytes, 16, c.Py_ASNATIVEBYTES_BIG_ENDIAN | c.Py_ASNATIVEBYTES_UNSIGNED_BUFFER);
-    }
-
-    const high = c.PyLong_FromUnsignedLongLong(self.hi);
-    if (high == null) {
-        return null;
-    }
-    defer pyDecRef(high);
-
-    const bits = c.PyLong_FromLong(64);
-    if (bits == null) {
-        return null;
-    }
-    defer pyDecRef(bits);
-
-    const shift = c.PyNumber_Lshift(high, bits);
-    if (shift == null) {
-        return null;
-    }
-    defer pyDecRef(shift);
-
-    const low = c.PyLong_FromUnsignedLongLong(self.lo);
-    if (low == null) {
-        return null;
-    }
-    defer pyDecRef(low);
-
-    return c.PyNumber_Or(shift, low);
+fn reseedGeneratorState() void {
+    randomReseed();
+    state.runtime.last_timestamp_ms = 0;
+    state.runtime.counter42 = 0;
 }
 
-fn uuidNbInt(self_obj: ?*c.PyObject) callconv(.c) ?*c.PyObject {
-    return uuidInt(self_obj, null);
-}
-
-fn uuidTimeLow(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
-    return c.PyLong_FromUnsignedLong(@truncate(uuidSelf(self_obj).hi >> 32));
-}
-
-fn uuidTimeMid(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
-    return c.PyLong_FromUnsignedLong(@truncate((uuidSelf(self_obj).hi >> 16) & 0xFFFF));
-}
-
-fn uuidTimeHiVersion(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
-    return c.PyLong_FromUnsignedLong(@truncate(uuidSelf(self_obj).hi & 0xFFFF));
-}
-
-fn uuidClockSeqHiVariant(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
-    return c.PyLong_FromUnsignedLong(@truncate(uuidSelf(self_obj).lo >> 56));
-}
-
-fn uuidClockSeqLow(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
-    return c.PyLong_FromUnsignedLong(@truncate((uuidSelf(self_obj).lo >> 48) & 0xFF));
-}
-
-fn uuidClockSeq(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
-    const self = uuidSelf(self_obj);
-    const high: c_ulong = @truncate((self.lo >> 56) & 0x3F);
-    const low: c_ulong = @truncate((self.lo >> 48) & 0xFF);
-    return c.PyLong_FromUnsignedLong((high << 8) | low);
-}
-
-fn uuidNode(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
-    return c.PyLong_FromUnsignedLongLong(uuidSelf(self_obj).lo & 0xFFFF_FFFF_FFFF);
-}
-
-fn uuidFields(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
-    const self = uuidSelf(self_obj);
-    return c.Py_BuildValue(
-        "(kkkkkK)",
-        @as(c_ulong, @truncate(self.hi >> 32)),
-        @as(c_ulong, @truncate((self.hi >> 16) & 0xFFFF)),
-        @as(c_ulong, @truncate(self.hi & 0xFFFF)),
-        @as(c_ulong, @truncate(self.lo >> 56)),
-        @as(c_ulong, @truncate((self.lo >> 48) & 0xFF)),
-        @as(c_ulonglong, @truncate(self.lo & 0xFFFF_FFFF_FFFF)),
-    );
-}
-
-fn uuidUrn(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
-    const text = uuidStr(self_obj);
-    defer if (text != null) pyDecRef(text);
-
-    if (text == null) {
-        return null;
-    }
-
-    return c.PyUnicode_FromFormat("urn:uuid:%U", text);
-}
-
-fn uuidCopy(self_obj: ?*c.PyObject, _: ?*c.PyObject) callconv(.c) ?*c.PyObject {
-    return pyIncRef(self_obj);
-}
-
-fn uuidDeepcopy(self_obj: ?*c.PyObject, args: ?*c.PyObject) callconv(.c) ?*c.PyObject {
-    var memo: ?*c.PyObject = null;
-
-    if (c.PyArg_ParseTuple(args, "O:__deepcopy__", &memo) == 0) {
-        return null;
-    }
-
-    return pyIncRef(self_obj);
-}
-
-fn uuidHash(self_obj: ?*c.PyObject) callconv(.c) c.Py_hash_t {
-    const self = uuidSelf(self_obj);
-    const mixed = self.hi ^ (self.hi >> 32) ^ self.lo ^ (self.lo >> 32);
-    var hash: c.Py_hash_t = switch (@bitSizeOf(c.Py_hash_t)) {
-        32 => @bitCast(@as(u32, @truncate(mixed ^ (mixed >> 32)))),
-        64 => @bitCast(mixed),
-        else => @compileError("unsupported Py_hash_t size"),
-    };
-
-    if (hash == -1) {
-        hash = -2;
-    }
-
-    return hash;
-}
-
-fn uuidCompare(left: *const UUIDObject, right: *const UUIDObject) c_int {
-    if (left.hi != right.hi) {
-        return if (left.hi < right.hi) -1 else 1;
-    }
-    if (left.lo != right.lo) {
-        return if (left.lo < right.lo) -1 else 1;
+fn validateNanos(nanos: u64) c_int {
+    if (nanos >= state.UUID_MAX_NANOS) {
+        return 2;
     }
     return 0;
 }
 
-fn uuidRichcompare(a: ?*c.PyObject, b: ?*c.PyObject, op: c_int) callconv(.c) ?*c.PyObject {
-    if (state.runtime.uuid_type == null or c.PyObject_TypeCheck(a, state.runtime.uuid_type) == 0 or c.PyObject_TypeCheck(b, state.runtime.uuid_type) == 0) {
-        return pyIncRef(notImplementedObject());
+fn buildTimestampMs(
+    timestamp_s: u64,
+    has_timestamp: bool,
+    nanos: u64,
+    has_nanos: bool,
+    timestamp_ms: *u64,
+) c_int {
+    if (!has_timestamp) {
+        timestamp_ms.* = platform.nowMs();
+        return 0;
+    }
+    if (timestamp_s > state.UUID_MAX_TIMESTAMP_S) {
+        return 3;
     }
 
-    const cmp = uuidCompare(@alignCast(@ptrCast(a.?)), @alignCast(@ptrCast(b.?)));
-
-    if (op == c.Py_LT) {
-        return c.PyBool_FromLong(@intFromBool(cmp < 0));
+    var ms = timestamp_s * 1000;
+    if (has_nanos) {
+        ms += nanos / 1_000_000;
     }
-    if (op == c.Py_LE) {
-        return c.PyBool_FromLong(@intFromBool(cmp <= 0));
-    }
-    if (op == c.Py_EQ) {
-        return c.PyBool_FromLong(@intFromBool(cmp == 0));
-    }
-    if (op == c.Py_NE) {
-        return c.PyBool_FromLong(@intFromBool(cmp != 0));
-    }
-    if (op == c.Py_GT) {
-        return c.PyBool_FromLong(@intFromBool(cmp > 0));
-    }
-    if (op == c.Py_GE) {
-        return c.PyBool_FromLong(@intFromBool(cmp >= 0));
+    if (ms > state.UUID_MAX_TIMESTAMP_MS) {
+        return 3;
     }
 
-    return pyIncRef(notImplementedObject());
+    timestamp_ms.* = ms;
+    return 0;
 }
 
-fn pyUuid7(_: ?*c.PyObject, args: [*c]?*c.PyObject, nargs: c.Py_ssize_t, kwnames: ?*c.PyObject) callconv(.c) ?*c.PyObject {
-    const none_object = noneObject();
-    var timestamp_obj: ?*c.PyObject = none_object;
-    var nanos_obj: ?*c.PyObject = none_object;
-    var mode_obj: ?*c.PyObject = none_object;
-    const nkw: c.Py_ssize_t = if (kwnames != null) c.PyTuple_Size(kwnames) else 0;
-    var hi: u64 = 0;
-    var lo: u64 = 0;
-    var mode: c_int = state.UUID_MODE_FAST;
-    var i: c.Py_ssize_t = 0;
+fn advanceMonotonicState(observed_ms: u64, timestamp_ms: *u64, rand_a: *u16, tail62: *u64) void {
+    var counter = state.runtime.counter42;
+    var current_ms = state.runtime.last_timestamp_ms;
+    var increment: u64 = 0;
+    var low32: u32 = 0;
 
-    if (nargs == 0 and nkw == 0) {
-        if (uuid7.buildUuid7Default(&hi, &lo) != 0) {
-            return null;
-        }
-        return @ptrCast(uuidNew(hi, lo));
-    }
-
-    if (nargs > 3) {
-        c.PyErr_SetString(state.pyExcTypeError(), "uuid7() takes at most 3 positional arguments");
-        return null;
-    }
-
-    if (nargs >= 1) timestamp_obj = args[0];
-    if (nargs >= 2) nanos_obj = args[1];
-    if (nargs >= 3) mode_obj = args[2];
-
-    while (i < nkw) : (i += 1) {
-        const key = c.PyTuple_GetItem(kwnames, i);
-        const value = args[@intCast(nargs + i)];
-
-        if (c.PyUnicode_CompareWithASCIIString(key, "timestamp") == 0) {
-            timestamp_obj = value;
-        } else if (c.PyUnicode_CompareWithASCIIString(key, "nanos") == 0) {
-            nanos_obj = value;
-        } else if (c.PyUnicode_CompareWithASCIIString(key, "mode") == 0) {
-            mode_obj = value;
-        } else {
-            _ = c.PyErr_Format(state.pyExcTypeError(), "uuid7() got an unexpected keyword argument '%U'", key);
-            return null;
+    randomNextLow32AndIncrement(&low32, &increment);
+    if (observed_ms > current_ms) {
+        current_ms = observed_ms;
+        counter = randomCounter42();
+    } else {
+        counter += increment;
+        if (counter > state.UUID_V7_MAX_COUNTER) {
+            current_ms += 1;
+            counter = randomCounter42();
         }
     }
 
-    if (uuid7.parseMode(mode_obj, none_object, &mode) != 0) {
-        return null;
-    }
+    state.runtime.last_timestamp_ms = current_ms;
+    state.runtime.counter42 = counter;
+    timestamp_ms.* = current_ms;
+    randomSplitCounter42(counter, low32, rand_a, tail62);
+}
 
-    if (mode == state.UUID_MODE_SECURE and timestamp_obj == none_object and nanos_obj == none_object) {
-        if (uuid7.buildUuid7DefaultSecure(&hi, &lo) != 0) {
-            return null;
+fn advanceMonotonicStateSecure(observed_ms: u64, timestamp_ms: *u64, rand_a: *u16, tail62: *u64) void {
+    var counter = state.runtime.counter42;
+    var current_ms = state.runtime.last_timestamp_ms;
+    var increment: u64 = 0;
+    var low32: u32 = 0;
+
+    randomNextLow32AndIncrementSecure(&low32, &increment);
+    if (observed_ms > current_ms) {
+        current_ms = observed_ms;
+        randomCounter42Secure(&counter);
+    } else {
+        counter += increment;
+        if (counter > state.UUID_V7_MAX_COUNTER) {
+            current_ms += 1;
+            randomCounter42Secure(&counter);
         }
-    } else if (uuid7.buildUuid7PartsFromArgs(timestamp_obj, nanos_obj, mode, none_object, &hi, &lo) != 0) {
-        return null;
     }
 
-    return @ptrCast(uuidNew(hi, lo));
+    state.runtime.last_timestamp_ms = current_ms;
+    state.runtime.counter42 = counter;
+    timestamp_ms.* = current_ms;
+    randomSplitCounter42(counter, low32, rand_a, tail62);
 }
 
-fn pyReseedRng(_: ?*c.PyObject, _: ?*c.PyObject) callconv(.c) ?*c.PyObject {
-    uuid7.reseedGeneratorState();
-    return pyIncRef(noneObject());
+fn uuidBuildWords(timestamp_ms: u64, rand_a: u16, tail62: u64, hi: *u64, lo: *u64) void {
+    hi.* = (timestamp_ms << state.UUID_TIMESTAMP_SHIFT) | state.UUID_VERSION_BITS | @as(u64, rand_a);
+    lo.* = state.UUID_VARIANT_BITS | tail62;
 }
 
-var uuid_methods = [_]PyMethodDef{
-    .{ .ml_name = "__copy__", .ml_meth = @ptrCast(@constCast(&uuidCopy)), .ml_flags = c.METH_NOARGS, .ml_doc = "Return self for copy.copy()." },
-    .{ .ml_name = "__deepcopy__", .ml_meth = @ptrCast(@constCast(&uuidDeepcopy)), .ml_flags = c.METH_VARARGS, .ml_doc = "Return self for copy.deepcopy()." },
-    .{},
-};
+fn buildUuid7Default(hi: *u64, lo: *u64) c_int {
+    var timestamp_ms: u64 = 0;
+    var tail62: u64 = 0;
+    var rand_a: u16 = 0;
 
-var uuid_getset = [_]PyGetSetDef{
-    .{ .name = "bytes", .get = @ptrCast(@constCast(&uuidBytes)), .doc = "UUID as 16 big-endian bytes." },
-    .{ .name = "bytes_le", .get = @ptrCast(@constCast(&uuidBytesLe)), .doc = "UUID as 16 little-endian bytes." },
-    .{ .name = "clock_seq", .get = @ptrCast(@constCast(&uuidClockSeq)), .doc = "Clock sequence." },
-    .{ .name = "clock_seq_hi_variant", .get = @ptrCast(@constCast(&uuidClockSeqHiVariant)), .doc = "Clock sequence high byte with variant." },
-    .{ .name = "clock_seq_low", .get = @ptrCast(@constCast(&uuidClockSeqLow)), .doc = "Clock sequence low byte." },
-    .{ .name = "fields", .get = @ptrCast(@constCast(&uuidFields)), .doc = "UUID fields tuple." },
-    .{ .name = "hex", .get = @ptrCast(@constCast(&uuidHex)), .doc = "Hexadecimal string." },
-    .{ .name = "int", .get = @ptrCast(@constCast(&uuidInt)), .doc = "128-bit integer value." },
-    .{ .name = "node", .get = @ptrCast(@constCast(&uuidNode)), .doc = "Node value." },
-    .{ .name = "time", .get = @ptrCast(@constCast(&uuidTimestamp)), .doc = "UUID time value." },
-    .{ .name = "time_hi_version", .get = @ptrCast(@constCast(&uuidTimeHiVersion)), .doc = "Time high field with version bits." },
-    .{ .name = "time_low", .get = @ptrCast(@constCast(&uuidTimeLow)), .doc = "Time low field." },
-    .{ .name = "time_mid", .get = @ptrCast(@constCast(&uuidTimeMid)), .doc = "Time middle field." },
-    .{ .name = "timestamp", .get = @ptrCast(@constCast(&uuidTimestamp)), .doc = "Unix timestamp in milliseconds." },
-    .{ .name = "urn", .get = @ptrCast(@constCast(&uuidUrn)), .doc = "UUID URN string." },
-    .{},
-};
-
-var uuid_slots = [_]c.PyType_Slot{
-    .{ .slot = c.Py_tp_methods, .pfunc = @ptrCast(@constCast(&uuid_methods)) },
-    .{ .slot = c.Py_tp_getset, .pfunc = @ptrCast(@constCast(&uuid_getset)) },
-    .{ .slot = c.Py_tp_repr, .pfunc = @ptrCast(@constCast(&uuidRepr)) },
-    .{ .slot = c.Py_tp_str, .pfunc = @ptrCast(@constCast(&uuidStr)) },
-    .{ .slot = c.Py_tp_hash, .pfunc = @ptrCast(@constCast(&uuidHash)) },
-    .{ .slot = c.Py_tp_richcompare, .pfunc = @ptrCast(@constCast(&uuidRichcompare)) },
-    .{ .slot = c.Py_nb_int, .pfunc = @ptrCast(@constCast(&uuidNbInt)) },
-    .{ .slot = 0, .pfunc = null },
-};
-
-var uuid_spec = c.PyType_Spec{
-    .name = "c_uuid_v7.UUID",
-    .basicsize = @sizeOf(UUIDObject),
-    .itemsize = 0,
-    .flags = c.Py_TPFLAGS_DEFAULT,
-    .slots = &uuid_slots,
-};
-
-var module_methods = [_]PyMethodDef{
-    .{ .ml_name = "_uuid7", .ml_meth = @ptrCast(@constCast(&pyUuid7)), .ml_flags = c.METH_FASTCALL | c.METH_KEYWORDS, .ml_doc = "Generate a fast UUIDv7 object." },
-    .{ .ml_name = "_reseed_rng", .ml_meth = @ptrCast(@constCast(&pyReseedRng)), .ml_flags = c.METH_NOARGS, .ml_doc = "Reseed the internal RNG state." },
-    .{},
-};
-
-var zigmodule = PyModuleDef{
-    .m_name = "_core",
-    .m_doc = "Fast UUIDv7 generator.",
-    .m_methods = &module_methods,
-};
-
-pub export fn PyInit__core() [*c]c.PyObject {
-    const module = c.PyModule_Create(@as([*c]c.struct_PyModuleDef, @ptrCast(&zigmodule)));
-    if (module == null) {
-        return null;
+    if (!randomEnsureSeeded()) {
+        return 1;
     }
 
-    if (!state.initPythonObjects()) {
-        pyDecRef(module);
-        return null;
+    advanceMonotonicState(platform.nowMs(), &timestamp_ms, &rand_a, &tail62);
+    uuidBuildWords(timestamp_ms, rand_a, tail62, hi, lo);
+    return 0;
+}
+
+fn buildUuid7DefaultSecure(hi: *u64, lo: *u64) c_int {
+    var timestamp_ms: u64 = 0;
+    var tail62: u64 = 0;
+    var rand_a: u16 = 0;
+
+    if (!randomEnsureSeeded()) {
+        return 1;
     }
 
-    const type_object = c.PyType_FromSpec(&uuid_spec);
-    if (type_object == null) {
-        state.clearPythonObjects();
-        pyDecRef(module);
-        return null;
+    advanceMonotonicStateSecure(platform.nowMs(), &timestamp_ms, &rand_a, &tail62);
+    uuidBuildWords(timestamp_ms, rand_a, tail62, hi, lo);
+    return 0;
+}
+
+fn fillRandomBits(has_timestamp: bool, has_nanos: bool, nanos: u64, rand_a: *u16, tail62: *u64) c_int {
+    if (has_timestamp and has_nanos) {
+        rand_a.* = @intCast(nanos & 0x0FFF);
+        tail62.* = randomTail62();
+        return 0;
+    }
+    if (has_timestamp or has_nanos) {
+        randomPayload(rand_a, tail62);
+        return 0;
+    }
+    return 1;
+}
+
+fn fillUuid7RandomBitsSecure(has_timestamp: bool, has_nanos: bool, nanos: u64, rand_a: *u16, tail62: *u64) c_int {
+    if (has_timestamp and has_nanos) {
+        rand_a.* = @intCast(nanos & 0x0FFF);
+        randomTail62Secure(tail62);
+        return 0;
+    }
+    if (has_timestamp or has_nanos) {
+        randomPayloadSecure(rand_a, tail62);
+        return 0;
+    }
+    return 1;
+}
+
+fn buildUuid7WithParsedArgs(
+    timestamp_ms: u64,
+    has_timestamp: bool,
+    nanos: u64,
+    has_nanos: bool,
+    hi: *u64,
+    lo: *u64,
+) c_int {
+    var tail62: u64 = 0;
+    var rand_a: u16 = 0;
+
+    if (fillRandomBits(has_timestamp, has_nanos, nanos, &rand_a, &tail62) > 0) {
+        var current_timestamp_ms = timestamp_ms;
+
+        advanceMonotonicState(current_timestamp_ms, &current_timestamp_ms, &rand_a, &tail62);
+        uuidBuildWords(current_timestamp_ms, rand_a, tail62, hi, lo);
+        return 0;
     }
 
-    state.runtime.uuid_type = @ptrCast(type_object);
+    uuidBuildWords(timestamp_ms, rand_a, tail62, hi, lo);
+    return 0;
+}
 
-    if (c.PyModule_AddObject(module, "_UUID", type_object) < 0) {
-        pyDecRef(type_object);
-        state.clearPythonObjects();
-        pyDecRef(module);
-        return null;
+fn buildUuid7WithParsedArgsSecure(
+    timestamp_ms: u64,
+    has_timestamp: bool,
+    nanos: u64,
+    has_nanos: bool,
+    hi: *u64,
+    lo: *u64,
+) c_int {
+    var tail62: u64 = 0;
+    var rand_a: u16 = 0;
+
+    if (fillUuid7RandomBitsSecure(has_timestamp, has_nanos, nanos, &rand_a, &tail62) > 0) {
+        var current_timestamp_ms = timestamp_ms;
+
+        advanceMonotonicStateSecure(current_timestamp_ms, &current_timestamp_ms, &rand_a, &tail62);
+        uuidBuildWords(current_timestamp_ms, rand_a, tail62, hi, lo);
+        return 0;
     }
 
-    return module;
+    uuidBuildWords(timestamp_ms, rand_a, tail62, hi, lo);
+    return 0;
+}
+
+fn buildUuid7(
+    timestamp_s: u64,
+    has_timestamp: bool,
+    nanos: u64,
+    has_nanos: bool,
+    mode: Mode,
+    out: *UUIDWords,
+) c_int {
+    var timestamp_ms: u64 = 0;
+    var status: c_int = 0;
+
+    if (!randomEnsureSeeded()) {
+        return 1;
+    }
+    if (has_nanos) {
+        status = validateNanos(nanos);
+        if (status != 0) {
+            return status;
+        }
+    }
+    status = buildTimestampMs(timestamp_s, has_timestamp, nanos, has_nanos, &timestamp_ms);
+    if (status != 0) {
+        return status;
+    }
+    if (mode == .secure and !has_timestamp and !has_nanos) {
+        return buildUuid7DefaultSecure(&out.hi, &out.lo);
+    }
+    if (mode == .secure) {
+        return buildUuid7WithParsedArgsSecure(
+            timestamp_ms,
+            has_timestamp,
+            nanos,
+            has_nanos,
+            &out.hi,
+            &out.lo,
+        );
+    }
+    if (!has_timestamp and !has_nanos) {
+        return buildUuid7Default(&out.hi, &out.lo);
+    }
+    return buildUuid7WithParsedArgs(
+        timestamp_ms,
+        has_timestamp,
+        nanos,
+        has_nanos,
+        &out.hi,
+        &out.lo,
+    );
+}
+
+pub export fn c_uuid_v7_build(
+    timestamp_s: u64,
+    has_timestamp: u8,
+    nanos: u64,
+    has_nanos: u8,
+    mode: c_int,
+    out: *UUIDWords,
+) c_int {
+    return buildUuid7(
+        timestamp_s,
+        has_timestamp != 0,
+        nanos,
+        has_nanos != 0,
+        parseMode(mode),
+        out,
+    );
+}
+
+pub export fn c_uuid_v7_reseed() void {
+    reseedGeneratorState();
 }
