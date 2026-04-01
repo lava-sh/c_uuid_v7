@@ -183,6 +183,12 @@ def _zig_extra_target_flags(target: str | None) -> list[str]:
     return []
 
 
+def _zig_debug_flags(target: str | None) -> list[str]:
+    if target == "x86-windows-msvc":
+        return ["--verbose-link", "--verbose-cc"]
+    return []
+
+
 def _macos_sdk_path() -> str | None:
     if sys.platform != "darwin":
         return None
@@ -243,6 +249,7 @@ class _ZigBuildExt(build_ext):
         if target is not None:
             command.extend(["-target", target])
             command.extend(_zig_extra_target_flags(target))
+            command.extend(_zig_debug_flags(target))
         if sys.platform == "win32" and action == "build-lib":
             command.append("-fno-emit-implib")
 
