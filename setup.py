@@ -45,7 +45,7 @@ def _python_include_dirs() -> list[str]:
 
 def _python_link_args() -> list[str]:
     if sys.platform == "darwin":
-        return ["-Wl,-undefined,dynamic_lookup"]
+        return ["-Xlinker", "-undefined", "-Xlinker", "dynamic_lookup"]
 
     if sys.platform != "win32":
         return []
