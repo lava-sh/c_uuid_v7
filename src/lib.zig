@@ -1,4 +1,4 @@
-const hexpairs = @import("hexpairs.zig");
+const hex_pairs = @import("hex_pairs.zig");
 const state = @import("state.zig");
 const uuid7 = @import("uuid7.zig");
 
@@ -147,7 +147,7 @@ fn uuidStr(self_obj: ?*c.PyObject) callconv(.c) ?*c.PyObject {
             out[j] = '-';
             j += 1;
         }
-        hexpairs.hexPair(&out[j], @truncate(self.hi >> @intCast(shift)));
+        hex_pairs.hexPair(&out[j], @truncate(self.hi >> @intCast(shift)));
         j += 2;
     }
 
@@ -157,7 +157,7 @@ fn uuidStr(self_obj: ?*c.PyObject) callconv(.c) ?*c.PyObject {
             out[j] = '-';
             j += 1;
         }
-        hexpairs.hexPair(&out[j], @truncate(self.lo >> @intCast(shift)));
+        hex_pairs.hexPair(&out[j], @truncate(self.lo >> @intCast(shift)));
         j += 2;
     }
 
@@ -182,13 +182,13 @@ fn uuidHex(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
     var shift: i32 = 56;
 
     while (shift >= 0) : (shift -= 8) {
-        hexpairs.hexPair(&out[j], @truncate(self.hi >> @intCast(shift)));
+        hex_pairs.hexPair(&out[j], @truncate(self.hi >> @intCast(shift)));
         j += 2;
     }
 
     shift = 56;
     while (shift >= 0) : (shift -= 8) {
-        hexpairs.hexPair(&out[j], @truncate(self.lo >> @intCast(shift)));
+        hex_pairs.hexPair(&out[j], @truncate(self.lo >> @intCast(shift)));
         j += 2;
     }
 
