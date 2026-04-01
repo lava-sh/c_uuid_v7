@@ -4,102 +4,77 @@ import subprocess
 import sys
 import sysconfig
 from copy import copy
-from dataclasses import dataclass
 from pathlib import Path
 
 from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext
 
+WINDOWS_TARGETS = {
+    "win-amd64": "x86_64-windows-msvc",
+    "win-arm64": "aarch64-windows-msvc",
+    "win32": "x86-windows-msvc",
+}
+WINDOWS_SYSTEM_LIBRARIES = ("advapi32", "bcrypt", "kernel32", "ntdll", "user32")
 
-def _unique(items: list[str]) -> list[str]:
-    return list(dict.fromkeys(items))
 
-
-def _library_name(filename: str | None) -> str | None:
-    if not filename:
-        return None
-
-    name = Path(filename).name
-
-    if name.endswith(".lib"):
-        return Path(name).stem
-
-    suffixes = (".a", ".so", ".dylib", ".dll")
-    for suffix in suffixes:
-        if name.endswith(suffix):
-            name = name.removesuffix(suffix)
-            break
-
-    if name.startswith("lib"):
-        name = name.removeprefix("lib")
-
-    return name or None
+def _unique(items: list[str | None], *, existing_only: bool = False) -> list[str]:
+    result = []
+    for item in items:
+        if not item or item in result:
+            continue
+        if existing_only and not Path(item).exists():
+            continue
+        result.append(item)
+    return result
 
 
 def _python_include_dirs() -> list[str]:
-    include_dirs = []
-
-    for path in (
-        sysconfig.get_path("include"),
-        sysconfig.get_path("platinclude"),
-        sysconfig.get_config_var("INCLUDEPY"),
-    ):
-        if path and path not in include_dirs:
-            include_dirs.append(path)
-
-    return include_dirs
+    return _unique(
+        [
+            sysconfig.get_path("include"),
+            sysconfig.get_path("platinclude"),
+            sysconfig.get_config_var("INCLUDEPY"),
+        ],
+    )
 
 
-def _windows_python_library_dirs() -> list[str]:
-    library_dirs = []
-
-    for library_dir in (
-        sysconfig.get_config_var("LIBDIR"),
-        sysconfig.get_config_var("LIBPL"),
-        str(Path(sys.base_prefix) / "libs"),
-        str(Path(sys.exec_prefix) / "libs"),
-    ):
-        if (
-            library_dir
-            and Path(library_dir).exists()
-            and library_dir not in library_dirs
-        ):
-            library_dirs.append(library_dir)
-
-    return library_dirs
-
-
-def _windows_python_library_name() -> str | None:
+def _windows_python_info(ext: Extension) -> tuple[list[str], list[str]]:
     py_version = sysconfig.get_config_var("py_version_nodot")
-    if py_version:
-        return f"python{py_version}"
+    python_library = f"python{py_version}" if py_version else None
+    if python_library is None:
+        for filename in (
+            sysconfig.get_config_var("LDLIBRARY"),
+            sysconfig.get_config_var("LIBRARY"),
+        ):
+            if not filename:
+                continue
+            name = Path(filename).name.removeprefix("lib")
+            for suffix in (".lib", ".a", ".so", ".dylib", ".dll"):
+                if name.endswith(suffix):
+                    name = name.removesuffix(suffix)
+                    break
+            if name:
+                python_library = name
+                break
 
-    for library in (
-        sysconfig.get_config_var("LDLIBRARY"),
-        sysconfig.get_config_var("LIBRARY"),
-    ):
-        library_name = _library_name(library)
-        if library_name:
-            return library_name
-
-    return None
-
-
-def _windows_system_libraries() -> list[str]:
-    return [
-        "advapi32",
-        "bcrypt",
-        "kernel32",
-        "ntdll",
-        "user32",
-    ]
-
-
-def _python_link_args() -> list[str]:
-    if sys.platform == "darwin":
-        return ["-fallow-shlib-undefined"]
-
-    return []
+    library_dirs = _unique(
+        [
+            sysconfig.get_config_var("LIBDIR"),
+            sysconfig.get_config_var("LIBPL"),
+            str(Path(sys.base_prefix) / "libs"),
+            str(Path(sys.exec_prefix) / "libs"),
+            *(ext.library_dirs or []),
+        ],
+        existing_only=True,
+    )
+    libraries = _unique(
+        [
+            python_library,
+            *WINDOWS_SYSTEM_LIBRARIES,
+            *(ext.libraries or []),
+        ],
+    )
+    return library_dirs, libraries
 
 
 def _macos_targets() -> list[str]:
@@ -157,19 +132,14 @@ def _platform_targets() -> list[str]:
     if sys.platform == "darwin":
         return _macos_targets()
 
-    platform_tag = sysconfig.get_platform()
-
     if sys.platform == "win32":
-        windows_target = {
-            "win-amd64": "x86_64-windows-msvc",
-            "win-arm64": "aarch64-windows-msvc",
-            "win32": "x86-windows-msvc",
-        }.get(platform_tag)
+        windows_target = WINDOWS_TARGETS.get(sysconfig.get_platform())
         return [windows_target] if windows_target is not None else []
 
     if sys.platform != "linux":
         return []
 
+    platform_tag = sysconfig.get_platform()
     auditwheel_platform = os.environ.get("AUDITWHEEL_PLAT", "")
     host_gnu_type = sysconfig.get_config_var("HOST_GNU_TYPE") or ""
     linux_abi = "musl" if (
@@ -192,17 +162,11 @@ def _platform_targets() -> list[str]:
 
 
 def _zig_optimize_mode(target: str | None) -> str:
-    if target is None:
-        return "ReleaseFast"
-
-    problematic_targets = (
-        "powerpc64le-linux-gnu",
-        "x86-windows-msvc",
+    return (
+        "ReleaseSafe"
+        if target in {"powerpc64le-linux-gnu", "x86-windows-msvc"}
+        else "ReleaseFast"
     )
-    if target in problematic_targets:
-        return "ReleaseSafe"
-
-    return "ReleaseFast"
 
 
 def _macos_sdk_path() -> str | None:
@@ -220,29 +184,6 @@ def _macos_sdk_path() -> str | None:
         ).strip()
     except (OSError, subprocess.CalledProcessError):
         return None
-
-
-@dataclass(frozen=True, slots=True)
-class _WindowsBuildSettings:
-    library_dirs: list[str]
-    libraries: list[str]
-
-
-def _windows_build_settings(ext: Extension) -> _WindowsBuildSettings:
-    python_library = _windows_python_library_name()
-    libraries = _windows_system_libraries()
-    if python_library is not None:
-        libraries.insert(0, python_library)
-
-    return _WindowsBuildSettings(
-        library_dirs=_unique(
-            [
-                *(_windows_python_library_dirs()),
-                *(ext.library_dirs or []),
-            ],
-        ),
-        libraries=_unique([*libraries, *(ext.libraries or [])]),
-    )
 
 
 class _ZigBuildExt(build_ext):
@@ -267,9 +208,7 @@ class _ZigBuildExt(build_ext):
         build_temp = Path(self.build_temp).resolve()
         build_temp.mkdir(parents=True, exist_ok=True)
 
-        cache_suffix = target or "native"
-        cache_suffix = cache_suffix.replace("-", "_").replace(".", "_")
-
+        cache_suffix = (target or "native").replace("-", "_").replace(".", "_")
         command = [
             sys.executable,
             "-m",
@@ -285,10 +224,8 @@ class _ZigBuildExt(build_ext):
             "-O",
             "Debug" if self.debug else _zig_optimize_mode(target),
         ]
-
         if action == "build-lib":
             command.append("-dynamic")
-
         if target is not None:
             command.extend(["-target", target])
 
@@ -304,37 +241,18 @@ class _ZigBuildExt(build_ext):
         )
         self._add_prefixed_args(command, "-L", ext.library_dirs)
 
-        command.extend(_python_link_args())
+        if sys.platform == "darwin":
+            command.append("-fallow-shlib-undefined")
         command.extend(f"-l{library}" for library in ext.libraries or [])
         command.extend(ext.extra_link_args or [])
         command.extend(ext.extra_compile_args or [])
 
         return command
 
-    def _build_zig_extension(
-        self,
-        zig_source: str,
-        ext: Extension,
-        ext_path: Path,
-        *,
-        target: str | None = None,
-    ) -> None:
-        self.spawn(
-            self._zig_command(
-                "build-lib",
-                zig_source,
-                ext_path,
-                ext,
-                target=target,
-            ),
-        )
-
     @staticmethod
     def _windows_zig_extension(ext: Extension) -> Extension:
         windows_ext = copy(ext)
-        settings = _windows_build_settings(ext)
-        windows_ext.library_dirs = settings.library_dirs
-        windows_ext.libraries = settings.libraries
+        windows_ext.library_dirs, windows_ext.libraries = _windows_python_info(ext)
         return windows_ext
 
     def build_extension(self, ext: Extension) -> None:
@@ -356,11 +274,14 @@ class _ZigBuildExt(build_ext):
 
         platform_targets = _platform_targets()
         if len(platform_targets) <= 1:
-            self._build_zig_extension(
-                zig_sources[0],
-                ext,
-                ext_path,
-                target=platform_targets[0] if platform_targets else None,
+            self.spawn(
+                self._zig_command(
+                    "build-lib",
+                    zig_sources[0],
+                    ext_path,
+                    ext,
+                    target=platform_targets[0] if platform_targets else None,
+                ),
             )
             return
 
@@ -370,11 +291,14 @@ class _ZigBuildExt(build_ext):
             slice_path = ext_path.with_name(
                 f"{ext_path.stem}.{target_suffix}{ext_path.suffix}",
             )
-            self._build_zig_extension(
-                zig_sources[0],
-                ext,
-                slice_path,
-                target=target,
+            self.spawn(
+                self._zig_command(
+                    "build-lib",
+                    zig_sources[0],
+                    slice_path,
+                    ext,
+                    target=target,
+                ),
             )
             slice_paths.append(slice_path)
 
