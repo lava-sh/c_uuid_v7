@@ -1,5 +1,6 @@
 [build-system]
 requires = [
+    "hpy == 0.9.0",
     "ziglang == 0.15.2",
     "setuptools == 82.0.1",
     "setuptools-scm == 10.0.5",
@@ -34,7 +35,7 @@ classifiers = [
 dependencies = []
 
 [dependency-groups]
-typos = ["typos == 1.44.0"]
+typos = ["typos == 1.45.0"]
 zizmor = ["zizmor == 1.23.1"]
 rumdl = ["rumdl == 0.1.64"]
 pytest = ["pytest == 9.0.2"]
@@ -89,14 +90,14 @@ commit_count_since_tag: int = {scm_version.distance}
 
 [tool.cibuildwheel]
 build-frontend = "uv"
-# enable = ["pypy"]
+enable = ["pypy"]
 build = [
     "cp310-*", # Python 3.10
     "cp311-*", # Python 3.11
     "cp312-*", # Python 3.12
     "cp313-*", # Python 3.13
     "cp314-*", # Python 3.14
-#     "pp311-*", # PyPy 3.11
+    "pp311-*", # PyPy 3.11
 ]
 skip = [
     "*t-*", # Free-threading
