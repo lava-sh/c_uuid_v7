@@ -1,3 +1,5 @@
+import os
+import re
 import sys
 import sysconfig
 from pathlib import Path
@@ -42,15 +44,13 @@ def _python_include_dirs() -> list[str]:
 
 
 def _python_link_args() -> list[str]:
-    link_args = []
-    framework = sysconfig.get_config_var("PYTHONFRAMEWORK")
-    framework_prefix = sysconfig.get_config_var("PYTHONFRAMEWORKPREFIX")
+    if sys.platform == "darwin":
+        return ["-undefined", "dynamic_lookup"]
 
-    if sys.platform == "darwin" and framework:
-        if framework_prefix:
-            link_args.extend(["-F", framework_prefix])
-        link_args.extend(["-framework", framework])
-        return link_args
+    if sys.platform != "win32":
+        return []
+
+    link_args = []
 
     for library_dir in (
         sysconfig.get_config_var("LIBDIR"),
@@ -59,11 +59,10 @@ def _python_link_args() -> list[str]:
         if library_dir and library_dir not in link_args:
             link_args.extend(["-L", library_dir])
 
-    if sys.platform == "win32":
-        py_version = sysconfig.get_config_var("py_version_nodot")
-        if py_version:
-            link_args.append(f"-lpython{py_version}")
-            return link_args
+    py_version = sysconfig.get_config_var("py_version_nodot")
+    if py_version:
+        link_args.append(f"-lpython{py_version}")
+        return link_args
 
     for library in (
         sysconfig.get_config_var("LDLIBRARY"),
@@ -77,40 +76,71 @@ def _python_link_args() -> list[str]:
     return link_args
 
 
-class _ZigBuildExt(build_ext):
-    def build_extension(self, ext: Extension) -> None:
-        zig_sources = [source for source in ext.sources if source.endswith(".zig")]
+def _macos_targets() -> list[str]:
+    if sys.platform != "darwin":
+        return []
 
-        if not zig_sources:
-            super().build_extension(ext)
-            return
+    deployment_target = os.environ.get("MACOSX_DEPLOYMENT_TARGET")
+    if not deployment_target:
+        return []
 
-        if len(zig_sources) != 1 or len(zig_sources) != len(ext.sources):
-            msg = "Zig extensions must declare exactly one .zig source file"
+    archflags = os.environ.get("ARCHFLAGS", "")
+    arch_matches = re.findall(r"-arch\s+(\S+)", archflags)
+    if not arch_matches:
+        native_arch = os.uname().machine
+        arch_matches = [native_arch]
+
+    targets = []
+    normalized_target = deployment_target.replace("_", ".")
+
+    for arch in arch_matches:
+        zig_arch = {
+            "arm64": "aarch64",
+            "aarch64": "aarch64",
+            "x86_64": "x86_64",
+        }.get(arch)
+        if zig_arch is None:
+            msg = f"Unsupported macOS arch in ARCHFLAGS: {arch}"
             raise ValueError(msg)
+        targets.append(f"{zig_arch}-macos.{normalized_target}")
 
-        ext_path = Path(self.get_ext_fullpath(ext.name)).resolve()
-        ext_path.parent.mkdir(parents=True, exist_ok=True)
+    return targets
 
+
+class _ZigBuildExt(build_ext):
+    def _build_zig_extension(
+        self,
+        zig_source: str,
+        ext: Extension,
+        ext_path: Path,
+        *,
+        target: str | None = None,
+    ) -> None:
         build_temp = Path(self.build_temp).resolve()
         build_temp.mkdir(parents=True, exist_ok=True)
+
+        cache_suffix = target or "native"
+        cache_suffix = cache_suffix.replace("-", "_").replace(".", "_")
 
         command = [
             sys.executable,
             "-m",
             "ziglang",
             "build-lib",
-            zig_sources[0],
+            zig_source,
             "-dynamic",
             "-lc",
             "-femit-bin=" + str(ext_path),
             "--cache-dir",
-            str(build_temp / "zig-cache"),
+            str(build_temp / f"zig-cache-{cache_suffix}"),
             "--global-cache-dir",
-            str(build_temp / "zig-global-cache"),
+            str(build_temp / f"zig-global-cache-{cache_suffix}"),
             "-O",
             "Debug" if self.debug else "ReleaseFast",
         ]
+
+        if target is not None:
+            command.extend(["-target", target])
 
         for include_dir in _python_include_dirs():
             command.extend(["-I", include_dir])
@@ -125,6 +155,54 @@ class _ZigBuildExt(build_ext):
         command.extend(ext.extra_compile_args or [])
 
         self.spawn(command)
+
+    def build_extension(self, ext: Extension) -> None:
+        zig_sources = [source for source in ext.sources if source.endswith(".zig")]
+
+        if not zig_sources:
+            super().build_extension(ext)
+            return
+
+        if len(zig_sources) != 1 or len(zig_sources) != len(ext.sources):
+            msg = "Zig extensions must declare exactly one .zig source file"
+            raise ValueError(msg)
+
+        ext_path = Path(self.get_ext_fullpath(ext.name)).resolve()
+        ext_path.parent.mkdir(parents=True, exist_ok=True)
+
+        macos_targets = _macos_targets()
+        if len(macos_targets) <= 1:
+            self._build_zig_extension(
+                zig_sources[0],
+                ext,
+                ext_path,
+                target=macos_targets[0] if macos_targets else None,
+            )
+            return
+
+        slice_paths = []
+        for target in macos_targets:
+            target_suffix = target.replace("-", "_").replace(".", "_")
+            slice_path = ext_path.with_name(
+                f"{ext_path.stem}.{target_suffix}{ext_path.suffix}"
+            )
+            self._build_zig_extension(
+                zig_sources[0],
+                ext,
+                slice_path,
+                target=target,
+            )
+            slice_paths.append(slice_path)
+
+        self.spawn(
+            [
+                "lipo",
+                "-create",
+                *map(str, slice_paths),
+                "-output",
+                str(ext_path),
+            ],
+        )
 
 
 setup(
