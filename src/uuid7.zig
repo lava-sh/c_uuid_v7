@@ -24,7 +24,7 @@ fn parseU64(value: ?*c.PyObject, out: *u64, name: [*:0]const u8, none_object: ?*
 
     const temp = c.PyLong_AsUnsignedLongLong(value);
     if (c.PyErr_Occurred() != null) {
-        _ = c.PyErr_Format(c.PyExc_TypeError, "%s must be a non-negative int or None", name);
+        _ = c.PyErr_Format(state.pyExcTypeError(), "%s must be a non-negative int or None", name);
         return -1;
     }
 
@@ -34,7 +34,7 @@ fn parseU64(value: ?*c.PyObject, out: *u64, name: [*:0]const u8, none_object: ?*
 
 fn validateNanos(nanos: u64) c_int {
     if (nanos >= state.UUID_MAX_NANOS) {
-        c.PyErr_SetString(c.PyExc_ValueError, "nanos must be in range 0..999999999");
+        c.PyErr_SetString(state.pyExcValueError(), "nanos must be in range 0..999999999");
         return -1;
     }
     return 0;
@@ -47,7 +47,7 @@ fn buildTimestampMs(timestamp_s: u64, has_timestamp: bool, nanos: u64, has_nanos
     }
 
     if (timestamp_s > state.UUID_MAX_TIMESTAMP_S) {
-        c.PyErr_SetString(c.PyExc_ValueError, "timestamp is too large");
+        c.PyErr_SetString(state.pyExcValueError(), "timestamp is too large");
         return -1;
     }
 
@@ -57,7 +57,7 @@ fn buildTimestampMs(timestamp_s: u64, has_timestamp: bool, nanos: u64, has_nanos
     }
 
     if (ms > state.UUID_MAX_TIMESTAMP_MS) {
-        c.PyErr_SetString(c.PyExc_ValueError, "timestamp is too large");
+        c.PyErr_SetString(state.pyExcValueError(), "timestamp is too large");
         return -1;
     }
 
@@ -275,7 +275,7 @@ pub fn parseMode(value: ?*c.PyObject, none_object: ?*c.PyObject, mode: *c_int) c
     }
 
     if (c.PyUnicode_Check(value) == 0) {
-        c.PyErr_SetString(c.PyExc_TypeError, "mode must be 'fast', 'secure', or None");
+        c.PyErr_SetString(state.pyExcTypeError(), "mode must be 'fast', 'secure', or None");
         return -1;
     }
 
@@ -289,6 +289,6 @@ pub fn parseMode(value: ?*c.PyObject, none_object: ?*c.PyObject, mode: *c_int) c
         return 0;
     }
 
-    c.PyErr_SetString(c.PyExc_ValueError, "mode must be 'fast' or 'secure'");
+    c.PyErr_SetString(state.pyExcValueError(), "mode must be 'fast' or 'secure'");
     return -1;
 }

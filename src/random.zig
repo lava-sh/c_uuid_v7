@@ -24,7 +24,7 @@ pub fn randomEnsureSeeded() c_int {
     }
 
     if (platform.fillRandom(&seed, seed.len) != 0) {
-        c.PyErr_SetString(c.PyExc_OSError, "unable to seed UUIDv7 generator");
+        c.PyErr_SetString(state.pyExcOSError(), "unable to seed UUIDv7 generator");
         return -1;
     }
 

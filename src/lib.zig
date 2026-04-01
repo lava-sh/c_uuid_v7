@@ -98,11 +98,11 @@ fn pyRefcnt(obj: *UUIDObject) usize {
 }
 
 fn noneObject() ?*c.PyObject {
-    return @constCast(c.Py_None());
+    return state.pyNone();
 }
 
 fn notImplementedObject() ?*c.PyObject {
-    return @constCast(c.Py_NotImplemented());
+    return state.pyNotImplemented();
 }
 
 fn uuidSelf(self_obj: ?*c.PyObject) *UUIDObject {
@@ -406,7 +406,7 @@ fn pyUuid7(_: ?*c.PyObject, args: [*c]?*c.PyObject, nargs: c.Py_ssize_t, kwnames
     }
 
     if (nargs > 3) {
-        c.PyErr_SetString(c.PyExc_TypeError, "uuid7() takes at most 3 positional arguments");
+        c.PyErr_SetString(state.pyExcTypeError(), "uuid7() takes at most 3 positional arguments");
         return null;
     }
 
@@ -425,7 +425,7 @@ fn pyUuid7(_: ?*c.PyObject, args: [*c]?*c.PyObject, nargs: c.Py_ssize_t, kwnames
         } else if (c.PyUnicode_CompareWithASCIIString(key, "mode") == 0) {
             mode_obj = value;
         } else {
-            _ = c.PyErr_Format(c.PyExc_TypeError, "uuid7() got an unexpected keyword argument '%U'", key);
+            _ = c.PyErr_Format(state.pyExcTypeError(), "uuid7() got an unexpected keyword argument '%U'", key);
             return null;
         }
     }
@@ -512,8 +512,14 @@ pub export fn PyInit__core() [*c]c.PyObject {
         return null;
     }
 
+    if (!state.initPythonObjects()) {
+        pyDecRef(module);
+        return null;
+    }
+
     const type_object = c.PyType_FromSpec(&uuid_spec);
     if (type_object == null) {
+        state.clearPythonObjects();
         pyDecRef(module);
         return null;
     }
@@ -522,6 +528,7 @@ pub export fn PyInit__core() [*c]c.PyObject {
 
     if (c.PyModule_AddObject(module, "_UUID", type_object) < 0) {
         pyDecRef(type_object);
+        state.clearPythonObjects();
         pyDecRef(module);
         return null;
     }
