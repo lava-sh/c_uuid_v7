@@ -3,6 +3,7 @@ import re
 import subprocess
 import sys
 import sysconfig
+from copy import copy
 from pathlib import Path
 
 from setuptools import Extension, setup
@@ -44,70 +45,11 @@ def _python_include_dirs() -> list[str]:
     return include_dirs
 
 
-def _windows_python_library_dirs() -> list[str]:
-    library_dirs = []
-
-    for library_dir in (
-        sysconfig.get_config_var("LIBDIR"),
-        sysconfig.get_config_var("LIBPL"),
-        str(Path(sys.base_prefix) / "libs"),
-        str(Path(sys.exec_prefix) / "libs"),
-    ):
-        if (
-            library_dir
-            and Path(library_dir).exists()
-            and library_dir not in library_dirs
-        ):
-            library_dirs.append(library_dir)
-
-    return library_dirs
-
-
-def _windows_python_library_filenames() -> list[str]:
-    library_filenames = []
-
-    py_version = sysconfig.get_config_var("py_version_nodot")
-    if py_version:
-        library_filenames.append(f"python{py_version}.lib")
-
-    for library in (
-        sysconfig.get_config_var("LDLIBRARY"),
-        sysconfig.get_config_var("LIBRARY"),
-    ):
-        if library and library not in library_filenames:
-            library_filenames.append(library)
-
-    return library_filenames
-
-
 def _python_link_args() -> list[str]:
     if sys.platform == "darwin":
         return ["-fallow-shlib-undefined"]
 
-    if sys.platform != "win32":
-        return []
-
-    link_args = []
-    library_dirs = _windows_python_library_dirs()
-    library_filenames = _windows_python_library_filenames()
-
-    for library_dir in library_dirs:
-        link_args.extend(["-L", library_dir])
-
-    for filename in library_filenames:
-        for library_dir in library_dirs:
-            library_path = Path(library_dir) / filename
-            if library_path.exists():
-                link_args.append(str(library_path))
-                return link_args
-
-    for filename in library_filenames:
-        library_name = _library_name(filename)
-        if library_name:
-            link_args.append(f"-l{library_name}")
-            return link_args
-
-    return link_args
+    return []
 
 
 def _macos_targets() -> list[str]:
@@ -221,14 +163,15 @@ def _macos_sdk_path() -> str | None:
 
 
 class _ZigBuildExt(build_ext):
-    def _build_zig_extension(
+    def _zig_command(
         self,
+        action: str,
         zig_source: str,
+        output_path: Path,
         ext: Extension,
-        ext_path: Path,
         *,
         target: str | None = None,
-    ) -> None:
+    ) -> list[str]:
         build_temp = Path(self.build_temp).resolve()
         build_temp.mkdir(parents=True, exist_ok=True)
 
@@ -239,11 +182,10 @@ class _ZigBuildExt(build_ext):
             sys.executable,
             "-m",
             "ziglang",
-            "build-lib",
+            action,
             zig_source,
-            "-dynamic",
             "-lc",
-            "-femit-bin=" + str(ext_path),
+            "-femit-bin=" + str(output_path),
             "--cache-dir",
             str(build_temp / f"zig-cache-{cache_suffix}"),
             "--global-cache-dir",
@@ -251,6 +193,9 @@ class _ZigBuildExt(build_ext):
             "-O",
             "Debug" if self.debug else _zig_optimize_mode(target),
         ]
+
+        if action == "build-lib":
+            command.append("-dynamic")
 
         if target is not None:
             command.extend(["-target", target])
@@ -267,12 +212,57 @@ class _ZigBuildExt(build_ext):
             command.extend(["-I", include_dir])
 
         command.extend(_python_link_args())
-
         command.extend(f"-l{library}" for library in ext.libraries or [])
-
         command.extend(ext.extra_compile_args or [])
 
-        self.spawn(command)
+        return command
+
+    def _build_zig_extension(
+        self,
+        zig_source: str,
+        ext: Extension,
+        ext_path: Path,
+        *,
+        target: str | None = None,
+    ) -> None:
+        self.spawn(
+            self._zig_command(
+                "build-lib",
+                zig_source,
+                ext_path,
+                ext,
+                target=target,
+            ),
+        )
+
+    def _build_windows_extension(
+        self,
+        zig_source: str,
+        ext: Extension,
+        ext_path: Path,
+        *,
+        target: str | None = None,
+    ) -> None:
+        build_temp = Path(self.build_temp).resolve()
+        build_temp.mkdir(parents=True, exist_ok=True)
+        object_path = build_temp / f"{ext.name.rsplit('.', 1)[-1]}.obj"
+
+        self.spawn(
+            self._zig_command(
+                "build-obj",
+                zig_source,
+                object_path,
+                ext,
+                target=target,
+            ),
+        )
+
+        windows_ext = copy(ext)
+        windows_ext.sources = []
+        windows_ext.extra_objects = [str(object_path), *(ext.extra_objects or [])]
+        windows_ext.extra_compile_args = []
+
+        super().build_extension(windows_ext)
 
     def build_extension(self, ext: Extension) -> None:
         zig_sources = [source for source in ext.sources if source.endswith(".zig")]
@@ -289,6 +279,15 @@ class _ZigBuildExt(build_ext):
         ext_path.parent.mkdir(parents=True, exist_ok=True)
 
         platform_targets = _platform_targets()
+        if sys.platform == "win32":
+            self._build_windows_extension(
+                zig_sources[0],
+                ext,
+                ext_path,
+                target=platform_targets[0] if platform_targets else None,
+            )
+            return
+
         if len(platform_targets) <= 1:
             self._build_zig_extension(
                 zig_sources[0],
