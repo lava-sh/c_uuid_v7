@@ -13,6 +13,7 @@ WINDOWS_TARGETS = {
     "win-arm64": "aarch64-windows-msvc",
     "win32": "x86-windows-msvc",
 }
+WINDOWS_LIBRARIES = ["advapi32", "kernel32", "ntdll", "user32"]
 ROOT_DIR = Path(__file__).resolve().parent
 HPY_VENDOR_DIR = ROOT_DIR / ".hpy_devel"
 
@@ -91,7 +92,7 @@ setup(
             "c_uuid_v7._core",
             ["src/hpy_core.c", "src/lib.zig"],
             include_dirs=["src"],
-            libraries=["advapi32", "kernel32", "ntdll", "user32"],
+            libraries=WINDOWS_LIBRARIES if sys.platform == "win32" else [],
         ),
     ],
 )
