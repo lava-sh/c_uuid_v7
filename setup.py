@@ -44,6 +44,42 @@ def _python_include_dirs() -> list[str]:
     return include_dirs
 
 
+def _windows_python_library_dirs() -> list[str]:
+    library_dirs = []
+
+    for library_dir in (
+        sysconfig.get_config_var("LIBDIR"),
+        sysconfig.get_config_var("LIBPL"),
+        str(Path(sys.base_prefix) / "libs"),
+        str(Path(sys.exec_prefix) / "libs"),
+    ):
+        if (
+            library_dir
+            and Path(library_dir).exists()
+            and library_dir not in library_dirs
+        ):
+            library_dirs.append(library_dir)
+
+    return library_dirs
+
+
+def _windows_python_library_filenames() -> list[str]:
+    library_filenames = []
+
+    py_version = sysconfig.get_config_var("py_version_nodot")
+    if py_version:
+        library_filenames.append(f"python{py_version}.lib")
+
+    for library in (
+        sysconfig.get_config_var("LDLIBRARY"),
+        sysconfig.get_config_var("LIBRARY"),
+    ):
+        if library and library not in library_filenames:
+            library_filenames.append(library)
+
+    return library_filenames
+
+
 def _python_link_args() -> list[str]:
     if sys.platform == "darwin":
         return ["-fallow-shlib-undefined"]
@@ -52,29 +88,24 @@ def _python_link_args() -> list[str]:
         return []
 
     link_args = []
+    library_dirs = _windows_python_library_dirs()
+    library_filenames = _windows_python_library_filenames()
 
-    for library_dir in (
-        sysconfig.get_config_var("LIBDIR"),
-        sysconfig.get_config_var("LIBPL"),
-        str(Path(sys.base_prefix) / "libs"),
-        str(Path(sys.exec_prefix) / "libs"),
-    ):
-        if library_dir and Path(library_dir).exists() and library_dir not in link_args:
-            link_args.extend(["-L", library_dir])
+    for library_dir in library_dirs:
+        link_args.extend(["-L", library_dir])
 
-    py_version = sysconfig.get_config_var("py_version_nodot")
-    if py_version:
-        link_args.append(f"-lpython{py_version}")
-        return link_args
+    for filename in library_filenames:
+        for library_dir in library_dirs:
+            library_path = Path(library_dir) / filename
+            if library_path.exists():
+                link_args.append(str(library_path))
+                return link_args
 
-    for library in (
-        sysconfig.get_config_var("LDLIBRARY"),
-        sysconfig.get_config_var("LIBRARY"),
-    ):
-        library_name = _library_name(library)
+    for filename in library_filenames:
+        library_name = _library_name(filename)
         if library_name:
             link_args.append(f"-l{library_name}")
-            break
+            return link_args
 
     return link_args
 
