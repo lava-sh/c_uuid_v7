@@ -43,6 +43,14 @@ def _python_include_dirs() -> list[str]:
 
 def _python_link_args() -> list[str]:
     link_args = []
+    framework = sysconfig.get_config_var("PYTHONFRAMEWORK")
+    framework_prefix = sysconfig.get_config_var("PYTHONFRAMEWORKPREFIX")
+
+    if sys.platform == "darwin" and framework:
+        if framework_prefix:
+            link_args.extend(["-F", framework_prefix])
+        link_args.extend(["-framework", framework])
+        return link_args
 
     for library_dir in (
         sysconfig.get_config_var("LIBDIR"),
