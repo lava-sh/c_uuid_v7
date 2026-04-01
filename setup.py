@@ -34,7 +34,6 @@ def _python_include_dirs() -> list[str]:
         sysconfig.get_path("include"),
         sysconfig.get_path("platinclude"),
         sysconfig.get_config_var("INCLUDEPY"),
-        sysconfig.get_config_var("CONFINCLUDEPY"),
     ):
         if path and path not in include_dirs:
             include_dirs.append(path)
