@@ -178,7 +178,7 @@ def _zig_optimize_mode(target: str | None) -> str:
 
 
 def _zig_extra_target_flags(target: str | None) -> list[str]:
-    if target == "powerpc64le-linux-gnu":
+    if target in {"powerpc64le-linux-gnu", "x86-windows-msvc"}:
         return ["-fllvm", "-flld"]
     return []
 
@@ -243,6 +243,8 @@ class _ZigBuildExt(build_ext):
         if target is not None:
             command.extend(["-target", target])
             command.extend(_zig_extra_target_flags(target))
+        if sys.platform == "win32" and action == "build-lib":
+            command.append("-fno-emit-implib")
 
         sdk_path = _macos_sdk_path()
         if sdk_path is not None:
