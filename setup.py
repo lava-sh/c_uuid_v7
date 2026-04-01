@@ -93,6 +93,12 @@ def _macos_targets() -> list[str]:
     arch_matches = re.findall(r"-arch\s+(\S+)", archflags)
     if not arch_matches:
         platform_arch = platform_tag.rsplit("-", 1)[-1]
+        if (
+            platform_arch == "universal2"
+            and "CIBW_BUILD" not in os.environ
+            and "CIBUILDWHEEL" not in os.environ
+        ):
+            platform_arch = os.uname().machine
         arch_matches = {
             "arm64": ["arm64"],
             "universal2": ["x86_64", "arm64"],
