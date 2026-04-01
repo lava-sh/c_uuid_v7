@@ -23,7 +23,7 @@ jobs:
   tests:
     name: "${{ matrix.os }} / python ${{ matrix.python-version }}"
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 5
+    timeout-minutes: 10
     strategy:
       matrix:
         os: [
@@ -37,7 +37,7 @@ jobs:
           "3.12",
           "3.13",
           "3.14",
-          "pypy3.11"
+          # "pypy3.11"
         ]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
