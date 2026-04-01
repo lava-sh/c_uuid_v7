@@ -1,6 +1,6 @@
 const RomuTrio = @import("romu_trio.zig");
 
-const builtin = @import("c.zig").builtin;
+const builtin = @import("builtin");
 const c = @import("c.zig").c;
 
 pub const UUIDObject = extern struct {
