@@ -3,12 +3,16 @@ import re
 import subprocess
 import sys
 import sysconfig
-import textwrap
 from copy import copy
+from dataclasses import dataclass
 from pathlib import Path
 
 from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext
+
+
+def _unique(items: list[str]) -> list[str]:
+    return list(dict.fromkeys(items))
 
 
 def _library_name(filename: str | None) -> str | None:
@@ -81,11 +85,13 @@ def _windows_python_library_name() -> str | None:
     return None
 
 
-def _windows_link_args() -> list[str]:
+def _windows_system_libraries() -> list[str]:
     return [
-        "/DEFAULTLIB:ucrt",
-        "/DEFAULTLIB:vcruntime",
-        "/DEFAULTLIB:msvcrt",
+        "advapi32",
+        "bcrypt",
+        "kernel32",
+        "ntdll",
+        "user32",
     ]
 
 
@@ -164,13 +170,23 @@ def _platform_targets() -> list[str]:
     if sys.platform != "linux":
         return []
 
+    auditwheel_platform = os.environ.get("AUDITWHEEL_PLAT", "")
+    host_gnu_type = sysconfig.get_config_var("HOST_GNU_TYPE") or ""
+    linux_abi = "musl" if (
+        auditwheel_platform.startswith("musllinux_") or host_gnu_type.endswith("musl")
+    ) else "gnu"
+
     linux_target = {
-        "linux-aarch64": "aarch64-linux-gnu",
-        "linux-armv7l": "arm-linux-gnueabihf",
-        "linux-i686": "x86-linux-gnu",
-        "linux-ppc64le": "powerpc64le-linux-gnu",
-        "linux-s390x": "s390x-linux-gnu",
-        "linux-x86_64": "x86_64-linux-gnu",
+        "linux-aarch64": f"aarch64-linux-{linux_abi}",
+        "linux-armv7l": (
+            "arm-linux-musleabihf"
+            if linux_abi == "musl"
+            else "arm-linux-gnueabihf"
+        ),
+        "linux-i686": f"x86-linux-{linux_abi}",
+        "linux-ppc64le": f"powerpc64le-linux-{linux_abi}",
+        "linux-s390x": f"s390x-linux-{linux_abi}",
+        "linux-x86_64": f"x86_64-linux-{linux_abi}",
     }.get(platform_tag)
     return [linux_target] if linux_target is not None else []
 
@@ -206,88 +222,38 @@ def _macos_sdk_path() -> str | None:
         return None
 
 
+@dataclass(frozen=True, slots=True)
+class _WindowsBuildSettings:
+    library_dirs: list[str]
+    libraries: list[str]
+
+
+def _windows_build_settings(ext: Extension) -> _WindowsBuildSettings:
+    python_library = _windows_python_library_name()
+    libraries = _windows_system_libraries()
+    if python_library is not None:
+        libraries.insert(0, python_library)
+
+    return _WindowsBuildSettings(
+        library_dirs=_unique(
+            [
+                *(_windows_python_library_dirs()),
+                *(ext.library_dirs or []),
+            ],
+        ),
+        libraries=_unique([*libraries, *(ext.libraries or [])]),
+    )
+
+
 class _ZigBuildExt(build_ext):
-    def _windows_python_wrapper_dir(self) -> Path:
-        build_temp = Path(self.build_temp).resolve()
-        wrapper_dir = build_temp / "python-wrapper"
-        wrapper_dir.mkdir(parents=True, exist_ok=True)
-        return wrapper_dir
-
-    def _write_windows_python_wrapper(self) -> Path:
-        wrapper_dir = self._windows_python_wrapper_dir()
-        wrapper_path = wrapper_dir / "Python.h"
-        wrapper_path.write_text(
-            textwrap.dedent(
-                """\
-                #ifndef WRAPPER_H
-                #define WRAPPER_H
-
-                #include_next <Python.h>
-
-                PyAPI_FUNC(PyObject*) PyCompat_TypeError(void);
-                PyAPI_FUNC(PyObject*) PyCompat_ValueError(void);
-                PyAPI_FUNC(PyObject*) PyCompat_OSError(void);
-
-                PyAPI_FUNC(PyObject*) PyCompat_None(void);
-                PyAPI_FUNC(PyObject*) PyCompat_NotImplemented(void);
-
-                #undef PyExc_TypeError
-                #define PyExc_TypeError PyCompat_TypeError()
-                #undef PyExc_ValueError
-                #define PyExc_ValueError PyCompat_ValueError()
-                #undef PyExc_OSError
-                #define PyExc_OSError PyCompat_OSError()
-                #undef Py_None
-                #define Py_None() PyCompat_None()
-                #undef Py_NotImplemented
-                #define Py_NotImplemented() PyCompat_NotImplemented()
-
-                #endif
-                """,
-            ),
-            encoding="utf-8",
-        )
-        return wrapper_dir
-
-    def _build_windows_python_shim(self, ext: Extension) -> list[str]:
-        build_temp = Path(self.build_temp).resolve()
-        build_temp.mkdir(parents=True, exist_ok=True)
-        source_path = build_temp / "python_shim.c"
-        source_path.write_text(
-            textwrap.dedent(
-                """\
-                #define PY_SSIZE_T_CLEAN
-                #include <Python.h>
-
-                PyObject* PyCompat_TypeError(void) {
-                    return PyExc_TypeError;
-                }
-
-                PyObject* PyCompat_ValueError(void) {
-                    return PyExc_ValueError;
-                }
-
-                PyObject* PyCompat_OSError(void) {
-                    return PyExc_OSError;
-                }
-
-                PyObject* PyCompat_None(void) {
-                    return Py_None;
-                }
-
-                PyObject* PyCompat_NotImplemented(void) {
-                    return Py_NotImplemented;
-                }
-                """,
-            ),
-            encoding="utf-8",
-        )
-
-        return self.compiler.compile(
-            [str(source_path)],
-            output_dir=str(build_temp),
-            include_dirs=[*_python_include_dirs(), *(ext.include_dirs or [])],
-        )
+    @staticmethod
+    def _add_prefixed_args(
+        command: list[str],
+        prefix: str,
+        values: list[str] | None,
+    ) -> None:
+        for value in values or []:
+            command.extend([prefix, value])
 
     def _zig_command(
         self,
@@ -331,17 +297,16 @@ class _ZigBuildExt(build_ext):
             command.extend(["--sysroot", sdk_path])
             command.extend(["-I", str(Path(sdk_path) / "usr" / "include")])
 
-        if sys.platform == "win32":
-            command.extend(["-I", str(self._write_windows_python_wrapper())])
-
-        for include_dir in _python_include_dirs():
-            command.extend(["-I", include_dir])
-
-        for include_dir in ext.include_dirs or []:
-            command.extend(["-I", include_dir])
+        self._add_prefixed_args(
+            command,
+            "-I",
+            [*_python_include_dirs(), *(ext.include_dirs or [])],
+        )
+        self._add_prefixed_args(command, "-L", ext.library_dirs)
 
         command.extend(_python_link_args())
         command.extend(f"-l{library}" for library in ext.libraries or [])
+        command.extend(ext.extra_link_args or [])
         command.extend(ext.extra_compile_args or [])
 
         return command
@@ -364,64 +329,13 @@ class _ZigBuildExt(build_ext):
             ),
         )
 
-    def _build_windows_extension(
-        self,
-        zig_source: str,
-        ext: Extension,
-        *,
-        target: str | None = None,
-    ) -> None:
-        build_temp = Path(self.build_temp).resolve()
-        build_temp.mkdir(parents=True, exist_ok=True)
-        object_path = build_temp / f"{ext.name.rsplit('.', 1)[-1]}.obj"
-
-        self.spawn(
-            self._zig_command(
-                "build-obj",
-                zig_source,
-                object_path,
-                ext,
-                target=target,
-            ),
-        )
-
-        shim_objects = self._build_windows_python_shim(ext)
-
+    @staticmethod
+    def _windows_zig_extension(ext: Extension) -> Extension:
         windows_ext = copy(ext)
-        windows_ext.sources = []
-        windows_ext.extra_objects = [
-            str(object_path),
-            *shim_objects,
-            *(ext.extra_objects or []),
-        ]
-        windows_ext.extra_compile_args = []
-        windows_ext.extra_link_args = [
-            *dict.fromkeys([*_windows_link_args(), *(ext.extra_link_args or [])]),
-        ]
-        windows_ext.library_dirs = [
-            *dict.fromkeys(
-                [
-                    *(_windows_python_library_dirs()),
-                    *(ext.library_dirs or []),
-                ],
-            ),
-        ]
-
-        python_library = _windows_python_library_name()
-        windows_libraries = [
-            "advapi32",
-            "bcrypt",
-            "kernel32",
-            "ntdll",
-            "user32",
-        ]
-        if python_library is not None:
-            windows_libraries.insert(0, python_library)
-        windows_ext.libraries = [
-            *dict.fromkeys([*windows_libraries, *(ext.libraries or [])]),
-        ]
-
-        super().build_extension(windows_ext)
+        settings = _windows_build_settings(ext)
+        windows_ext.library_dirs = settings.library_dirs
+        windows_ext.libraries = settings.libraries
+        return windows_ext
 
     def build_extension(self, ext: Extension) -> None:
         zig_sources = [source for source in ext.sources if source.endswith(".zig")]
@@ -437,15 +351,10 @@ class _ZigBuildExt(build_ext):
         ext_path = Path(self.get_ext_fullpath(ext.name)).resolve()
         ext_path.parent.mkdir(parents=True, exist_ok=True)
 
-        platform_targets = _platform_targets()
         if sys.platform == "win32":
-            self._build_windows_extension(
-                zig_sources[0],
-                ext,
-                target=platform_targets[0] if platform_targets else None,
-            )
-            return
+            ext = self._windows_zig_extension(ext)
 
+        platform_targets = _platform_targets()
         if len(platform_targets) <= 1:
             self._build_zig_extension(
                 zig_sources[0],
