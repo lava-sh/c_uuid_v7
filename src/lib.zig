@@ -42,7 +42,7 @@ fn pyModuleDefHeadInitLegacy() PyModuleDef_Base {
 
 const PyModuleDef_HEAD_INIT = if ((c.PY_MAJOR_VERSION > 3) or ((c.PY_MAJOR_VERSION == 3) and (c.PY_MINOR_VERSION >= 14)))
     pyModuleDefHeadInitRefcntFull()
-else if ((c.PY_MAJOR_VERSION > 3) or ((c.PY_MAJOR_VERSION == 3) and (c.PY_MINOR_VERSION >= 13)))
+else if ((c.PY_MAJOR_VERSION > 3) or ((c.PY_MAJOR_VERSION == 3) and (c.PY_MINOR_VERSION >= 11)))
     pyModuleDefHeadInitRefcntInline()
 else
     pyModuleDefHeadInitLegacy();
@@ -90,7 +90,7 @@ fn pyRefcnt(obj: *UUIDObject) usize {
         return @intCast(py_obj.unnamed_0.ob_refcnt_full);
     }
 
-    if ((c.PY_MAJOR_VERSION > 3) or ((c.PY_MAJOR_VERSION == 3) and (c.PY_MINOR_VERSION >= 13))) {
+    if ((c.PY_MAJOR_VERSION > 3) or ((c.PY_MAJOR_VERSION == 3) and (c.PY_MINOR_VERSION >= 11))) {
         return @intCast(py_obj.unnamed_0.ob_refcnt);
     }
 
