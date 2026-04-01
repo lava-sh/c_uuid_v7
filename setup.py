@@ -56,6 +56,8 @@ def _python_link_args() -> list[str]:
     for library_dir in (
         sysconfig.get_config_var("LIBDIR"),
         sysconfig.get_config_var("LIBPL"),
+        str(Path(sys.base_prefix) / "libs"),
+        str(Path(sys.exec_prefix) / "libs"),
     ):
         if library_dir and library_dir not in link_args:
             link_args.extend(["-L", library_dir])
