@@ -70,6 +70,8 @@ class ZigBuildExt(build_ext):
             "-O",
             "Debug" if self.debug else "ReleaseFast",
         ]
+        if sys.platform != "win32":
+            command.append("-fPIC")
         if sys.platform == "win32":
             target = WINDOWS_TARGETS.get(sysconfig.get_platform())
             if target is not None:
