@@ -108,6 +108,9 @@ def _macos_targets() -> list[str]:
     targets = []
     normalized_target = deployment_target.replace("_", ".")
 
+    def _version_tuple(version: str) -> tuple[int, ...]:
+        return tuple(int(part) for part in version.split("."))
+
     for arch in arch_matches:
         zig_arch = {
             "arm64": "aarch64",
@@ -117,7 +120,10 @@ def _macos_targets() -> list[str]:
         if zig_arch is None:
             msg = f"Unsupported macOS arch in ARCHFLAGS: {arch}"
             raise ValueError(msg)
-        targets.append(f"{zig_arch}-macos.{normalized_target}")
+        target_version = normalized_target
+        if zig_arch == "aarch64" and _version_tuple(target_version) < (11, 0):
+            target_version = "11.0"
+        targets.append(f"{zig_arch}-macos.{target_version}")
 
     return targets
 
