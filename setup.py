@@ -3,6 +3,8 @@ import re
 import subprocess
 import sys
 import sysconfig
+import textwrap
+from copy import copy
 from pathlib import Path
 
 from setuptools import Extension, setup
@@ -79,31 +81,19 @@ def _windows_python_library_name() -> str | None:
     return None
 
 
+def _windows_link_args() -> list[str]:
+    return [
+        "/DEFAULTLIB:ucrt",
+        "/DEFAULTLIB:vcruntime",
+        "/DEFAULTLIB:msvcrt",
+    ]
+
+
 def _python_link_args() -> list[str]:
     if sys.platform == "darwin":
         return ["-fallow-shlib-undefined"]
 
-    if sys.platform != "win32":
-        return []
-
-    link_args = []
-    library_dirs = _windows_python_library_dirs()
-
-    for library_dir in library_dirs:
-        link_args.extend(["-L", library_dir])
-
-    python_library = _windows_python_library_name()
-    if python_library is not None:
-        link_args.append(f"-l{python_library}")
-
-    return link_args
-
-
-def _windows_zig_args() -> list[str]:
-    if sys.platform != "win32":
-        return []
-
-    return ["-fdeclspec"]
+    return []
 
 
 def _macos_targets() -> list[str]:
@@ -217,6 +207,100 @@ def _macos_sdk_path() -> str | None:
 
 
 class _ZigBuildExt(build_ext):
+    def _windows_python_wrapper_dir(self) -> Path:
+        build_temp = Path(self.build_temp).resolve()
+        wrapper_dir = build_temp / "python-wrapper"
+        wrapper_dir.mkdir(parents=True, exist_ok=True)
+        return wrapper_dir
+
+    def _write_windows_python_wrapper(self) -> Path:
+        wrapper_dir = self._windows_python_wrapper_dir()
+        wrapper_path = wrapper_dir / "Python.h"
+        wrapper_path.write_text(
+            textwrap.dedent(
+                """\
+                #ifndef WRAPPER_H
+                #define WRAPPER_H
+
+                #include_next <Python.h>
+
+                PyAPI_DATA(PyObject*) PyCompat_TypeError;
+                PyAPI_DATA(PyObject*) PyCompat_ValueError;
+                PyAPI_DATA(PyObject*) PyCompat_OSError;
+
+                PyAPI_FUNC(PyObject*) PyCompat_None(void);
+                PyAPI_FUNC(PyObject*) PyCompat_NotImplemented(void);
+
+                #undef PyExc_TypeError
+                #define PyExc_TypeError PyCompat_TypeError
+                #undef PyExc_ValueError
+                #define PyExc_ValueError PyCompat_ValueError
+                #undef PyExc_OSError
+                #define PyExc_OSError PyCompat_OSError
+                #undef Py_None
+                #define Py_None() PyCompat_None()
+                #undef Py_NotImplemented
+                #define Py_NotImplemented() PyCompat_NotImplemented()
+
+                #endif
+                """,
+            ),
+            encoding="utf-8",
+        )
+        return wrapper_dir
+
+    def _build_windows_python_shim(self, ext: Extension) -> list[str]:
+        build_temp = Path(self.build_temp).resolve()
+        build_temp.mkdir(parents=True, exist_ok=True)
+        source_path = build_temp / "python_shim.c"
+        source_path.write_text(
+            textwrap.dedent(
+                """\
+                #define PY_SSIZE_T_CLEAN
+                #include <Python.h>
+                #include <windows.h>
+
+                __declspec(dllimport) PyObject* __imp_PyExc_TypeError;
+                __declspec(dllimport) PyObject* __imp_PyExc_ValueError;
+                __declspec(dllimport) PyObject* __imp_PyExc_OSError;
+                __declspec(dllimport) PyObject* __imp__Py_NoneStruct;
+                __declspec(dllimport) PyObject* __imp__Py_NotImplementedStruct;
+
+                PyObject* PyCompat_TypeError = NULL;
+                PyObject* PyCompat_ValueError = NULL;
+                PyObject* PyCompat_OSError = NULL;
+
+                PyObject* PyCompat_None(void) {
+                    return __imp__Py_NoneStruct;
+                }
+
+                PyObject* PyCompat_NotImplemented(void) {
+                    return __imp__Py_NotImplementedStruct;
+                }
+
+                BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved) {
+                    (void)instance;
+                    (void)reserved;
+
+                    if (reason == DLL_PROCESS_ATTACH) {
+                        PyCompat_TypeError = __imp_PyExc_TypeError;
+                        PyCompat_ValueError = __imp_PyExc_ValueError;
+                        PyCompat_OSError = __imp_PyExc_OSError;
+                    }
+
+                    return TRUE;
+                }
+                """,
+            ),
+            encoding="utf-8",
+        )
+
+        return self.compiler.compile(
+            [str(source_path)],
+            output_dir=str(build_temp),
+            include_dirs=[*_python_include_dirs(), *(ext.include_dirs or [])],
+        )
+
     def _zig_command(
         self,
         action: str,
@@ -259,6 +343,9 @@ class _ZigBuildExt(build_ext):
             command.extend(["--sysroot", sdk_path])
             command.extend(["-I", str(Path(sdk_path) / "usr" / "include")])
 
+        if sys.platform == "win32":
+            command.extend(["-I", str(self._write_windows_python_wrapper())])
+
         for include_dir in _python_include_dirs():
             command.extend(["-I", include_dir])
 
@@ -266,7 +353,6 @@ class _ZigBuildExt(build_ext):
             command.extend(["-I", include_dir])
 
         command.extend(_python_link_args())
-        command.extend(_windows_zig_args())
         command.extend(f"-l{library}" for library in ext.libraries or [])
         command.extend(ext.extra_compile_args or [])
 
@@ -290,6 +376,65 @@ class _ZigBuildExt(build_ext):
             ),
         )
 
+    def _build_windows_extension(
+        self,
+        zig_source: str,
+        ext: Extension,
+        *,
+        target: str | None = None,
+    ) -> None:
+        build_temp = Path(self.build_temp).resolve()
+        build_temp.mkdir(parents=True, exist_ok=True)
+        object_path = build_temp / f"{ext.name.rsplit('.', 1)[-1]}.obj"
+
+        self.spawn(
+            self._zig_command(
+                "build-obj",
+                zig_source,
+                object_path,
+                ext,
+                target=target,
+            ),
+        )
+
+        shim_objects = self._build_windows_python_shim(ext)
+
+        windows_ext = copy(ext)
+        windows_ext.sources = []
+        windows_ext.extra_objects = [
+            str(object_path),
+            *shim_objects,
+            *(ext.extra_objects or []),
+        ]
+        windows_ext.extra_compile_args = []
+        windows_ext.extra_link_args = [
+            *dict.fromkeys([*_windows_link_args(), *(ext.extra_link_args or [])]),
+        ]
+        windows_ext.library_dirs = [
+            *dict.fromkeys(
+                [
+                    *(_windows_python_library_dirs()),
+                    *(ext.library_dirs or []),
+                ],
+            ),
+        ]
+
+        python_library = _windows_python_library_name()
+        windows_libraries = [
+            "advapi32",
+            "bcrypt",
+            "kernel32",
+            "ntdll",
+            "user32",
+        ]
+        if python_library is not None:
+            windows_libraries.insert(0, python_library)
+        windows_ext.libraries = [
+            *dict.fromkeys([*windows_libraries, *(ext.libraries or [])]),
+        ]
+
+        super().build_extension(windows_ext)
+
     def build_extension(self, ext: Extension) -> None:
         zig_sources = [source for source in ext.sources if source.endswith(".zig")]
 
@@ -305,6 +450,14 @@ class _ZigBuildExt(build_ext):
         ext_path.parent.mkdir(parents=True, exist_ok=True)
 
         platform_targets = _platform_targets()
+        if sys.platform == "win32":
+            self._build_windows_extension(
+                zig_sources[0],
+                ext,
+                target=platform_targets[0] if platform_targets else None,
+            )
+            return
+
         if len(platform_targets) <= 1:
             self._build_zig_extension(
                 zig_sources[0],
