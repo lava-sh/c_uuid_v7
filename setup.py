@@ -1,5 +1,6 @@
 import os
 import re
+import subprocess
 import sys
 import sysconfig
 from pathlib import Path
@@ -115,6 +116,23 @@ def _macos_targets() -> list[str]:
     return targets
 
 
+def _macos_sdk_path() -> str | None:
+    if sys.platform != "darwin":
+        return None
+
+    sdkroot = os.environ.get("SDKROOT")
+    if sdkroot:
+        return sdkroot
+
+    try:
+        return subprocess.check_output(
+            ["xcrun", "--show-sdk-path"],
+            text=True,
+        ).strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+
 class _ZigBuildExt(build_ext):
     def _build_zig_extension(
         self,
@@ -149,6 +167,10 @@ class _ZigBuildExt(build_ext):
 
         if target is not None:
             command.extend(["-target", target])
+
+        sdk_path = _macos_sdk_path()
+        if sdk_path is not None:
+            command.extend(["-isysroot", sdk_path])
 
         for include_dir in _python_include_dirs():
             command.extend(["-I", include_dir])
