@@ -35,11 +35,6 @@ pub const QueryInterruptTimeFn = if (builtin.os.tag == .windows)
 else
     *const fn (?*u64) callconv(.c) void;
 
-pub const BCryptGenRandomFn = if (builtin.os.tag == .windows)
-    *const fn (?*anyopaque, [*]u8, c_uint, c_uint) callconv(.winapi) c_int
-else
-    *const fn (?*anyopaque, [*]u8, c_uint, c_uint) callconv(.c) c_int;
-
 pub const RuntimeState = struct {
     uuid_type: ?*c.PyTypeObject = null,
     reusable_uuid: ?*UUIDObject = null,
@@ -50,7 +45,6 @@ pub const RuntimeState = struct {
     epoch_base_ms: u64 = 0,
     tick_base_ms: u64 = 0,
     query_interrupt_time_ptr: ?QueryInterruptTimeFn = null,
-    bcrypt_gen_random_ptr: ?BCryptGenRandomFn = null,
 };
 
 pub var runtime = RuntimeState{};

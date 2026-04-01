@@ -125,7 +125,6 @@ setup(
         Extension(
             "c_uuid_v7._core",
             ["src/lib.zig"],
-            libraries=["bcrypt"] if sys.platform == "win32" else [],
         ),
     ],
 )

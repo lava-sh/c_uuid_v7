@@ -1,31 +1,12 @@
+const std = @import("std");
 const builtin = @import("builtin");
-const state = @import("state.zig");
 
-const c = @import("c.zig").c;
+const state = @import("state.zig");
 
 const win = @cImport({
     @cDefine("WIN32_LEAN_AND_MEAN", "1");
     @cInclude("windows.h");
-    @cInclude("bcrypt.h");
 });
-
-fn ensureBcryptGenRandom() ?state.BCryptGenRandomFn {
-    if (builtin.os.tag != .windows) {
-        return null;
-    }
-
-    if (state.runtime.bcrypt_gen_random_ptr) |bcrypt_gen_random| {
-        return bcrypt_gen_random;
-    }
-
-    const bcrypt_module = win.GetModuleHandleA("bcrypt.dll") orelse win.LoadLibraryA("bcrypt.dll");
-    if (bcrypt_module == null) {
-        return null;
-    }
-
-    state.runtime.bcrypt_gen_random_ptr = @ptrCast(win.GetProcAddress(bcrypt_module, "BCryptGenRandom"));
-    return state.runtime.bcrypt_gen_random_ptr;
-}
 
 pub fn nowMs() u64 {
     if (state.runtime.query_interrupt_time_ptr) |query_interrupt_time| {
@@ -46,9 +27,7 @@ pub fn systemMs() u64 {
 }
 
 pub fn fillRandom(buf: [*]u8, len: isize) c_int {
-    const bcrypt_gen_random = ensureBcryptGenRandom() orelse return -1;
-    const status = bcrypt_gen_random(null, buf, @intCast(len), win.BCRYPT_USE_SYSTEM_PREFERRED_RNG);
-    return if (status >= 0) 0 else -1;
+    return if (std.os.windows.advapi32.RtlGenRandom(buf, @intCast(len)) != 0) 0 else -1;
 }
 
 pub fn platformSeeded() void {
