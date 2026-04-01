@@ -177,6 +177,12 @@ def _zig_optimize_mode(target: str | None) -> str:
     )
 
 
+def _zig_extra_target_flags(target: str | None) -> list[str]:
+    if target == "powerpc64le-linux-gnu":
+        return ["-fllvm", "-flld"]
+    return []
+
+
 def _macos_sdk_path() -> str | None:
     if sys.platform != "darwin":
         return None
@@ -236,6 +242,7 @@ class _ZigBuildExt(build_ext):
             command.append("-dynamic")
         if target is not None:
             command.extend(["-target", target])
+            command.extend(_zig_extra_target_flags(target))
 
         sdk_path = _macos_sdk_path()
         if sdk_path is not None:

@@ -1,11 +1,11 @@
 const std = @import("std");
 
 const state = @import("state.zig");
+const windows = std.os.windows;
 
-const win = @cImport({
-    @cDefine("WIN32_LEAN_AND_MEAN", "1");
-    @cInclude("windows.h");
-});
+extern "kernel32" fn GetSystemTimePreciseAsFileTime(
+    lpSystemTimeAsFileTime: *windows.FILETIME,
+) callconv(.winapi) void;
 
 fn readKsystemTime(ksystem_time: *const std.os.windows.KSYSTEM_TIME) u64 {
     while (true) {
@@ -29,15 +29,15 @@ pub fn nowMs() u64 {
 }
 
 pub fn systemMs() u64 {
-    var ft: win.FILETIME = undefined;
+    var ft: windows.FILETIME = undefined;
 
-    win.GetSystemTimePreciseAsFileTime(&ft);
+    GetSystemTimePreciseAsFileTime(&ft);
     const ticks = (@as(u64, ft.dwHighDateTime) << 32) | @as(u64, ft.dwLowDateTime);
     return (ticks - 116_444_736_000_000_000) / 10_000;
 }
 
 pub fn fillRandom(buf: [*]u8, len: isize) c_int {
-    std.os.windows.RtlGenRandom(buf[0..@intCast(len)]) catch return -1;
+    windows.RtlGenRandom(buf[0..@intCast(len)]) catch return -1;
     return 0;
 }
 
