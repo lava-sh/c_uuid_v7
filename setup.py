@@ -3,6 +3,7 @@ import sysconfig
 from pathlib import Path
 from shutil import copy2
 
+import hpy.devel
 from hpy.devel import HPyDevel
 from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext
@@ -80,6 +81,7 @@ class ZigBuildExt(build_ext):
         super().build_extension(ext)
 
 
+hpy.devel.HPyDevel = LocalHPyDevel
 hpy_devel = LocalHPyDevel()
 
 setup(
