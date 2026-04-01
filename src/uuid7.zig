@@ -17,10 +17,6 @@ pub fn uuidPackBytes(hi: u64, lo: u64, bytes: *[16]u8) void {
     std.mem.writeInt(u64, bytes[8..16], lo, .big);
 }
 
-fn ensureSeeded() c_int {
-    return random.randomEnsureSeeded();
-}
-
 fn parseU64(value: ?*c.PyObject, out: *u64, name: [*:0]const u8, none_object: ?*c.PyObject) c_int {
     if (value == null or value == none_object) {
         return 0;
@@ -160,7 +156,7 @@ pub fn buildUuid7Default(hi: *u64, lo: *u64) c_int {
     var tail62: u64 = 0;
     var rand_a: u16 = 0;
 
-    if (ensureSeeded() != 0) {
+    if (random.randomEnsureSeeded() != 0) {
         return -1;
     }
 
@@ -174,7 +170,7 @@ pub fn buildUuid7DefaultSecure(hi: *u64, lo: *u64) c_int {
     var tail62: u64 = 0;
     var rand_a: u16 = 0;
 
-    if (ensureSeeded() != 0) {
+    if (random.randomEnsureSeeded() != 0) {
         return -1;
     }
 
@@ -257,7 +253,7 @@ fn buildUuid7WithParsedArgsSecure(args: *const state.UUID7Args, hi: *u64, lo: *u
 pub fn buildUuid7PartsFromArgs(timestamp_obj: ?*c.PyObject, nanos_obj: ?*c.PyObject, mode: c_int, none_object: ?*c.PyObject, hi: *u64, lo: *u64) c_int {
     var parsed = state.UUID7Args{};
 
-    if (ensureSeeded() != 0) {
+    if (random.randomEnsureSeeded() != 0) {
         return -1;
     }
 

@@ -5,18 +5,17 @@ const uuid7 = @import("uuid7.zig");
 const c = @import("c.zig").c;
 
 const UUIDObject = state.UUIDObject;
-const PyObject = c.PyObject;
 
 const PyModuleDef_Base = extern struct {
-    ob_base: PyObject,
-    m_init: ?*const fn () callconv(.c) [*c]PyObject = null,
+    ob_base: c.PyObject,
+    m_init: ?*const fn () callconv(.c) [*c]c.PyObject = null,
     m_index: c.Py_ssize_t = 0,
-    m_copy: [*c]PyObject = null,
+    m_copy: [*c]c.PyObject = null,
 };
 
 fn pyModuleDefHeadInitRefcntFull() PyModuleDef_Base {
     return .{
-        .ob_base = PyObject{
+        .ob_base = c.PyObject{
             .unnamed_0 = .{ .ob_refcnt_full = 1 },
             .ob_type = null,
         },
@@ -25,7 +24,7 @@ fn pyModuleDefHeadInitRefcntFull() PyModuleDef_Base {
 
 fn pyModuleDefHeadInitRefcntInline() PyModuleDef_Base {
     return .{
-        .ob_base = PyObject{
+        .ob_base = c.PyObject{
             .unnamed_0 = .{ .ob_refcnt = 1 },
             .ob_type = null,
         },
@@ -34,7 +33,7 @@ fn pyModuleDefHeadInitRefcntInline() PyModuleDef_Base {
 
 fn pyModuleDefHeadInitLegacy() PyModuleDef_Base {
     return .{
-        .ob_base = PyObject{
+        .ob_base = c.PyObject{
             .ob_refcnt = 1,
             .ob_type = null,
         },
@@ -75,17 +74,17 @@ const PyModuleDef = extern struct {
     m_free: c.freefunc = null,
 };
 
-fn pyIncRef(obj: ?*c.PyObject) ?*c.PyObject {
+fn pyIncRef(obj: ?*c.c.PyObject) ?*c.c.PyObject {
     c.Py_IncRef(obj);
     return obj;
 }
 
-fn pyDecRef(obj: ?*c.PyObject) void {
+fn pyDecRef(obj: ?*c.c.PyObject) void {
     c.Py_DecRef(obj);
 }
 
 fn pyRefcnt(obj: *UUIDObject) usize {
-    const py_obj: *c.PyObject = @ptrCast(obj);
+    const py_obj: *c.c.PyObject = @ptrCast(obj);
 
     if ((c.PY_MAJOR_VERSION > 2) and (c.PY_MINOR_VERSION > 13)) {
         return @intCast(py_obj.unnamed_0.ob_refcnt_full);
@@ -98,15 +97,15 @@ fn pyRefcnt(obj: *UUIDObject) usize {
     return @intCast(py_obj.ob_refcnt);
 }
 
-fn noneObject() ?*c.PyObject {
+fn noneObject() ?*c.c.PyObject {
     return @constCast(c.Py_None());
 }
 
-fn notImplementedObject() ?*c.PyObject {
+fn notImplementedObject() ?*c.c.PyObject {
     return @constCast(c.Py_NotImplemented());
 }
 
-fn uuidSelf(self_obj: ?*c.PyObject) *UUIDObject {
+fn uuidSelf(self_obj: ?*c.c.PyObject) *UUIDObject {
     return @ptrCast(self_obj.?);
 }
 
@@ -137,7 +136,7 @@ fn uuidNew(hi: u64, lo: u64) ?*UUIDObject {
     return obj;
 }
 
-fn uuidStr(self_obj: ?*c.PyObject) callconv(.c) ?*c.PyObject {
+fn uuidStr(self_obj: ?*c.c.PyObject) callconv(.c) ?*c.c.PyObject {
     var out: [36]u8 = undefined;
     const self = uuidSelf(self_obj);
     var j: usize = 0;
@@ -165,7 +164,7 @@ fn uuidStr(self_obj: ?*c.PyObject) callconv(.c) ?*c.PyObject {
     return c.PyUnicode_FromStringAndSize(&out, out.len);
 }
 
-fn uuidRepr(self_obj: ?*c.PyObject) callconv(.c) ?*c.PyObject {
+fn uuidRepr(self_obj: ?*c.c.PyObject) callconv(.c) ?*c.c.PyObject {
     const text = uuidStr(self_obj);
     defer if (text != null) pyDecRef(text);
 
@@ -176,7 +175,7 @@ fn uuidRepr(self_obj: ?*c.PyObject) callconv(.c) ?*c.PyObject {
     return c.PyUnicode_FromFormat("UUID('%U')", text);
 }
 
-fn uuidHex(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
+fn uuidHex(self_obj: ?*c.c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.c.PyObject {
     var out: [32]u8 = undefined;
     const self = uuidSelf(self_obj);
     var j: usize = 0;
@@ -196,7 +195,7 @@ fn uuidHex(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
     return c.PyUnicode_FromStringAndSize(&out, out.len);
 }
 
-fn uuidBytes(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
+fn uuidBytes(self_obj: ?*c.c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.c.PyObject {
     var bytes: [16]u8 = undefined;
     const self = uuidSelf(self_obj);
 
@@ -204,7 +203,7 @@ fn uuidBytes(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
     return c.PyBytes_FromStringAndSize(@ptrCast(&bytes), bytes.len);
 }
 
-fn uuidBytesLe(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
+fn uuidBytesLe(self_obj: ?*c.c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.c.PyObject {
     var bytes: [16]u8 = undefined;
     var reordered: [16]u8 = undefined;
     const self = uuidSelf(self_obj);
@@ -222,12 +221,12 @@ fn uuidBytesLe(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject
     return c.PyBytes_FromStringAndSize(@ptrCast(&reordered), reordered.len);
 }
 
-fn uuidTimestamp(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
+fn uuidTimestamp(self_obj: ?*c.c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.c.PyObject {
     const self = uuidSelf(self_obj);
     return c.PyLong_FromUnsignedLongLong(self.hi >> state.UUID_TIMESTAMP_SHIFT);
 }
 
-fn uuidInt(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
+fn uuidInt(self_obj: ?*c.c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.c.PyObject {
     const self = uuidSelf(self_obj);
 
     if (@hasDecl(c, "PyLong_FromUnsignedNativeBytes")) {
@@ -264,42 +263,42 @@ fn uuidInt(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
     return c.PyNumber_Or(shift, low);
 }
 
-fn uuidNbInt(self_obj: ?*c.PyObject) callconv(.c) ?*c.PyObject {
+fn uuidNbInt(self_obj: ?*c.c.PyObject) callconv(.c) ?*c.c.PyObject {
     return uuidInt(self_obj, null);
 }
 
-fn uuidTimeLow(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
+fn uuidTimeLow(self_obj: ?*c.c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.c.PyObject {
     return c.PyLong_FromUnsignedLong(@truncate(uuidSelf(self_obj).hi >> 32));
 }
 
-fn uuidTimeMid(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
+fn uuidTimeMid(self_obj: ?*c.c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.c.PyObject {
     return c.PyLong_FromUnsignedLong(@truncate((uuidSelf(self_obj).hi >> 16) & 0xFFFF));
 }
 
-fn uuidTimeHiVersion(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
+fn uuidTimeHiVersion(self_obj: ?*c.c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.c.PyObject {
     return c.PyLong_FromUnsignedLong(@truncate(uuidSelf(self_obj).hi & 0xFFFF));
 }
 
-fn uuidClockSeqHiVariant(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
+fn uuidClockSeqHiVariant(self_obj: ?*c.c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.c.PyObject {
     return c.PyLong_FromUnsignedLong(@truncate(uuidSelf(self_obj).lo >> 56));
 }
 
-fn uuidClockSeqLow(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
+fn uuidClockSeqLow(self_obj: ?*c.c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.c.PyObject {
     return c.PyLong_FromUnsignedLong(@truncate((uuidSelf(self_obj).lo >> 48) & 0xFF));
 }
 
-fn uuidClockSeq(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
+fn uuidClockSeq(self_obj: ?*c.c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.c.PyObject {
     const self = uuidSelf(self_obj);
     const high: c_ulong = @truncate((self.lo >> 56) & 0x3F);
     const low: c_ulong = @truncate((self.lo >> 48) & 0xFF);
     return c.PyLong_FromUnsignedLong((high << 8) | low);
 }
 
-fn uuidNode(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
+fn uuidNode(self_obj: ?*c.c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.c.PyObject {
     return c.PyLong_FromUnsignedLongLong(uuidSelf(self_obj).lo & 0xFFFF_FFFF_FFFF);
 }
 
-fn uuidFields(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
+fn uuidFields(self_obj: ?*c.c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.c.PyObject {
     const self = uuidSelf(self_obj);
     return c.Py_BuildValue(
         "(kkkkkK)",
@@ -312,7 +311,7 @@ fn uuidFields(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject 
     );
 }
 
-fn uuidUrn(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
+fn uuidUrn(self_obj: ?*c.c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.c.PyObject {
     const text = uuidStr(self_obj);
     defer if (text != null) pyDecRef(text);
 
@@ -323,12 +322,12 @@ fn uuidUrn(self_obj: ?*c.PyObject, _: ?*anyopaque) callconv(.c) ?*c.PyObject {
     return c.PyUnicode_FromFormat("urn:uuid:%U", text);
 }
 
-fn uuidCopy(self_obj: ?*c.PyObject, _: ?*c.PyObject) callconv(.c) ?*c.PyObject {
+fn uuidCopy(self_obj: ?*c.c.PyObject, _: ?*c.c.PyObject) callconv(.c) ?*c.c.PyObject {
     return pyIncRef(self_obj);
 }
 
-fn uuidDeepcopy(self_obj: ?*c.PyObject, args: ?*c.PyObject) callconv(.c) ?*c.PyObject {
-    var memo: ?*c.PyObject = null;
+fn uuidDeepcopy(self_obj: ?*c.c.PyObject, args: ?*c.c.PyObject) callconv(.c) ?*c.c.PyObject {
+    var memo: ?*c.c.PyObject = null;
 
     if (c.PyArg_ParseTuple(args, "O:__deepcopy__", &memo) == 0) {
         return null;
@@ -337,7 +336,7 @@ fn uuidDeepcopy(self_obj: ?*c.PyObject, args: ?*c.PyObject) callconv(.c) ?*c.PyO
     return pyIncRef(self_obj);
 }
 
-fn uuidHash(self_obj: ?*c.PyObject) callconv(.c) c.Py_hash_t {
+fn uuidHash(self_obj: ?*c.c.PyObject) callconv(.c) c.Py_hash_t {
     const self = uuidSelf(self_obj);
     const mixed = self.hi ^ (self.hi >> 32) ^ self.lo ^ (self.lo >> 32);
     var hash: c.Py_hash_t = @bitCast(mixed);
@@ -359,7 +358,7 @@ fn uuidCompare(left: *const UUIDObject, right: *const UUIDObject) c_int {
     return 0;
 }
 
-fn uuidRichcompare(a: ?*c.PyObject, b: ?*c.PyObject, op: c_int) callconv(.c) ?*c.PyObject {
+fn uuidRichcompare(a: ?*c.c.PyObject, b: ?*c.c.PyObject, op: c_int) callconv(.c) ?*c.c.PyObject {
     if (state.runtime.uuid_type == null or c.PyObject_TypeCheck(a, state.runtime.uuid_type) == 0 or c.PyObject_TypeCheck(b, state.runtime.uuid_type) == 0) {
         return pyIncRef(notImplementedObject());
     }
@@ -388,11 +387,11 @@ fn uuidRichcompare(a: ?*c.PyObject, b: ?*c.PyObject, op: c_int) callconv(.c) ?*c
     return pyIncRef(notImplementedObject());
 }
 
-fn pyUuid7(_: ?*c.PyObject, args: [*c]?*c.PyObject, nargs: c.Py_ssize_t, kwnames: ?*c.PyObject) callconv(.c) ?*c.PyObject {
+fn pyUuid7(_: ?*c.c.PyObject, args: [*c]?*c.c.PyObject, nargs: c.Py_ssize_t, kwnames: ?*c.c.PyObject) callconv(.c) ?*c.c.PyObject {
     const none_object = noneObject();
-    var timestamp_obj: ?*c.PyObject = none_object;
-    var nanos_obj: ?*c.PyObject = none_object;
-    var mode_obj: ?*c.PyObject = none_object;
+    var timestamp_obj: ?*c.c.PyObject = none_object;
+    var nanos_obj: ?*c.c.PyObject = none_object;
+    var mode_obj: ?*c.c.PyObject = none_object;
     const nkw: c.Py_ssize_t = if (kwnames != null) c.PyTuple_Size(kwnames) else 0;
     var hi: u64 = 0;
     var lo: u64 = 0;
@@ -446,7 +445,7 @@ fn pyUuid7(_: ?*c.PyObject, args: [*c]?*c.PyObject, nargs: c.Py_ssize_t, kwnames
     return @ptrCast(uuidNew(hi, lo));
 }
 
-fn pyReseedRng(_: ?*c.PyObject, _: ?*c.PyObject) callconv(.c) ?*c.PyObject {
+fn pyReseedRng(_: ?*c.c.PyObject, _: ?*c.c.PyObject) callconv(.c) ?*c.c.PyObject {
     uuid7.reseedGeneratorState();
     return pyIncRef(noneObject());
 }
@@ -507,7 +506,7 @@ var zigmodule = PyModuleDef{
     .m_methods = &module_methods,
 };
 
-pub export fn PyInit__core() [*c]c.PyObject {
+pub export fn PyInit__core() [*c]c.c.PyObject {
     const module = c.PyModule_Create(@as([*c]c.struct_PyModuleDef, @ptrCast(&zigmodule)));
     if (module == null) {
         return null;
