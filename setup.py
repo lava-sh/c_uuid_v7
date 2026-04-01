@@ -1,6 +1,7 @@
 import sys
 import sysconfig
 from pathlib import Path
+from shutil import copy2
 
 from hpy.devel import HPyDevel
 from setuptools import Extension, setup
@@ -11,6 +12,29 @@ WINDOWS_TARGETS = {
     "win-arm64": "aarch64-windows-msvc",
     "win32": "x86-windows-msvc",
 }
+ROOT_DIR = Path(__file__).resolve().parent
+HPY_VENDOR_DIR = ROOT_DIR / ".hpy_devel"
+
+
+class LocalHPyDevel(HPyDevel):
+    @staticmethod
+    def _localize_sources(sources: list[str], subdir: str) -> list[str]:
+        target_dir = HPY_VENDOR_DIR / subdir
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        localized = []
+        for source in sources:
+            source_path = Path(source)
+            target_path = target_dir / source_path.name
+            copy2(source_path, target_path)
+            localized.append(target_path.relative_to(ROOT_DIR).as_posix())
+        return localized
+
+    def get_extra_sources(self) -> list[str]:
+        return self._localize_sources(super().get_extra_sources(), "runtime")
+
+    def get_ctx_sources(self) -> list[str]:
+        return self._localize_sources(super().get_ctx_sources(), "ctx")
 
 
 class ZigBuildExt(build_ext):
@@ -56,7 +80,7 @@ class ZigBuildExt(build_ext):
         super().build_extension(ext)
 
 
-hpy_devel = HPyDevel()
+hpy_devel = LocalHPyDevel()
 
 setup(
     cmdclass={"build_ext": ZigBuildExt},
