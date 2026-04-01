@@ -1,6 +1,5 @@
 const RomuTrio = @import("romu_trio.zig");
 
-const builtin = @import("builtin");
 const c = @import("c.zig").c;
 
 pub const UUIDObject = extern struct {
@@ -30,11 +29,6 @@ pub const UUID_RAND_MASK: u64 = 0x3FFF_FFFF_FFFF_FFFF;
 pub const RESEED_MASK: u64 = (1 << 41) - 1;
 pub const LOW30_MASK: u64 = (1 << 30) - 1;
 
-pub const QueryInterruptTimeFn = if (builtin.os.tag == .windows)
-    *const fn (?*u64) callconv(.winapi) void
-else
-    *const fn (?*u64) callconv(.c) void;
-
 pub const RuntimeState = struct {
     uuid_type: ?*c.PyTypeObject = null,
     reusable_uuid: ?*UUIDObject = null,
@@ -44,7 +38,6 @@ pub const RuntimeState = struct {
     prng_seeded: bool = false,
     epoch_base_ms: u64 = 0,
     tick_base_ms: u64 = 0,
-    query_interrupt_time_ptr: ?QueryInterruptTimeFn = null,
 };
 
 pub var runtime = RuntimeState{};
