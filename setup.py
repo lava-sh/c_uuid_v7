@@ -45,6 +45,41 @@ def _python_include_dirs() -> list[str]:
     return include_dirs
 
 
+def _windows_python_library_dirs() -> list[str]:
+    library_dirs = []
+
+    for library_dir in (
+        sysconfig.get_config_var("LIBDIR"),
+        sysconfig.get_config_var("LIBPL"),
+        str(Path(sys.base_prefix) / "libs"),
+        str(Path(sys.exec_prefix) / "libs"),
+    ):
+        if (
+            library_dir
+            and Path(library_dir).exists()
+            and library_dir not in library_dirs
+        ):
+            library_dirs.append(library_dir)
+
+    return library_dirs
+
+
+def _windows_python_library_name() -> str | None:
+    py_version = sysconfig.get_config_var("py_version_nodot")
+    if py_version:
+        return f"python{py_version}"
+
+    for library in (
+        sysconfig.get_config_var("LDLIBRARY"),
+        sysconfig.get_config_var("LIBRARY"),
+    ):
+        library_name = _library_name(library)
+        if library_name:
+            return library_name
+
+    return None
+
+
 def _python_link_args() -> list[str]:
     if sys.platform == "darwin":
         return ["-fallow-shlib-undefined"]
@@ -261,6 +296,28 @@ class _ZigBuildExt(build_ext):
         windows_ext.sources = []
         windows_ext.extra_objects = [str(object_path), *(ext.extra_objects or [])]
         windows_ext.extra_compile_args = []
+        windows_ext.library_dirs = [
+            *dict.fromkeys(
+                [
+                    *(_windows_python_library_dirs()),
+                    *(ext.library_dirs or []),
+                ],
+            ),
+        ]
+
+        python_library = _windows_python_library_name()
+        windows_libraries = [
+            "advapi32",
+            "bcrypt",
+            "kernel32",
+            "ntdll",
+            "user32",
+        ]
+        if python_library is not None:
+            windows_libraries.insert(0, python_library)
+        windows_ext.libraries = [
+            *dict.fromkeys([*windows_libraries, *(ext.libraries or [])]),
+        ]
 
         super().build_extension(windows_ext)
 
