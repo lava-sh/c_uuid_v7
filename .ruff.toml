@@ -26,6 +26,8 @@ ignore = [
     "ARG",    # Unused method argument
     ########
     "D100",   # Missing docstring in public module
+    "D101",   # Missing docstring in public class
+    "D102",   # Missing docstring in public method
     "D103",   # Missing docstring in public function
     "D104",   # Missing docstring in public package
     "D203",
