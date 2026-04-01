@@ -171,6 +171,7 @@ class _ZigBuildExt(build_ext):
         sdk_path = _macos_sdk_path()
         if sdk_path is not None:
             command.extend(["--sysroot", sdk_path])
+            command.extend(["-I", str(Path(sdk_path) / "usr" / "include")])
 
         for include_dir in _python_include_dirs():
             command.extend(["-I", include_dir])
