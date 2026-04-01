@@ -360,6 +360,17 @@ HPyDef_GET(uuid_urn, "urn") static HPy
   return HPyUnicode_FromString(ctx, out);
 }
 
+HPyDef_METH(uuid_copy, "__copy__", HPyFunc_NOARGS) static HPy
+    uuid_copy_impl(HPyContext *ctx, HPy self) {
+  return HPy_Dup(ctx, self);
+}
+
+HPyDef_METH(uuid_deepcopy, "__deepcopy__", HPyFunc_O) static HPy
+    uuid_deepcopy_impl(HPyContext *ctx, HPy self, HPy memo) {
+  (void)memo;
+  return HPy_Dup(ctx, self);
+}
+
 HPyDef_SLOT(uuid_hash, HPy_tp_hash) static HPy_hash_t
     uuid_hash_impl(HPyContext *ctx, HPy self) {
   UUIDObject *uuid = UUIDObject_AsStruct(ctx, self);
@@ -451,7 +462,7 @@ static int install_copy_dispatch(HPyContext *ctx, HPy module, HPy type) {
   HPy deepcopy_dispatch = HPy_NULL;
   HPy copy_func = HPy_NULL;
   HPy deepcopy_func = HPy_NULL;
-  int status = -1;
+  int status = 0;
 
   copy_module = HPyImport_ImportModule(ctx, "copy");
   if (HPy_IsNull(copy_module)) {
@@ -459,28 +470,30 @@ static int install_copy_dispatch(HPyContext *ctx, HPy module, HPy type) {
   }
   copy_dispatch = HPy_GetAttr_s(ctx, copy_module, "_copy_dispatch");
   if (HPy_IsNull(copy_dispatch)) {
-    goto done;
+    HPyErr_Clear(ctx);
   }
   deepcopy_dispatch = HPy_GetAttr_s(ctx, copy_module, "_deepcopy_dispatch");
   if (HPy_IsNull(deepcopy_dispatch)) {
-    goto done;
+    HPyErr_Clear(ctx);
   }
-  copy_func = HPy_GetAttr_s(ctx, module, "_copy_uuid");
-  if (HPy_IsNull(copy_func)) {
-    goto done;
+  if (!HPy_IsNull(copy_dispatch)) {
+    copy_func = HPy_GetAttr_s(ctx, module, "_copy_uuid");
+    if (HPy_IsNull(copy_func)) {
+      goto done;
+    }
+    if (HPy_SetItem(ctx, copy_dispatch, type, copy_func) < 0) {
+      goto done;
+    }
   }
-  deepcopy_func = HPy_GetAttr_s(ctx, module, "_deepcopy_uuid");
-  if (HPy_IsNull(deepcopy_func)) {
-    goto done;
+  if (!HPy_IsNull(deepcopy_dispatch)) {
+    deepcopy_func = HPy_GetAttr_s(ctx, module, "_deepcopy_uuid");
+    if (HPy_IsNull(deepcopy_func)) {
+      goto done;
+    }
+    if (HPy_SetItem(ctx, deepcopy_dispatch, type, deepcopy_func) < 0) {
+      goto done;
+    }
   }
-  if (HPy_SetItem(ctx, copy_dispatch, type, copy_func) < 0) {
-    goto done;
-  }
-  if (HPy_SetItem(ctx, deepcopy_dispatch, type, deepcopy_func) < 0) {
-    goto done;
-  }
-
-  status = 0;
 
 done:
   HPy_Close(ctx, deepcopy_func);
@@ -563,6 +576,8 @@ static HPyDef *uuid_defs[] = {
     &uuid_node,
     &uuid_fields,
     &uuid_urn,
+    &uuid_copy,
+    &uuid_deepcopy,
     &uuid_hash,
     &uuid_richcompare,
     NULL,
