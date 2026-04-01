@@ -45,7 +45,7 @@ def _python_include_dirs() -> list[str]:
 
 def _python_link_args() -> list[str]:
     if sys.platform == "darwin":
-        return ["-undefined", "dynamic_lookup"]
+        return ["-Wl,-undefined,dynamic_lookup"]
 
     if sys.platform != "win32":
         return []
@@ -81,14 +81,22 @@ def _macos_targets() -> list[str]:
         return []
 
     deployment_target = os.environ.get("MACOSX_DEPLOYMENT_TARGET")
+    platform_tag = sysconfig.get_platform()
     if not deployment_target:
-        return []
+        match = re.match(r"macosx-(\d+(?:[._]\d+)*)-(.+)", platform_tag)
+        if match is None:
+            return []
+        deployment_target = match.group(1).replace("_", ".")
 
     archflags = os.environ.get("ARCHFLAGS", "")
     arch_matches = re.findall(r"-arch\s+(\S+)", archflags)
     if not arch_matches:
-        native_arch = os.uname().machine
-        arch_matches = [native_arch]
+        platform_arch = platform_tag.rsplit("-", 1)[-1]
+        arch_matches = {
+            "arm64": ["arm64"],
+            "universal2": ["x86_64", "arm64"],
+            "x86_64": ["x86_64"],
+        }.get(platform_arch, [os.uname().machine])
 
     targets = []
     normalized_target = deployment_target.replace("_", ".")
@@ -184,7 +192,7 @@ class _ZigBuildExt(build_ext):
         for target in macos_targets:
             target_suffix = target.replace("-", "_").replace(".", "_")
             slice_path = ext_path.with_name(
-                f"{ext_path.stem}.{target_suffix}{ext_path.suffix}"
+                f"{ext_path.stem}.{target_suffix}{ext_path.suffix}",
             )
             self._build_zig_extension(
                 zig_sources[0],
