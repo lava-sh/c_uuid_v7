@@ -142,6 +142,35 @@ static int parse_args(PyObject *timestamp_obj, PyObject *nanos_obj, UUID7Args *p
                               &parsed->timestamp_ms);
 }
 
+static void build_uuid7_default_direct(uint64_t *hi, uint64_t *lo) {
+    uint64_t current_ms = last_timestamp_ms;
+    uint64_t counter = counter42;
+    uint64_t observed_ms = now_ms();
+    uint64_t increment = 0;
+    uint32_t low32 = 0;
+    uint16_t rand_a = 0;
+    uint64_t tail62 = 0;
+
+    random_next_low32_and_increment_direct(&low32, &increment);
+
+    if (observed_ms > current_ms) {
+        current_ms = observed_ms;
+        counter = random_counter42_direct();
+    } else {
+        counter += increment;
+        if (counter > V7_MAX_COUNTER) {
+            current_ms += 1U;
+            counter = random_counter42_direct();
+        }
+    }
+
+    last_timestamp_ms = current_ms;
+    counter42 = counter;
+    random_split_counter42(counter, low32, &rand_a, &tail62);
+    *hi = current_ms << V7_TIMESTAMP_SHIFT | V7_VERSION_BITS | (uint64_t)rand_a;
+    *lo = UUID_VARIANT_BITS | tail62;
+}
+
 static int advance_monotonic_state(const uint64_t observed_ms,
                                    const int mode,
                                    uint64_t *timestamp_ms,
@@ -225,17 +254,53 @@ static void uuid_build_words(const uint64_t timestamp_ms,
     *lo = UUID_VARIANT_BITS | tail62;
 }
 
-static void uuid_write_text(const unsigned char bytes[16], char *out, const int with_hyphens) {
+static void uuid_write_hex32(const uint32_t value, char *out) {
     int j = 0;
 
-    for (int i = 0; i < 16; ++i) {
-        if (with_hyphens && (j == 8 || j == 13 || j == 18 || j == 23)) {
-            out[j++] = '-';
-        }
-
-        hex_pair(out + j, bytes[i]);
+    for (int shift = 24; shift >= 0; shift -= 8) {
+        hex_pair(out + j, (unsigned char)(value >> shift));
         j += 2;
     }
+}
+
+static void uuid_write_hex16(const uint16_t value, char *out) {
+    int j = 0;
+
+    for (int shift = 8; shift >= 0; shift -= 8) {
+        hex_pair(out + j, (unsigned char)(value >> shift));
+        j += 2;
+    }
+}
+
+static void uuid_write_hex48(const uint64_t value, char *out) {
+    int j = 0;
+
+    for (int shift = 40; shift >= 0; shift -= 8) {
+        hex_pair(out + j, (unsigned char)(value >> shift));
+        j += 2;
+    }
+}
+
+static void uuid_write_hex64(const uint64_t value, char *out) {
+    uuid_write_hex32((uint32_t)(value >> 32), out);
+    uuid_write_hex32((uint32_t)value, out + 8);
+}
+
+static void uuid_write_str(const UUIDObject *self, char out[36]) {
+    uuid_write_hex32((uint32_t)(self->hi >> 32), out);
+    out[8] = '-';
+    uuid_write_hex16((uint16_t)(self->hi >> 16), out + 9);
+    out[13] = '-';
+    uuid_write_hex16((uint16_t)self->hi, out + 14);
+    out[18] = '-';
+    uuid_write_hex16((uint16_t)(self->lo >> 48), out + 19);
+    out[23] = '-';
+    uuid_write_hex48(self->lo & 0xFFFFFFFFFFFFULL, out + 24);
+}
+
+static void uuid_write_hex(const UUIDObject *self, char out[32]) {
+    uuid_write_hex64(self->hi, out);
+    uuid_write_hex64(self->lo, out + 16);
 }
 
 #define UUID_ULONG_GETTER_SPECS(X)                                                                 \
@@ -407,37 +472,32 @@ static UUIDObject *uuid_new(const uint64_t hi, const uint64_t lo) {
 
 // ReSharper disable once CppParameterMayBeConstPtrOrRef
 static PyObject *uuid_str(PyObject *self_obj) {
-    unsigned char bytes[16];
     char out[36];
     const UUIDObject *self = uuid_self_const(self_obj);
 
-    uuid_pack_bytes(self->hi, self->lo, bytes);
-    uuid_write_text(bytes, out, 1);
+    uuid_write_str(self, out);
 
     return PyUnicode_FromStringAndSize(out, 36);
 }
 
 // ReSharper disable once CppParameterMayBeConstPtrOrRef
 static PyObject *uuid_repr(PyObject *self_obj) {
-    PyObject *text = uuid_str(self_obj);
+    char out[44];
+    const UUIDObject *self = uuid_self_const(self_obj);
 
-    if (text == NULL) {
-        return NULL;
-    }
-
-    PyObject *result = PyUnicode_FromFormat("UUID('%U')", text);
-    Py_DECREF(text);
-    return result;
+    memcpy(out, "UUID('", 6);
+    uuid_write_str(self, out + 6);
+    out[42] = '\'';
+    out[43] = ')';
+    return PyUnicode_FromStringAndSize(out, 44);
 }
 
 // ReSharper disable once CppParameterMayBeConstPtrOrRef
 static PyObject *uuid_hex(PyObject *self_obj, void *Py_UNUSED(closure)) {
-    unsigned char bytes[16];
     char out[32];
     const UUIDObject *self = uuid_self_const(self_obj);
 
-    uuid_pack_bytes(self->hi, self->lo, bytes);
-    uuid_write_text(bytes, out, 0);
+    uuid_write_hex(self, out);
 
     return PyUnicode_FromStringAndSize(out, 32);
 }
@@ -553,14 +613,12 @@ static PyObject *uuid_fields(PyObject *self_obj, void *Py_UNUSED(closure)) {
 
 // ReSharper disable once CppParameterMayBeConstPtrOrRef
 static PyObject *uuid_urn(PyObject *self_obj, void *Py_UNUSED(closure)) {
-    PyObject *text = uuid_str(self_obj);
-    if (text == NULL) {
-        return NULL;
-    }
+    char out[45];
+    const UUIDObject *self = uuid_self_const(self_obj);
 
-    PyObject *result = PyUnicode_FromFormat("urn:uuid:%U", text);
-    Py_DECREF(text);
-    return result;
+    memcpy(out, "urn:uuid:", 9);
+    uuid_write_str(self, out + 9);
+    return PyUnicode_FromStringAndSize(out, 45);
 }
 
 static PyObject *uuid_copy(PyObject *self_obj, PyObject *Py_UNUSED(args)) {
@@ -689,9 +747,10 @@ static PyObject *py_uuid7(PyObject *Py_UNUSED(self),
     int mode = MODE_FAST;
 
     if (nargs == 0 && nkw == 0) {
-        if (build_uuid7_default(MODE_FAST, &hi, &lo) != 0) {
+        if (ensure_seeded() != 0) {
             return NULL;
         }
+        build_uuid7_default_direct(&hi, &lo);
         return (PyObject *)uuid_new(hi, lo);
     }
 

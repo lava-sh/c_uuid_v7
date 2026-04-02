@@ -10,18 +10,14 @@
 #define SECURE_BUFFER_SIZE 1024U
 
 typedef struct {
-    uint64_t state;
-} wyrand_random_t;
-
-typedef struct {
     unsigned char bytes[SECURE_BUFFER_SIZE];
     size_t offset;
     size_t available;
 } secure_random_buffer_t;
 
-static wyrand_random_t wyrand_global = {0};
 static secure_random_buffer_t secure_buffer = {0};
-static int wyrand_seeded = 0;
+uint64_t wyrand_state_global = 0;
+int wyrand_seeded = 0;
 
 static void secure_buffer_reset(void) {
     secure_buffer.offset = 0;
@@ -61,7 +57,7 @@ random_low32_and_increment_from_u64(const uint64_t random64, uint32_t *low32, ui
 }
 
 static uint64_t next_u64(void) {
-    const uint64_t value = wyrand_global.state += WYRAND_INCREMENT;
+    const uint64_t value = wyrand_state_global += WYRAND_INCREMENT;
 
     return prng_mix64(value, value ^ WYRAND_XOR_KEY);
 }
@@ -78,7 +74,7 @@ int random_ensure_seeded(void) {
         return -1;
     }
 
-    wyrand_global.state = initstate;
+    wyrand_state_global = initstate;
     secure_buffer_reset();
 
 #ifdef _WIN32
@@ -90,6 +86,7 @@ int random_ensure_seeded(void) {
 
 void random_reseed(void) {
     wyrand_seeded = 0;
+    wyrand_state_global = 0;
     secure_buffer_reset();
 }
 
