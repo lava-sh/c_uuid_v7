@@ -19,6 +19,7 @@ static PyNumberMethods uuid_as_number;
 static uint64_t last_timestamp_ms = 0;
 static uint64_t counter42 = 0;
 
+extern int wyrand_seeded;
 extern uint64_t wyrand_state_global;
 
 #define V7_TIMESTAMP_SHIFT 16
@@ -164,7 +165,8 @@ static int parse_args(PyObject *timestamp_obj, PyObject *nanos_obj, UUID7Args *p
                               &parsed->timestamp_ms);
 }
 
-static void build_uuid7_default_direct(uint64_t *hi, uint64_t *lo) {
+static UUIDObject *uuid_new_with_generated_default(void) {
+    UUIDObject *obj = NULL;
     uint64_t current_ms = last_timestamp_ms;
     uint64_t counter = counter42;
     const uint64_t observed_ms = now_ms();
@@ -172,6 +174,25 @@ static void build_uuid7_default_direct(uint64_t *hi, uint64_t *lo) {
     uint32_t low32 = 0;
     uint16_t rand_a = 0;
     uint64_t tail62 = 0;
+
+    if (!wyrand_seeded && random_ensure_seeded() != 0) {
+        return NULL;
+    }
+
+    if (uuid_cache != NULL && Py_REFCNT(uuid_cache) == 1) {
+        Py_INCREF(uuid_cache);
+        obj = uuid_cache;
+    } else {
+        obj = PyObject_New(UUIDObject, &UUIDType);
+        if (obj == NULL) {
+            return NULL;
+        }
+
+        if (uuid_cache == NULL) {
+            uuid_cache = obj;
+            Py_INCREF(uuid_cache);
+        }
+    }
 
     random_next_low32_and_increment_direct(&low32, &increment);
 
@@ -189,8 +210,9 @@ static void build_uuid7_default_direct(uint64_t *hi, uint64_t *lo) {
     last_timestamp_ms = current_ms;
     counter42 = counter;
     random_split_counter42(counter, low32, &rand_a, &tail62);
-    *hi = current_ms << V7_TIMESTAMP_SHIFT | V7_VERSION_BITS | (uint64_t)rand_a;
-    *lo = UUID_VARIANT_BITS | tail62;
+    obj->hi = current_ms << V7_TIMESTAMP_SHIFT | V7_VERSION_BITS | (uint64_t)rand_a;
+    obj->lo = UUID_VARIANT_BITS | tail62;
+    return obj;
 }
 
 static int advance_monotonic_state(const uint64_t observed_ms,
@@ -676,20 +698,20 @@ static PyObject *uuid_richcompare(PyObject *a, PyObject *b, const int op) {
     const int cmp = uuid_compare(ua, ub);
 
     switch (op) {
-        case Py_LT:
-            return PyBool_FromLong(cmp < 0);
-        case Py_LE:
-            return PyBool_FromLong(cmp <= 0);
+    case Py_LT:
+        return PyBool_FromLong(cmp < 0);
+    case Py_LE:
+        return PyBool_FromLong(cmp <= 0);
     case Py_EQ:
         return PyBool_FromLong(cmp == 0);
     case Py_NE:
         return PyBool_FromLong(cmp != 0);
-        case Py_GT:
-            return PyBool_FromLong(cmp > 0);
-        case Py_GE:
-            return PyBool_FromLong(cmp >= 0);
-        default:
-            break;
+    case Py_GT:
+        return PyBool_FromLong(cmp > 0);
+    case Py_GE:
+        return PyBool_FromLong(cmp >= 0);
+    default:
+        break;
     }
 
     Py_INCREF(Py_NotImplemented);
@@ -750,11 +772,7 @@ static PyObject *py_uuid7(PyObject *Py_UNUSED(self),
     int mode = MODE_FAST;
 
     if (nargs == 0 && nkw == 0) {
-        if (ensure_seeded() != 0) {
-            return NULL;
-        }
-        build_uuid7_default_direct(&hi, &lo);
-        return (PyObject *)uuid_new(hi, lo);
+        return (PyObject *)uuid_new_with_generated_default();
     }
 
     if (nargs > 3) {
