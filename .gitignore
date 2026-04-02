@@ -1,11 +1,17 @@
+.idea
+
 .venv/
 venv/
-*.egg-info/
 dist/
 build/
-py-src/c_uuid_v7/_version.py
 __pycache__/
+.pytest_cache/
+.ruff_cache/
+.rumdl_cache/
+
+uv.lock
+py-src/c_uuid_v7/_version.py
 
 *.pyd
-uv.lock
 *.pyc
+*.egg-info/
