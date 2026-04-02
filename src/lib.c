@@ -35,12 +35,6 @@ static const UUIDObject *uuid_self_const(const PyObject *self_obj) {
     return (const UUIDObject *)self_obj;
 }
 
-static void reseed_generator_state(void) {
-    random_reseed();
-    last_timestamp_ms = 0;
-    counter42 = 0;
-}
-
 static int ensure_seeded(void) {
     if (random_ensure_seeded() != 0) {
         return -1;
@@ -111,14 +105,6 @@ static void random_next_low32_and_increment_direct(uint32_t *low32, uint64_t *in
     *increment = 1U + (random64 >> 32 & 0x0FU);
 }
 
-static int validate_nanos(const uint64_t nanos) {
-    if (nanos >= MAX_NANOS) {
-        PyErr_SetString(PyExc_ValueError, "nanos must be in range 0..999999999");
-        return -1;
-    }
-    return 0;
-}
-
 static int build_timestamp_ms(const uint64_t timestamp_s,
                               const int has_timestamp,
                               const uint64_t nanos,
@@ -166,7 +152,8 @@ static int parse_args(PyObject *timestamp_obj, PyObject *nanos_obj, UUID7Args *p
         return -1;
     }
 
-    if (parsed->has_nanos && validate_nanos(parsed->nanos) != 0) {
+    if (parsed->has_nanos && parsed->nanos >= MAX_NANOS) {
+        PyErr_SetString(PyExc_ValueError, "nanos must be in range 0..999999999");
         return -1;
     }
 
@@ -438,24 +425,6 @@ fill_random_bits(const UUID7Args *args, const int mode, uint16_t *rand_a, uint64
     return 1;
 }
 
-static int build_uuid7_parts_from_args(PyObject *timestamp_obj,
-                                       PyObject *nanos_obj,
-                                       const int mode,
-                                       uint64_t *hi,
-                                       uint64_t *lo) {
-    UUID7Args parsed;
-
-    if (ensure_seeded() != 0) {
-        return -1;
-    }
-
-    if (parse_args(timestamp_obj, nanos_obj, &parsed) != 0) {
-        return -1;
-    }
-
-    return build_uuid7_with_parsed_args(&parsed, mode, hi, lo);
-}
-
 static int parse_mode(PyObject *value, int *mode) {
     if (value == NULL || value == Py_None) {
         *mode = MODE_FAST;
@@ -706,23 +675,21 @@ static PyObject *uuid_richcompare(PyObject *a, PyObject *b, const int op) {
 
     const int cmp = uuid_compare(ua, ub);
 
-    if (op == Py_LT) {
-        return PyBool_FromLong(cmp < 0);
-    }
-    if (op == Py_LE) {
-        return PyBool_FromLong(cmp <= 0);
-    }
-    if (op == Py_EQ) {
+    switch (op) {
+        case Py_LT:
+            return PyBool_FromLong(cmp < 0);
+        case Py_LE:
+            return PyBool_FromLong(cmp <= 0);
+    case Py_EQ:
         return PyBool_FromLong(cmp == 0);
-    }
-    if (op == Py_NE) {
+    case Py_NE:
         return PyBool_FromLong(cmp != 0);
-    }
-    if (op == Py_GT) {
-        return PyBool_FromLong(cmp > 0);
-    }
-    if (op == Py_GE) {
-        return PyBool_FromLong(cmp >= 0);
+        case Py_GT:
+            return PyBool_FromLong(cmp > 0);
+        case Py_GE:
+            return PyBool_FromLong(cmp >= 0);
+        default:
+            break;
     }
 
     Py_INCREF(Py_NotImplemented);
@@ -777,6 +744,7 @@ static PyObject *py_uuid7(PyObject *Py_UNUSED(self),
     PyObject *nanos_obj = Py_None;
     PyObject *mode_obj = Py_None;
     const Py_ssize_t nkw = kwnames == NULL ? 0 : PyTuple_GET_SIZE(kwnames);
+    UUID7Args parsed;
     uint64_t hi;
     uint64_t lo;
     int mode = MODE_FAST;
@@ -827,15 +795,25 @@ static PyObject *py_uuid7(PyObject *Py_UNUSED(self),
         if (build_uuid7_default(mode, &hi, &lo) != 0) {
             return NULL;
         }
-    } else if (build_uuid7_parts_from_args(timestamp_obj, nanos_obj, mode, &hi, &lo) != 0) {
-        return NULL;
+    } else {
+        if (ensure_seeded() != 0) {
+            return NULL;
+        }
+        if (parse_args(timestamp_obj, nanos_obj, &parsed) != 0) {
+            return NULL;
+        }
+        if (build_uuid7_with_parsed_args(&parsed, mode, &hi, &lo) != 0) {
+            return NULL;
+        }
     }
 
     return (PyObject *)uuid_new(hi, lo);
 }
 
 static PyObject *py_reseed_rng(PyObject *Py_UNUSED(self), PyObject *Py_UNUSED(args)) {
-    reseed_generator_state();
+    random_reseed();
+    last_timestamp_ms = 0;
+    counter42 = 0;
     Py_RETURN_NONE;
 }
 
