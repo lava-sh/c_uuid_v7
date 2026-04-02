@@ -19,6 +19,8 @@ static PyNumberMethods uuid_as_number;
 static uint64_t last_timestamp_ms = 0;
 static uint64_t counter42 = 0;
 
+extern uint64_t wyrand_state_global;
+
 #define V7_TIMESTAMP_SHIFT 16
 #define V7_VERSION_BITS 0x7000ULL
 #define UUID_VARIANT_BITS 0x8000000000000000ULL
@@ -75,6 +77,39 @@ static int advance_monotonic_state(uint64_t observed_ms,
                                    uint64_t *timestamp_ms,
                                    uint16_t *rand_a,
                                    uint64_t *tail62);
+
+static uint64_t random_counter42_direct(void) {
+    const uint64_t value = wyrand_state_global += 0xA0761D6478BD642FULL;
+
+#if defined(__SIZEOF_INT128__)
+    const __uint128_t product = (__uint128_t)value * (value ^ 0xE7037ED1A0B428DBULL);
+    return ((uint64_t)product ^ (uint64_t)(product >> 64)) & ((1ULL << 41) - 1ULL);
+#elif defined(_MSC_VER) && defined(_M_X64)
+    uint64_t high = 0;
+    const uint64_t low = _umul128(value, value ^ 0xE7037ED1A0B428DBULL, &high);
+    return (low ^ high) & (1ULL << 41) - 1ULL;
+#else
+    return prng_mix64(value, value ^ 0xE7037ED1A0B428DBULL) & ((1ULL << 41) - 1ULL);
+#endif
+}
+
+static void random_next_low32_and_increment_direct(uint32_t *low32, uint64_t *increment) {
+    const uint64_t value = wyrand_state_global += 0xA0761D6478BD642FULL;
+
+#if defined(__SIZEOF_INT128__)
+    const __uint128_t product = (__uint128_t)value * (value ^ 0xE7037ED1A0B428DBULL);
+    const uint64_t random64 = (uint64_t)product ^ (uint64_t)(product >> 64);
+#elif defined(_MSC_VER) && defined(_M_X64)
+    uint64_t high = 0;
+    const uint64_t low = _umul128(value, value ^ 0xE7037ED1A0B428DBULL, &high);
+    const uint64_t random64 = low ^ high;
+#else
+    const uint64_t random64 = prng_mix64(value, value ^ 0xE7037ED1A0B428DBULL);
+#endif
+
+    *low32 = (uint32_t)random64;
+    *increment = 1U + (random64 >> 32 & 0x0FU);
+}
 
 static int validate_nanos(const uint64_t nanos) {
     if (nanos >= MAX_NANOS) {
@@ -711,9 +746,9 @@ static PyGetSetDef uuid_getset[] = {
     {"timestamp", (getter)uuid_timestamp, NULL, "Unix timestamp in milliseconds.", NULL},
     {"urn", (getter)uuid_urn, NULL, "UUID URN string.", NULL},
 #define UUID_GETSET_ULONG_ENTRY(name, property_name, expr, doc)                                    \
-    {property_name, (getter)name, NULL, doc, NULL},
+    {property_name, ((getter)(name)), NULL, doc, NULL},
 #define UUID_GETSET_ULL_ENTRY(name, property_name, expr, doc)                                      \
-    {property_name, (getter)name, NULL, doc, NULL},
+    {property_name, ((getter)(name)), NULL, doc, NULL},
     UUID_ULONG_GETTER_SPECS(UUID_GETSET_ULONG_ENTRY) UUID_ULL_GETTER_SPECS(UUID_GETSET_ULL_ENTRY)
 #undef UUID_GETSET_ULONG_ENTRY
 #undef UUID_GETSET_ULL_ENTRY
@@ -819,6 +854,10 @@ static PyModuleDef module_def = {
     "Fast UUIDv7 generator.",
     -1,
     module_methods,
+    .m_slots = NULL,
+    .m_traverse = NULL,
+    .m_clear = NULL,
+    .m_free = NULL,
 };
 
 PyMODINIT_FUNC PyInit__core(void) {

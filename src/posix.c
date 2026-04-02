@@ -64,3 +64,7 @@ int fill_random(unsigned char *buf, const Py_ssize_t len) {
     return 0;
 }
 #endif
+
+#ifdef _WIN32
+typedef int posix_translation_unit_stub_t;
+#endif
