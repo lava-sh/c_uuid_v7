@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/zigtools/zls/refs/heads/master/schema.json",
+  "version": "0.15.2",
+  "semantic_tokens": "full",
+  "enable_build_on_save": true,
+  "build_options": [
+    {
+      "name": "python-include",
+      "value": "C:\\Users\\chiri\\AppData\\Roaming\\uv\\python\\cpython-3.14.3-windows-x86_64-none\\Include"
+    }
+  ]
+}

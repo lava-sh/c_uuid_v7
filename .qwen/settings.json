@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(github.com)",
+      "WebFetch(lab.abilian.com)",
+      "Bash(gh *)",
+      "Bash(pwsh *)",
+      "Bash(remove-item *)",
+      "Bash(del *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(cd *)",
+      "Bash(git *)",
+      "Bash(timeout *)",
+      "Bash(start-sleep *)",
+      "Bash(convertfrom-json)",
+      "Bash(select-object *)",
+      "Bash(where-object *)",
+      "Bash(select-string *)"
+    ]
+  },
+  "$version": 3
+}

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="BuildScanner">
+    <option name="projects">
+      <list><![CDATA[{
+  "name": "<root>",
+  "version": null,
+  "path": "C:\\Users\\chiri\\Desktop\\С\\c_uuid_v7",
+  "steps": [
+    {
+      "name": "install",
+      "description": "Copy build artifacts to prefix path",
+      "kind": "uninstall"
+    },
+    {
+      "name": "uninstall",
+      "description": "Remove build artifacts from prefix path",
+      "kind": "uninstall"
+    },
+    {
+      "name": "translate",
+      "description": "Generate src/core.zig from C sources",
+      "kind": "run"
+    },
+    {
+      "name": "check",
+      "description": "Validate translate-c input",
+      "kind": "translate_c"
+    }
+  ],
+  "modules": [],
+  "dependencies": []
+}]]></list>
+    </option>
+  </component>
+  <component name="ZigToolchain" toolchain="6b76943e-c2dd-4864-a7ad-ff9ae0cebf3b" />
+</project>

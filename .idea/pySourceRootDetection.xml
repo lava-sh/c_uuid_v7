@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="PySourceRootDetectionService">
+    <option name="sourcePathsSet">
+      <set>
+        <option value="$PROJECT_DIR$/.tmp_bench/zig_src/py-src" />
+        <option value="$PROJECT_DIR$/src/python_compat.h" />
+      </set>
+    </option>
+  </component>
+</project>
