@@ -46,7 +46,7 @@ jobs:
           CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
           CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
           CIBW_BUILD_FRONTEND: "uv"
-          CIBW_BEFORE_ALL_LINUX: "pip install hpy==0.9.0"
+          CIBW_DEPENDENCIES: "hpy==0.9.0"
 
       - name: "Upload wheels"
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
@@ -73,7 +73,7 @@ jobs:
           CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
           CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
           CIBW_BUILD_FRONTEND: "uv"
-          CIBW_BEFORE_ALL_LINUX: "pip install hpy==0.9.0"
+          CIBW_DEPENDENCIES: "hpy==0.9.0"
 
       - name: "Upload wheels"
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
@@ -99,7 +99,7 @@ jobs:
           CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
           CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
           CIBW_BUILD_FRONTEND: "uv"
-          CIBW_BEFORE_ALL_WINDOWS: "pip install hpy==0.9.0"
+          CIBW_DEPENDENCIES: "hpy==0.9.0"
 
       - name: "Upload wheels"
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
@@ -125,7 +125,7 @@ jobs:
           CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
           CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
           CIBW_BUILD_FRONTEND: "uv"
-          CIBW_BEFORE_ALL_MACOS: "pip install hpy==0.9.0"
+          CIBW_DEPENDENCIES: "hpy==0.9.0"
 
       - name: "Upload wheels"
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
