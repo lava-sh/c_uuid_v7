@@ -82,7 +82,7 @@ static uint64_t random_counter42_direct(void) {
 #elif defined(_MSC_VER) && defined(_M_X64)
     uint64_t high = 0;
     const uint64_t low = _umul128(value, value ^ 0xE7037ED1A0B428DBULL, &high);
-    return (low ^ high) & (1ULL << 41) - 1ULL;
+    return (low ^ high) & ((1ULL << 41) - 1ULL);
 #else
     return prng_mix64(value, value ^ 0xE7037ED1A0B428DBULL) & ((1ULL << 41) - 1ULL);
 #endif
@@ -167,9 +167,6 @@ static int parse_args(PyObject *timestamp_obj, PyObject *nanos_obj, UUID7Args *p
 
 static UUIDObject *uuid_new_with_generated_default(void) {
     UUIDObject *obj = NULL;
-    uint64_t current_ms = last_timestamp_ms;
-    uint64_t counter = counter42;
-    const uint64_t observed_ms = now_ms();
     uint64_t increment = 0;
     uint32_t low32 = 0;
     uint16_t rand_a = 0;
@@ -178,6 +175,10 @@ static UUIDObject *uuid_new_with_generated_default(void) {
     if (!wyrand_seeded && random_ensure_seeded() != 0) {
         return NULL;
     }
+
+    uint64_t current_ms = last_timestamp_ms;
+    uint64_t counter = counter42;
+    const uint64_t observed_ms = now_ms();
 
     if (uuid_cache != NULL && Py_REFCNT(uuid_cache) == 1) {
         Py_INCREF(uuid_cache);
