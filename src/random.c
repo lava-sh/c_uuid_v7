@@ -54,15 +54,14 @@ static uint64_t random_counter42_from_u64(const uint64_t random64) {
     return random64 & RESEED_MASK;
 }
 
-static void random_low32_and_increment_from_u64(const uint64_t random64,
-                                                uint32_t *low32,
-                                                uint64_t *increment) {
+static void
+random_low32_and_increment_from_u64(const uint64_t random64, uint32_t *low32, uint64_t *increment) {
     *low32 = (uint32_t)random64;
     *increment = 1U + (random64 >> 32 & 0x0FU);
 }
 
 static uint64_t next_u64(void) {
-    const uint64_t value = (wyrand_global.state += WYRAND_INCREMENT);
+    const uint64_t value = wyrand_global.state += WYRAND_INCREMENT;
 
     return prng_mix64(value, value ^ WYRAND_XOR_KEY);
 }

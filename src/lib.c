@@ -69,12 +69,9 @@ typedef struct {
     int has_nanos;
 } UUID7Args;
 
-static int fill_random_bits(const UUID7Args *args,
-                            const int mode,
-                            uint16_t *rand_a,
-                            uint64_t *tail62);
-static int advance_monotonic_state(const uint64_t observed_ms,
-                                   const int mode,
+static int fill_random_bits(const UUID7Args *args, int mode, uint16_t *rand_a, uint64_t *tail62);
+static int advance_monotonic_state(uint64_t observed_ms,
+                                   int mode,
                                    uint64_t *timestamp_ms,
                                    uint16_t *rand_a,
                                    uint64_t *tail62);
@@ -88,9 +85,8 @@ static int random_counter42_mode(const int mode, uint64_t *counter) {
     return 0;
 }
 
-static int random_next_low32_and_increment_mode(const int mode,
-                                                uint32_t *low32,
-                                                uint64_t *increment) {
+static int
+random_next_low32_and_increment_mode(const int mode, uint32_t *low32, uint64_t *increment) {
     if (mode == UUID_MODE_SECURE) {
         return random_next_low32_and_increment_secure(low32, increment);
     }
@@ -285,10 +281,8 @@ static int build_uuid7_default(const int mode, uint64_t *hi, uint64_t *lo) {
     return 0;
 }
 
-static int build_uuid7_with_parsed_args(const UUID7Args *args,
-                                        const int mode,
-                                        uint64_t *hi,
-                                        uint64_t *lo) {
+static int
+build_uuid7_with_parsed_args(const UUID7Args *args, const int mode, uint64_t *hi, uint64_t *lo) {
     uint64_t tail62;
     uint16_t rand_a;
 
@@ -308,10 +302,8 @@ static int build_uuid7_with_parsed_args(const UUID7Args *args,
     return 0;
 }
 
-static int fill_random_bits(const UUID7Args *args,
-                            const int mode,
-                            uint16_t *rand_a,
-                            uint64_t *tail62) {
+static int
+fill_random_bits(const UUID7Args *args, const int mode, uint16_t *rand_a, uint64_t *tail62) {
     if (args->has_timestamp && args->has_nanos) {
         *rand_a = (uint16_t)(args->nanos & 0x0FFFU);
         return random_tail62_mode(mode, tail62);

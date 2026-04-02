@@ -1,4 +1,4 @@
-Language: C
+---
 BasedOnStyle: LLVM
 
 ColumnLimit: 100
@@ -13,3 +13,7 @@ AllowAllParametersOfDeclarationOnNextLine: false
 PenaltyBreakBeforeFirstCallParameter: 1
 AllowShortBlocksOnASingleLine: Always
 IndentPPDirectives: BeforeHash
+---
+Language: C
+---
+Language: Cpp
