@@ -19,15 +19,15 @@ static PyNumberMethods uuid_as_number;
 static uint64_t last_timestamp_ms = 0;
 static uint64_t counter42 = 0;
 
-#define UUID_TIMESTAMP_SHIFT 16
-#define UUID_VERSION_BITS 0x7000ULL
+#define V7_TIMESTAMP_SHIFT 16
+#define V7_VERSION_BITS 0x7000ULL
 #define UUID_VARIANT_BITS 0x8000000000000000ULL
-#define UUID_MAX_TIMESTAMP_MS 0xFFFFFFFFFFFFULL
-#define UUID_MAX_TIMESTAMP_S (UUID_MAX_TIMESTAMP_MS / 1000ULL)
-#define UUID_MAX_NANOS 1000000000ULL
-#define UUID_V7_MAX_COUNTER ((1ULL << 42) - 1ULL)
-#define UUID_MODE_FAST 0
-#define UUID_MODE_SECURE 1
+#define MAX_UUID_TIMESTAMP_MS 0xFFFFFFFFFFFFULL
+#define MAX_UUID_TIMESTAMP_S (MAX_UUID_TIMESTAMP_MS / 1000ULL)
+#define MAX_NANOS 1000000000ULL
+#define V7_MAX_COUNTER ((1ULL << 42) - 1ULL)
+#define MODE_FAST 0
+#define MODE_SECURE 1
 
 static const UUIDObject *uuid_self_const(const PyObject *self_obj) {
     return (const UUIDObject *)self_obj;
@@ -77,7 +77,7 @@ static int advance_monotonic_state(uint64_t observed_ms,
                                    uint64_t *tail62);
 
 static int random_counter42_mode(const int mode, uint64_t *counter) {
-    if (mode == UUID_MODE_SECURE) {
+    if (mode == MODE_SECURE) {
         return random_counter42_secure(counter);
     }
 
@@ -87,7 +87,7 @@ static int random_counter42_mode(const int mode, uint64_t *counter) {
 
 static int
 random_next_low32_and_increment_mode(const int mode, uint32_t *low32, uint64_t *increment) {
-    if (mode == UUID_MODE_SECURE) {
+    if (mode == MODE_SECURE) {
         return random_next_low32_and_increment_secure(low32, increment);
     }
 
@@ -96,7 +96,7 @@ random_next_low32_and_increment_mode(const int mode, uint32_t *low32, uint64_t *
 }
 
 static int random_tail62_mode(const int mode, uint64_t *tail62) {
-    if (mode == UUID_MODE_SECURE) {
+    if (mode == MODE_SECURE) {
         return random_tail62_secure(tail62);
     }
 
@@ -105,7 +105,7 @@ static int random_tail62_mode(const int mode, uint64_t *tail62) {
 }
 
 static int random_payload_mode(const int mode, uint16_t *rand_a, uint64_t *tail62) {
-    if (mode == UUID_MODE_SECURE) {
+    if (mode == MODE_SECURE) {
         return random_payload_secure(rand_a, tail62);
     }
 
@@ -114,7 +114,7 @@ static int random_payload_mode(const int mode, uint16_t *rand_a, uint64_t *tail6
 }
 
 static int validate_nanos(const uint64_t nanos) {
-    if (nanos >= UUID_MAX_NANOS) {
+    if (nanos >= MAX_NANOS) {
         PyErr_SetString(PyExc_ValueError, "nanos must be in range 0..999999999");
         return -1;
     }
@@ -133,7 +133,7 @@ static int build_timestamp_ms(const uint64_t timestamp_s,
         return 0;
     }
 
-    if (timestamp_s > UUID_MAX_TIMESTAMP_S) {
+    if (timestamp_s > MAX_UUID_TIMESTAMP_S) {
         PyErr_SetString(PyExc_ValueError, "timestamp is too large");
         return -1;
     }
@@ -143,7 +143,7 @@ static int build_timestamp_ms(const uint64_t timestamp_s,
         ms += nanos / 1000000ULL;
     }
 
-    if (ms > UUID_MAX_TIMESTAMP_MS) {
+    if (ms > MAX_UUID_TIMESTAMP_MS) {
         PyErr_SetString(PyExc_ValueError, "timestamp is too large");
         return -1;
     }
@@ -200,7 +200,7 @@ static int advance_monotonic_state(const uint64_t observed_ms,
         }
     } else {
         counter += increment;
-        if (counter > UUID_V7_MAX_COUNTER) {
+        if (counter > V7_MAX_COUNTER) {
             current_ms += 1U;
             if (random_counter42_mode(mode, &counter) != 0) {
                 return -1;
@@ -246,7 +246,7 @@ static void uuid_build_words(const uint64_t timestamp_ms,
                              const uint64_t tail62,
                              uint64_t *hi,
                              uint64_t *lo) {
-    *hi = timestamp_ms << UUID_TIMESTAMP_SHIFT | UUID_VERSION_BITS | (uint64_t)rand_a;
+    *hi = timestamp_ms << V7_TIMESTAMP_SHIFT | V7_VERSION_BITS | (uint64_t)rand_a;
     *lo = UUID_VARIANT_BITS | tail62;
 }
 
@@ -340,7 +340,7 @@ static int build_uuid7_parts_from_args(PyObject *timestamp_obj,
 
 static int parse_mode(PyObject *value, int *mode) {
     if (value == NULL || value == Py_None) {
-        *mode = UUID_MODE_FAST;
+        *mode = MODE_FAST;
         return 0;
     }
 
@@ -350,12 +350,12 @@ static int parse_mode(PyObject *value, int *mode) {
     }
 
     if (PyUnicode_CompareWithASCIIString(value, "fast") == 0) {
-        *mode = UUID_MODE_FAST;
+        *mode = MODE_FAST;
         return 0;
     }
 
     if (PyUnicode_CompareWithASCIIString(value, "secure") == 0) {
-        *mode = UUID_MODE_SECURE;
+        *mode = MODE_SECURE;
         return 0;
     }
 
@@ -474,7 +474,7 @@ static PyObject *uuid_bytes_le(PyObject *self_obj, void *Py_UNUSED(closure)) {
     return PyBytes_FromStringAndSize((const char *)reordered, 16);
 }
 
-UUID_ULL_GETTER(uuid_timestamp, self->hi >> UUID_TIMESTAMP_SHIFT)
+UUID_ULL_GETTER(uuid_timestamp, self->hi >> V7_TIMESTAMP_SHIFT)
 
 // ReSharper disable once CppParameterMayBeConstPtrOrRef
 static PyObject *uuid_int(PyObject *self_obj, void *Py_UNUSED(closure)) {
@@ -699,10 +699,10 @@ static PyObject *py_uuid7(PyObject *Py_UNUSED(self),
     const Py_ssize_t nkw = kwnames == NULL ? 0 : PyTuple_GET_SIZE(kwnames);
     uint64_t hi;
     uint64_t lo;
-    int mode = UUID_MODE_FAST;
+    int mode = MODE_FAST;
 
     if (nargs == 0 && nkw == 0) {
-        if (build_uuid7_default(UUID_MODE_FAST, &hi, &lo) != 0) {
+        if (build_uuid7_default(MODE_FAST, &hi, &lo) != 0) {
             return NULL;
         }
         return (PyObject *)uuid_new(hi, lo);
