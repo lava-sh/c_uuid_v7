@@ -180,7 +180,7 @@ static int parse_args(PyObject *timestamp_obj, PyObject *nanos_obj, UUID7Args *p
 static void build_uuid7_default_direct(uint64_t *hi, uint64_t *lo) {
     uint64_t current_ms = last_timestamp_ms;
     uint64_t counter = counter42;
-    uint64_t observed_ms = now_ms();
+    const uint64_t observed_ms = now_ms();
     uint64_t increment = 0;
     uint32_t low32 = 0;
     uint16_t rand_a = 0;
