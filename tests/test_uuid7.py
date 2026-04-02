@@ -104,6 +104,18 @@ def test_uuid7_object_properties_match_stdlib_uuid() -> None:
     assert uuid_.urn == stdlib_uuid.urn
 
 
+def test_uuid7_bytes_le_reorders() -> None:
+    uuid_ = c_uuid_v7.uuid7()
+    canonical = uuid_.bytes
+
+    assert uuid_.bytes_le == (
+        canonical[3::-1]
+        + canonical[5:3:-1]
+        + canonical[7:5:-1]
+        + canonical[8:]
+    )
+
+
 def test_uuid7_copy_and_deepcopy_return_same_object() -> None:
     uuid_ = c_uuid_v7.uuid7()
 

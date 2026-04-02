@@ -288,6 +288,10 @@ build_uuid7_with_parsed_args(const UUID7Args *args, const int mode, uint64_t *hi
 
     const int state = fill_random_bits(args, mode, &rand_a, &tail62);
 
+    if (state < 0) {
+        return -1;
+    }
+
     if (state > 0) {
         uint64_t timestamp_ms = args->timestamp_ms;
 
@@ -452,17 +456,20 @@ static PyObject *uuid_bytes(PyObject *self_obj, void *Py_UNUSED(closure)) {
 
 // ReSharper disable once CppParameterMayBeConstPtrOrRef
 static PyObject *uuid_bytes_le(PyObject *self_obj, void *Py_UNUSED(closure)) {
-    const UUIDObject *self = uuid_self_const(self_obj);
+    unsigned char bytes[16];
     unsigned char reordered[16];
-    const uint32_t time_low = (uint32_t)(self->hi >> 32);
-    const uint16_t time_mid = (uint16_t)(self->hi >> 16);
-    const uint16_t time_hi_version = (uint16_t)self->hi;
-    const uint64_t tail_be = byteswap_u64(self->lo);
+    const UUIDObject *self = uuid_self_const(self_obj);
 
-    memcpy(reordered, &time_low, sizeof(time_low));
-    memcpy(reordered + 4, &time_mid, sizeof(time_mid));
-    memcpy(reordered + 6, &time_hi_version, sizeof(time_hi_version));
-    memcpy(reordered + 8, &tail_be, sizeof(tail_be));
+    uuid_pack_bytes(self->hi, self->lo, bytes);
+    reordered[0] = bytes[3];
+    reordered[1] = bytes[2];
+    reordered[2] = bytes[1];
+    reordered[3] = bytes[0];
+    reordered[4] = bytes[5];
+    reordered[5] = bytes[4];
+    reordered[6] = bytes[7];
+    reordered[7] = bytes[6];
+    memcpy(reordered + 8, bytes + 8, 8);
     // ReSharper disable once CppRedundantCastExpression
     return PyBytes_FromStringAndSize((const char *)reordered, 16);
 }
