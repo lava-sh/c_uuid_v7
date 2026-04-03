@@ -6,9 +6,9 @@ import sys
 from pathlib import Path
 from sysconfig import get_config_var
 
+import hpy.devel
 from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext
-
 
 def _find_zig() -> str:
     try:
@@ -39,8 +39,6 @@ def _max_version(left: str, right: str) -> str:
 
 
 def _default_macos_target() -> str:
-    if platform.python_implementation() == "PyPy":
-        return "10.15"
     if sys.version_info >= (3, 14):
         return "10.15"
     if sys.version_info >= (3, 12):
@@ -124,89 +122,52 @@ def _zig_linux_target() -> str:
     return f"{zig_arch}-linux-{libc}{abi_suffix}"
 
 
-def _should_use_library_dir(path_str: str) -> bool:
-    path = Path(path_str)
-    if not path.exists():
-        return False
-    if platform.system() != "Windows":
-        return True
-    return any(path.glob("*.lib"))
+def _zig_target() -> str | None:
+    if platform.system() == "Darwin":
+        return None
+    if platform.system() == "Windows":
+        return _zig_windows_target()
+    if platform.system() == "Linux":
+        return _zig_linux_target()
+    return None
 
 
-class ZigBuildExt(build_ext):
+class ZigHPyBuildExt(build_ext):
     def build_extension(self, ext: Extension) -> None:
-        if not ext.sources:
-            return
+        self._ensure_zig_object(ext)
+        super().build_extension(ext)
 
-        target = Path(self.get_ext_fullpath(ext.name)).resolve()
-        target.parent.mkdir(parents=True, exist_ok=True)
+    def _ensure_zig_object(self, ext: Extension) -> None:
+        build_temp = Path(self.build_temp)
+        build_temp.mkdir(parents=True, exist_ok=True)
+
+        object_suffix = ".obj" if platform.system() == "Windows" else ".o"
+        object_name = ext.name.replace(".", "_")
+        output = build_temp / f"{object_name}_zig{object_suffix}"
 
         if platform.system() == "Darwin":
-            self._build_macos(ext, target)
-            return
+            self._build_macos_object(output)
+        else:
+            target = _zig_target()
+            extra_args = ["-target", target] if target else []
+            self._run_zig_build_obj(output, extra_args)
 
-        extra_args = list(ext.extra_compile_args)
-        if platform.system() == "Windows":
-            extra_args.extend(("-target", _zig_windows_target()))
-        elif platform.system() == "Linux":
-            extra_args.extend(("-target", _zig_linux_target()))
+        extra_objects = list(ext.extra_objects or [])
+        output_str = str(output)
+        if output_str not in extra_objects:
+            extra_objects.append(output_str)
+        ext.extra_objects = extra_objects
 
-        self._run_zig(ext, target, extra_args=extra_args)
-
-    def _base_zig_cmd(self, ext: Extension, target: Path) -> list[str]:
+    def _run_zig_build_obj(self, output: Path, extra_args: list[str]) -> None:
         cmd = [
             _find_zig(),
-            "build-lib",
-            "-dynamic",
-            "-fallow-shlib-undefined",
-            f"-femit-bin={target}",
-            "-lc",
+            "build-obj",
+            f"-femit-bin={output}",
+            "-O",
+            "ReleaseFast",
+            *extra_args,
+            "src/sum.zig",
         ]
-
-        inc_dirs_added: set[Path] = set()
-        compiler_include_dirs = getattr(self.compiler, "include_dirs", []) or []
-        for inc_dir in [*compiler_include_dirs, *(ext.include_dirs or [])]:
-            inc_dir_path = Path(inc_dir).resolve()
-            if not inc_dir_path.exists() or inc_dir_path in inc_dirs_added:
-                continue
-            inc_dirs_added.add(inc_dir_path)
-            cmd.extend(("-I", str(inc_dir_path)))
-
-        for path_str in ["/usr/include"]:
-            path = Path(path_str)
-            if path.exists() and path not in inc_dirs_added:
-                inc_dirs_added.add(path)
-                cmd.extend(("-I", str(path)))
-
-        usr_include = Path("/usr/include")
-        if usr_include.exists():
-            for path in usr_include.glob("*-linux-gnu"):
-                if path in inc_dirs_added:
-                    continue
-                inc_dirs_added.add(path)
-                cmd.extend(("-I", str(path)))
-
-        lib_dirs_added: set[str] = set()
-        compiler_library_dirs = getattr(self.compiler, "library_dirs", []) or []
-        for lib_dir in [*compiler_library_dirs, *(ext.library_dirs or [])]:
-            if not _should_use_library_dir(lib_dir) or lib_dir in lib_dirs_added:
-                continue
-            lib_dirs_added.add(lib_dir)
-            cmd.extend(("-L", str(lib_dir)))
-
-        extra_compile_args = list(ext.extra_compile_args or [])
-        if "-O" not in extra_compile_args:
-            cmd.extend(("-O", "ReleaseFast"))
-
-        if platform.system() == "Windows":
-            cmd.append(f"-lpython{sys.version_info.major}{sys.version_info.minor}")
-
-        return cmd
-
-    def _run_zig(self, ext: Extension, target: Path, extra_args: list[str]) -> None:
-        cmd = self._base_zig_cmd(ext, target)
-        cmd.extend(extra_args)
-        cmd.extend(ext.sources)
 
         print("cmd", " ".join(f'"{arg}"' if " " in arg else arg for arg in cmd))
         print()
@@ -220,37 +181,32 @@ class ZigBuildExt(build_ext):
         if result.stderr:
             print(result.stderr)
 
-    def _build_macos(self, ext: Extension, target: Path) -> None:
+    def _build_macos_object(self, output: Path) -> None:
         archflags = os.environ.get("ARCHFLAGS", "")
         archs = _parse_archflags(archflags)
         if not archs:
             machine = platform.machine().lower()
-            if machine in {"arm64", "aarch64"}:
-                archs = ["arm64"]
-            else:
-                archs = ["x86_64"]
+            archs = ["arm64"] if machine in {"arm64", "aarch64"} else ["x86_64"]
 
         if len(archs) == 1:
-            args = [*list(ext.extra_compile_args or []), "-target", _zig_macos_target(archs[0])]
-            self._run_zig(ext, target, args)
+            self._run_zig_build_obj(output, ["-target", _zig_macos_target(archs[0])])
             return
 
         if set(archs) != {"x86_64", "arm64"}:
             raise RuntimeError(f"unsupported macOS ARCHFLAGS: {archflags}")
 
-        thin_targets: list[Path] = []
+        thin_outputs: list[Path] = []
         for arch in ("x86_64", "arm64"):
-            thin_target = target.with_name(f"{target.stem}.{arch}{target.suffix}")
-            thin_targets.append(thin_target)
-            args = [*list(ext.extra_compile_args or []), "-target", _zig_macos_target(arch)]
-            self._run_zig(ext, thin_target, args)
+            thin = output.with_name(f"{output.stem}.{arch}{output.suffix}")
+            thin_outputs.append(thin)
+            self._run_zig_build_obj(thin, ["-target", _zig_macos_target(arch)])
 
-        lipo_cmd = ["lipo", "-create", "-output", str(target), *(str(path) for path in thin_targets)]
-        print("cmd", " ".join(f'"{arg}"' if " " in arg else arg for arg in lipo_cmd))
+        cmd = ["lipo", "-create", "-output", str(output), *(str(path) for path in thin_outputs)]
+        print("cmd", " ".join(f'"{arg}"' if " " in arg else arg for arg in cmd))
         print()
         sys.stdout.flush()
 
-        result = subprocess.run(lipo_cmd, capture_output=True, encoding="utf-8")
+        result = subprocess.run(cmd, capture_output=True, encoding="utf-8")
         if result.returncode != 0:
             print("\nrun return:\n", result)
             print("\n")
@@ -258,13 +214,13 @@ class ZigBuildExt(build_ext):
         if result.stderr:
             print(result.stderr)
 
-        for thin_target in thin_targets:
-            thin_target.unlink(missing_ok=True)
+        for thin in thin_outputs:
+            thin.unlink(missing_ok=True)
 
 
 setup(
-    cmdclass={"build_ext": ZigBuildExt},
-    ext_modules=[
-        Extension("c_uuid_v7._core", ["src/sum.zig"]),
+    cmdclass={"build_ext": ZigHPyBuildExt},
+    hpy_ext_modules=[
+        Extension("c_uuid_v7._core", ["src/hpy_sum.c"]),
     ],
 )
