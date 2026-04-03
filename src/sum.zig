@@ -147,17 +147,19 @@ pub var methods = [_]PyMethodDef{
     },
 };
 
+pub var module_slots = [_]c.struct_PyModuleDef_Slot{
+    .{
+        .slot = 0,
+        .value = null,
+    },
+};
+
 pub var zigmodule = PyModuleDef{
     .m_name = "_core",
     .m_methods = &methods,
+    .m_slots = &module_slots,
 };
 
 pub export fn PyInit__core() [*c]c.PyObject {
-    const m: [*c]PyObject = c.PyModule_Create(@as([*c]c.struct_PyModuleDef, @ptrCast(&zigmodule)));
-    if (m == null)
-        return null;
-    if ((c.PY_MAJOR_VERSION > 2) and (c.PY_MINOR_VERSION > 12) and @hasDecl(c, "Py_GIL_DISABLED")) {
-        _ = c.PyUnstable_Module_SetGIL(m, c.Py_MOD_GIL_NOT_USED);
-    }
-    return m;
+    return c.PyModuleDef_Init(@as([*c]c.struct_PyModuleDef, @ptrCast(&zigmodule)));
 }
