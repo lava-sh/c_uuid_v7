@@ -9,37 +9,6 @@ const c = @cImport({
 
 const PyObject = c.PyObject;
 
-const PyModuleDef_Base = extern struct {
-    ob_base: PyObject,
-    m_init: ?*const fn () callconv(.c) [*c]PyObject = null,
-    m_index: c.Py_ssize_t = 0,
-    m_copy: [*c]PyObject = null,
-};
-
-const PyModuleDef_HEAD_INIT = PyModuleDef_Base{
-    .ob_base = std.mem.zeroes(PyObject),
-};
-
-const PyMethodDef = extern struct {
-    ml_name: [*c]const u8 = null,
-    ml_meth: c.PyCFunction = null,
-    ml_flags: c_int = 0,
-    ml_doc: [*c]const u8 = null,
-};
-
-const PyModuleDef = extern struct {
-    // m_base: c.PyModuleDef_Base,
-    m_base: PyModuleDef_Base = PyModuleDef_HEAD_INIT,
-    m_name: [*c]const u8,
-    m_doc: [*c]const u8 = null,
-    m_size: c.Py_ssize_t = -1,
-    m_methods: [*]PyMethodDef,
-    m_slots: [*c]c.struct_PyModuleDef_Slot = null,
-    m_traverse: c.traverseproc = null,
-    m_clear: c.inquiry = null,
-    m_free: c.freefunc = null,
-};
-
 /////////////////////////////////////////////////
 
 fn pyLongToCLong(obj: [*c]PyObject) ?c_long {
@@ -50,18 +19,6 @@ fn pyLongToCLong(obj: [*c]PyObject) ?c_long {
     return value;
 }
 
-fn pyExcTypeError() [*c]PyObject {
-    const exc = c.PyExc_TypeError;
-    return switch (@typeInfo(@TypeOf(exc))) {
-        .pointer => |ptr| switch (@typeInfo(ptr.child)) {
-            .@"fn" => exc(),
-            else => @constCast(exc),
-        },
-        .@"fn" => exc(),
-        else => @compileError("unsupported PyExc_TypeError representation"),
-    };
-}
-
 fn execModule(module: [*c]PyObject) c_int {
     _ = module;
     return 0;
@@ -70,19 +27,9 @@ fn execModule(module: [*c]PyObject) c_int {
 pub export fn sum(self: [*]PyObject, args: [*]PyObject) [*c]PyObject {
     _ = self;
 
-    const argc = c.PyTuple_Size(args);
-    if (argc != 2) {
-        c.PyErr_SetString(pyExcTypeError(), "sum() takes exactly 2 positional arguments");
-        return null;
-    }
-
-    const a_obj = c.PyTuple_GetItem(args, 0);
-    if (a_obj == null) {
-        return null;
-    }
-
-    const b_obj = c.PyTuple_GetItem(args, 1);
-    if (b_obj == null) {
+    var a_obj: [*c]PyObject = undefined;
+    var b_obj: [*c]PyObject = undefined;
+    if (c.PyArg_UnpackTuple(args, "sum", 2, 2, &a_obj, &b_obj) == 0) {
         return null;
     }
 
@@ -92,14 +39,14 @@ pub export fn sum(self: [*]PyObject, args: [*]PyObject) [*c]PyObject {
     return c.PyLong_FromLong(a + b);
 }
 
-pub var methods = [_]PyMethodDef{
-    PyMethodDef{
+pub var methods = [_]c.PyMethodDef{
+    c.PyMethodDef{
         .ml_name = "sum",
         .ml_meth = @ptrCast(&sum),
         .ml_flags = @as(c_int, 1),
         .ml_doc = null,
     },
-    PyMethodDef{
+    c.PyMethodDef{
         .ml_name = null,
         .ml_meth = null,
         .ml_flags = 0,
@@ -118,11 +65,16 @@ pub var module_slots = [_]c.struct_PyModuleDef_Slot{
     },
 };
 
-pub var zigmodule = PyModuleDef{
+pub var zigmodule = c.struct_PyModuleDef{
+    .m_base = std.mem.zeroes(c.PyModuleDef_Base),
     .m_name = "_core",
+    .m_doc = null,
     .m_size = 0,
     .m_methods = &methods,
     .m_slots = &module_slots,
+    .m_traverse = null,
+    .m_clear = null,
+    .m_free = null,
 };
 
 pub export fn PyInit__core() [*c]c.PyObject {
