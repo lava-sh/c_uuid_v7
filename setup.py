@@ -64,6 +64,34 @@ def _zig_macos_target(arch: str) -> str:
     return f"{zig_arch}-macos.{_macos_deployment_target(arch)}"
 
 
+def _windows_arch() -> str:
+    if sys.maxsize <= 2**32:
+        return "x86"
+
+    machine = platform.machine().lower()
+    if "arm" in machine or machine == "aarch64":
+        return "arm64"
+    return "x86_64"
+
+
+def _zig_windows_target() -> str:
+    zig_arch = {
+        "x86": "x86",
+        "x86_64": "x86_64",
+        "arm64": "aarch64",
+    }[_windows_arch()]
+    return f"{zig_arch}-windows-msvc"
+
+
+def _should_use_library_dir(path_str: str) -> bool:
+    path = Path(path_str)
+    if not path.exists():
+        return False
+    if platform.system() != "Windows":
+        return True
+    return any(path.glob("*.lib"))
+
+
 class ZigBuildExt(build_ext):
     def build_extension(self, ext: Extension) -> None:
         if not ext.sources:
@@ -76,7 +104,11 @@ class ZigBuildExt(build_ext):
             self._build_macos(ext, target)
             return
 
-        self._run_zig(ext, target, extra_args=list(ext.extra_compile_args))
+        extra_args = list(ext.extra_compile_args)
+        if platform.system() == "Windows":
+            extra_args.extend(("-target", _zig_windows_target()))
+
+        self._run_zig(ext, target, extra_args=extra_args)
 
     def _base_zig_cmd(self, ext: Extension, target: Path) -> list[str]:
         cmd = [
@@ -114,7 +146,7 @@ class ZigBuildExt(build_ext):
         lib_dirs_added: set[str] = set()
         compiler_library_dirs = getattr(self.compiler, "library_dirs", []) or []
         for lib_dir in [*compiler_library_dirs, *(ext.library_dirs or [])]:
-            if not Path(lib_dir).exists() or lib_dir in lib_dirs_added:
+            if not _should_use_library_dir(lib_dir) or lib_dir in lib_dirs_added:
                 continue
             lib_dirs_added.add(lib_dir)
             cmd.extend(("-L", str(lib_dir)))
@@ -138,10 +170,12 @@ class ZigBuildExt(build_ext):
         sys.stdout.flush()
 
         result = subprocess.run(cmd, capture_output=True, encoding="utf-8")
-        if result.returncode != 0 or result.stderr:
+        if result.returncode != 0:
             print("\nrun return:\n", result)
             print("\n")
-            raise RuntimeError(result.stderr)
+            raise RuntimeError(result.stderr or f"zig failed with exit code {result.returncode}")
+        if result.stderr:
+            print(result.stderr)
 
     def _build_macos(self, ext: Extension, target: Path) -> None:
         archflags = os.environ.get("ARCHFLAGS", "")
@@ -174,10 +208,12 @@ class ZigBuildExt(build_ext):
         sys.stdout.flush()
 
         result = subprocess.run(lipo_cmd, capture_output=True, encoding="utf-8")
-        if result.returncode != 0 or result.stderr:
+        if result.returncode != 0:
             print("\nrun return:\n", result)
             print("\n")
-            raise RuntimeError(result.stderr)
+            raise RuntimeError(result.stderr or f"lipo failed with exit code {result.returncode}")
+        if result.stderr:
+            print(result.stderr)
 
         for thin_target in thin_targets:
             thin_target.unlink(missing_ok=True)
