@@ -87,12 +87,37 @@ const PyModuleDef = extern struct {
 
 /////////////////////////////////////////////////
 
+fn pyLongToCLong(obj: [*c]PyObject) ?c_long {
+    const value = c.PyLong_AsLong(obj);
+    if (value == -1 and c.PyErr_Occurred() != null) {
+        return null;
+    }
+    return value;
+}
+
 pub export fn sum(self: [*]PyObject, args: [*]PyObject) [*c]PyObject {
-    var a: c_long = undefined;
-    var b: c_long = undefined;
     _ = self;
-    if (!(c.PyArg_ParseTuple(args, "ll", &a, &b) != 0)) return null;
-    return c.PyLong_FromLong((a + b));
+
+    const argc = c.PyTuple_Size(args);
+    if (argc != 2) {
+        c.PyErr_SetString(c.PyExc_TypeError, "sum() takes exactly 2 positional arguments");
+        return null;
+    }
+
+    const a_obj = c.PyTuple_GetItem(args, 0);
+    if (a_obj == null) {
+        return null;
+    }
+
+    const b_obj = c.PyTuple_GetItem(args, 1);
+    if (b_obj == null) {
+        return null;
+    }
+
+    const a = pyLongToCLong(a_obj) orelse return null;
+    const b = pyLongToCLong(b_obj) orelse return null;
+
+    return c.PyLong_FromLong(a + b);
 }
 
 pub var methods = [_]PyMethodDef{
