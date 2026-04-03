@@ -83,6 +83,47 @@ def _zig_windows_target() -> str:
     return f"{zig_arch}-windows-msvc"
 
 
+def _linux_arch() -> str:
+    machine = platform.machine().lower()
+    aliases = {
+        "amd64": "x86_64",
+        "x64": "x86_64",
+        "x86_64": "x86_64",
+        "i386": "x86",
+        "i686": "x86",
+        "x86": "x86",
+        "aarch64": "arm64",
+        "arm64": "arm64",
+        "ppc64le": "ppc64le",
+        "powerpc64le": "ppc64le",
+        "s390x": "s390x",
+        "armv7l": "armv7l",
+    }
+    return aliases.get(machine, machine)
+
+
+def _zig_linux_target() -> str:
+    zig_arch = {
+        "x86": "x86",
+        "x86_64": "x86_64",
+        "arm64": "aarch64",
+        "ppc64le": "powerpc64le",
+        "s390x": "s390x",
+        "armv7l": "arm",
+    }[_linux_arch()]
+
+    libc = "gnu"
+    auditwheel_plat = os.environ.get("AUDITWHEEL_PLAT", "")
+    if "musllinux" in auditwheel_plat:
+        libc = "musl"
+
+    abi_suffix = ""
+    if _linux_arch() == "armv7l" and libc == "gnu":
+        abi_suffix = "eabihf"
+
+    return f"{zig_arch}-linux-{libc}{abi_suffix}"
+
+
 def _should_use_library_dir(path_str: str) -> bool:
     path = Path(path_str)
     if not path.exists():
@@ -107,6 +148,8 @@ class ZigBuildExt(build_ext):
         extra_args = list(ext.extra_compile_args)
         if platform.system() == "Windows":
             extra_args.extend(("-target", _zig_windows_target()))
+        elif platform.system() == "Linux":
+            extra_args.extend(("-target", _zig_linux_target()))
 
         self._run_zig(ext, target, extra_args=extra_args)
 
