@@ -1,6 +1,7 @@
 // selected and merged from the various translated C version generated using:
 // zig translate-c -I /opt/python/<VER>/include/python3.*/ sum.c
 
+const std = @import("std");
 const c = @cImport({
     @cDefine("PY_SSIZE_T_CLEAN", {});
     @cInclude("Python.h");
@@ -15,55 +16,9 @@ const PyModuleDef_Base = extern struct {
     m_copy: [*c]PyObject = null,
 };
 
-const PyModuleDef_HEAD_INIT = if ((c.PY_MAJOR_VERSION > 2) and (c.PY_MINOR_VERSION > 12) and @hasDecl(c, "Py_GIL_DISABLED"))
-    if ((c.PY_MAJOR_VERSION > 2) and (c.PY_MINOR_VERSION > 13))
-        PyModuleDef_Base {
-            .ob_base = PyObject {
-                .ob_tid = 0,
-                .ob_flags = 4,
-                .ob_mutex = c.PyMutex{
-                    ._bits = 0,
-                },
-                .ob_gc_bits = 0,
-                .ob_ref_local = @as(c_uint, 4294967295),
-                .ob_ref_shared = 0,
-                .ob_type = null,
-            }
-        }
-    else
-        PyModuleDef_Base {
-            .ob_base = PyObject {
-                .ob_tid = 0,
-                .ob_mutex = c.PyMutex{
-                    ._bits = 0,
-                },
-                .ob_gc_bits = 0,
-                .ob_ref_local = @as(c_uint, 4294967295),
-                .ob_ref_shared = 0,
-                .ob_type = null,
-            }
-        }
-else if ((c.PY_MAJOR_VERSION > 2) and (c.PY_MINOR_VERSION > 13))
-        PyModuleDef_Base {
-            .ob_base = PyObject {
-                .unnamed_0 = .{ .ob_refcnt_full = 1 },
-                .ob_type = null,
-            }
-        }
-    else if ((c.PY_MAJOR_VERSION > 2) and (c.PY_MINOR_VERSION > 11))
-            PyModuleDef_Base {
-                .ob_base = PyObject {
-                    .unnamed_0 = .{ .ob_refcnt = 1 },
-                    .ob_type = null,
-                }
-            }
-        else
-            PyModuleDef_Base {
-                .ob_base = PyObject {
-                    .ob_refcnt = 1,
-                    .ob_type = null,
-                }
-            };
+const PyModuleDef_HEAD_INIT = PyModuleDef_Base{
+    .ob_base = std.mem.zeroes(PyObject),
+};
 
 const PyMethodDef = extern struct {
     ml_name: [*c]const u8 = null,
@@ -105,6 +60,11 @@ fn pyExcTypeError() [*c]PyObject {
         .@"fn" => exc(),
         else => @compileError("unsupported PyExc_TypeError representation"),
     };
+}
+
+fn execModule(module: [*c]PyObject) c_int {
+    _ = module;
+    return 0;
 }
 
 pub export fn sum(self: [*]PyObject, args: [*]PyObject) [*c]PyObject {
@@ -149,6 +109,10 @@ pub var methods = [_]PyMethodDef{
 
 pub var module_slots = [_]c.struct_PyModuleDef_Slot{
     .{
+        .slot = c.Py_mod_exec,
+        .value = @constCast(@ptrCast(&execModule)),
+    },
+    .{
         .slot = 0,
         .value = null,
     },
@@ -156,6 +120,7 @@ pub var module_slots = [_]c.struct_PyModuleDef_Slot{
 
 pub var zigmodule = PyModuleDef{
     .m_name = "_core",
+    .m_size = 0,
     .m_methods = &methods,
     .m_slots = &module_slots,
 };
