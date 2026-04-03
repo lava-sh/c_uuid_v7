@@ -35,7 +35,7 @@ dependencies = []
 [dependency-groups]
 typos = ["typos == 1.45.0"]
 zizmor = ["zizmor == 1.23.1"]
-rumdl = ["rumdl == 0.1.65"]
+rumdl = ["rumdl == 0.1.66"]
 pytest = ["pytest == 9.0.2"]
 ci = [
     "ty == 0.0.28",
@@ -64,15 +64,6 @@ bench = [
 
 [tool.setuptools]
 package-dir = { "" = "py-src" }
-ext-modules = [
-    { name = "c_uuid_v7._core", sources = [
-        "src/lib.c",
-        "src/hexpairs.c",
-        "src/posix.c",
-        "src/random.c",
-        "src/windows.c",
-    ] },
-]
 
 [tool.setuptools.packages.find]
 where = ["py-src"]
@@ -98,6 +89,7 @@ commit_count_since_tag: int = {scm_version.distance}
 [tool.cibuildwheel]
 build-frontend = "uv"
 enable = ["pypy"]
+environment = { BUILD_LTO = "1", BUILD_MAX_OPT = "1" }
 build = [
     "cp310-*", # Python 3.10
     "cp311-*", # Python 3.11

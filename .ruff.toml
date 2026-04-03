@@ -7,6 +7,7 @@ include = [
     "py-src/**.py",
     "py-src/**.pyi",
     "tests/**.py",
+    "setup.py",
     "benchmark/run.py",
     "pyproject.toml",
     "README.md"
@@ -25,7 +26,9 @@ ignore = [
     "ARG",    # Unused method argument
     ########
     "D100",   # Missing docstring in public module
+    "D101",   # Missing docstring in public class
     "D103",   # Missing docstring in public function
+    "D102",   # Missing docstring in public method
     "D104",   # Missing docstring in public package
     "D203",
     "D212",
@@ -58,3 +61,4 @@ ignore = [
 
 [lint.flake8-tidy-imports.banned-api]
 "contextlib.suppress" = { msg = "Use `try-except-pass` instead" }
+"__future__.annotations" = { msg = "Directly quote annotations instead" }
