@@ -95,12 +95,24 @@ fn pyLongToCLong(obj: [*c]PyObject) ?c_long {
     return value;
 }
 
+fn pyExcTypeError() [*c]PyObject {
+    const exc = c.PyExc_TypeError;
+    return switch (@typeInfo(@TypeOf(exc))) {
+        .pointer => |ptr| switch (@typeInfo(ptr.child)) {
+            .@"fn" => exc(),
+            else => @constCast(exc),
+        },
+        .@"fn" => exc(),
+        else => @compileError("unsupported PyExc_TypeError representation"),
+    };
+}
+
 pub export fn sum(self: [*]PyObject, args: [*]PyObject) [*c]PyObject {
     _ = self;
 
     const argc = c.PyTuple_Size(args);
     if (argc != 2) {
-        c.PyErr_SetString(c.PyExc_TypeError, "sum() takes exactly 2 positional arguments");
+        c.PyErr_SetString(pyExcTypeError(), "sum() takes exactly 2 positional arguments");
         return null;
     }
 
