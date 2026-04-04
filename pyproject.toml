@@ -10,7 +10,7 @@ build-backend = "setuptools.build_meta"
 name = "c_uuid_v7"
 dynamic = ["version"]
 requires-python = ">=3.10"
-description = "Fast UUID v7 generator implemented as a CPython C extension"
+description = "Fast UUID v7 generator implemented as a CPython Zig extension"
 readme = "README.md"
 license = "Unlicense"
 license-files = ["UNLICENSE"]
