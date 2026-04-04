@@ -7,9 +7,10 @@ include = [
     "py-src/**.py",
     "py-src/**.pyi",
     "tests/**.py",
+    "scripts/prepare_hpy_source.py",
     "benchmark/run.py",
     "pyproject.toml",
-    "README.md"
+    "README.md",
 ]
 
 [lint.isort]
@@ -35,10 +36,10 @@ ignore = [
     "ANN401", # Check `typing.Any`
     "SIM105", # Forces `try-except-pass` -> `contextlib.suppress`
     ########
-    "TC001",  # \
-    "TC002",  #  ==> `typing.TYPE_CHECKING` block's
-    "TC003",  # /
-    "TC006",  # Add quotes to type expression in `typing.cast()`
+    "TC001", # \
+    "TC002", #  ==> `typing.TYPE_CHECKING` block's
+    "TC003", # /
+    "TC006", # Add quotes to type expression in `typing.cast()`
 ]
 
 [lint.per-file-ignores]
@@ -47,7 +48,7 @@ ignore = [
 "py-src/c_uuid_v7/_core.pyi" = ["PYI021"]
 # tests
 "tests/**.py" = [
-    "S101",    # Check `assert`'s
+    "S101",    # Check for uses of the `assert` keyword.
     "PLR2004", # Check magic value's
     "FURB171", # Check for membership tests against single-item containers
 ]
@@ -55,6 +56,12 @@ ignore = [
 "benchmark/**.py" = [
     "INP001",
 ]
+# scripts
+"scripts" = [
+    "INP001",
+]
+
 
 [lint.flake8-tidy-imports.banned-api]
 "contextlib.suppress" = { msg = "Use `try-except-pass` instead" }
+"__future__.annotations" = { msg = "Directly quote annotations instead" }
