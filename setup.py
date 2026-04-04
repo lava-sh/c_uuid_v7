@@ -13,6 +13,51 @@ from setuptools.dist import Distribution
 
 ROOT = Path(__file__).resolve().parent
 LOCAL_HPY_ROOT = ROOT / ".hpy-source" / "hpy-0.9.0"
+SYSTEM = platform.system()
+IS_WINDOWS = SYSTEM == "Windows"
+IS_MACOS = SYSTEM == "Darwin"
+IS_LINUX = SYSTEM == "Linux"
+
+MACOS_ZIG_ARCH = {
+    "x86_64": "x86_64",
+    "arm64": "aarch64",
+}
+
+WINDOWS_PLAT_ARCH = {
+    "win32": "x86",
+    "win-amd64": "x86_64",
+    "win-arm64": "arm64",
+}
+
+WINDOWS_ZIG_ARCH = {
+    "x86": "x86",
+    "x86_64": "x86_64",
+    "arm64": "aarch64",
+}
+
+LINUX_HOST_ARCH = {
+    "amd64": "x86_64",
+    "x64": "x86_64",
+    "x86_64": "x86_64",
+    "i386": "x86",
+    "i686": "x86",
+    "x86": "x86",
+    "aarch64": "arm64",
+    "arm64": "arm64",
+    "ppc64le": "ppc64le",
+    "powerpc64le": "ppc64le",
+    "s390x": "s390x",
+    "armv7l": "armv7l",
+}
+
+LINUX_ZIG_ARCH = {
+    "x86": "x86",
+    "x86_64": "x86_64",
+    "arm64": "aarch64",
+    "ppc64le": "powerpc64le",
+    "s390x": "s390x",
+    "armv7l": "arm",
+}
 
 
 def _load_hpy_devel():
@@ -106,9 +151,26 @@ def _find_zig() -> str:
         return os.environ.get("PY_ZIG", "zig")
 
     zig_dir = Path(ziglang.__file__).parent
-    zig_path = zig_dir / ("zig.exe" if platform.system() == "Windows" else "zig")
+    zig_path = zig_dir / ("zig.exe" if IS_WINDOWS else "zig")
     zig_path.chmod(0o755)
     return os.environ.get("PY_ZIG", str(zig_path))
+
+
+def _print_command(cmd: list[str]) -> None:
+    print("cmd", " ".join(f'"{arg}"' if " " in arg else arg for arg in cmd))
+    print()
+    sys.stdout.flush()
+
+
+def _run_command(cmd: list[str], *, tool_name: str) -> None:
+    _print_command(cmd)
+    result = subprocess.run(cmd, capture_output=True, encoding="utf-8")
+    if result.returncode != 0:
+        print("\nrun return:\n", result)
+        print("\n")
+        raise RuntimeError(result.stderr or f"{tool_name} failed with exit code {result.returncode}")
+    if result.stderr:
+        print(result.stderr)
 
 
 def _parse_archflags(value: str) -> list[str]:
@@ -144,21 +206,13 @@ def _macos_deployment_target(arch: str) -> str:
 
 
 def _zig_macos_target(arch: str) -> str:
-    zig_arch = {
-        "x86_64": "x86_64",
-        "arm64": "aarch64",
-    }[arch]
-    return f"{zig_arch}-macos.{_macos_deployment_target(arch)}"
+    return f"{MACOS_ZIG_ARCH[arch]}-macos.{_macos_deployment_target(arch)}"
 
 
 def _windows_arch(plat_name: str | None = None) -> str:
     normalized = (plat_name or "").lower().replace("_", "-")
-    if normalized == "win32":
-        return "x86"
-    if normalized == "win-amd64":
-        return "x86_64"
-    if normalized == "win-arm64":
-        return "arm64"
+    if normalized in WINDOWS_PLAT_ARCH:
+        return WINDOWS_PLAT_ARCH[normalized]
 
     if sys.maxsize <= 2**32:
         return "x86"
@@ -170,42 +224,17 @@ def _windows_arch(plat_name: str | None = None) -> str:
 
 
 def _zig_windows_target(plat_name: str | None = None) -> str:
-    zig_arch = {
-        "x86": "x86",
-        "x86_64": "x86_64",
-        "arm64": "aarch64",
-    }[_windows_arch(plat_name)]
-    return f"{zig_arch}-windows-msvc"
+    return f"{WINDOWS_ZIG_ARCH[_windows_arch(plat_name)]}-windows-msvc"
 
 
 def _linux_arch() -> str:
     machine = platform.machine().lower()
-    aliases = {
-        "amd64": "x86_64",
-        "x64": "x86_64",
-        "x86_64": "x86_64",
-        "i386": "x86",
-        "i686": "x86",
-        "x86": "x86",
-        "aarch64": "arm64",
-        "arm64": "arm64",
-        "ppc64le": "ppc64le",
-        "powerpc64le": "ppc64le",
-        "s390x": "s390x",
-        "armv7l": "armv7l",
-    }
-    return aliases.get(machine, machine)
+    return LINUX_HOST_ARCH.get(machine, machine)
 
 
 def _zig_linux_target() -> str:
-    zig_arch = {
-        "x86": "x86",
-        "x86_64": "x86_64",
-        "arm64": "aarch64",
-        "ppc64le": "powerpc64le",
-        "s390x": "s390x",
-        "armv7l": "arm",
-    }[_linux_arch()]
+    arch = _linux_arch()
+    zig_arch = LINUX_ZIG_ARCH[arch]
 
     libc = "gnu"
     auditwheel_plat = os.environ.get("AUDITWHEEL_PLAT", "")
@@ -213,20 +242,33 @@ def _zig_linux_target() -> str:
         libc = "musl"
 
     abi_suffix = ""
-    if _linux_arch() == "armv7l" and libc == "gnu":
+    if arch == "armv7l" and libc == "gnu":
         abi_suffix = "eabihf"
 
     return f"{zig_arch}-linux-{libc}{abi_suffix}"
 
 
 def _zig_target(plat_name: str | None = None) -> str | None:
-    if platform.system() == "Darwin":
+    if IS_MACOS:
         return None
-    if platform.system() == "Windows":
+    if IS_WINDOWS:
         return _zig_windows_target(plat_name)
-    if platform.system() == "Linux":
+    if IS_LINUX:
         return _zig_linux_target()
     return None
+
+
+def _zig_build_args(output: Path, extra_args: list[str]) -> list[str]:
+    return [
+        _find_zig(),
+        "build-obj",
+        f"-femit-bin={output}",
+        "-O",
+        "ReleaseFast",
+        *extra_args,
+        *(["-lc"] if not IS_WINDOWS else []),
+        "src/lib.zig",
+    ]
 
 
 class ZigHPyBuildExt(build_ext):
@@ -238,11 +280,11 @@ class ZigHPyBuildExt(build_ext):
         build_temp = Path(self.build_temp)
         build_temp.mkdir(parents=True, exist_ok=True)
 
-        object_suffix = ".obj" if platform.system() == "Windows" else ".o"
+        object_suffix = ".obj" if IS_WINDOWS else ".o"
         object_name = ext.name.replace(".", "_")
         output = build_temp / f"{object_name}_zig{object_suffix}"
 
-        if platform.system() == "Darwin":
+        if IS_MACOS:
             self._build_macos_object(output)
         else:
             target = _zig_target(getattr(self, "plat_name", None))
@@ -256,28 +298,7 @@ class ZigHPyBuildExt(build_ext):
         ext.extra_objects = extra_objects
 
     def _run_zig_build_obj(self, output: Path, extra_args: list[str]) -> None:
-        cmd = [
-            _find_zig(),
-            "build-obj",
-            f"-femit-bin={output}",
-            "-O",
-            "ReleaseFast",
-            *extra_args,
-            *(["-lc"] if platform.system() != "Windows" else []),
-            "src/lib.zig",
-        ]
-
-        print("cmd", " ".join(f'"{arg}"' if " " in arg else arg for arg in cmd))
-        print()
-        sys.stdout.flush()
-
-        result = subprocess.run(cmd, capture_output=True, encoding="utf-8")
-        if result.returncode != 0:
-            print("\nrun return:\n", result)
-            print("\n")
-            raise RuntimeError(result.stderr or f"zig failed with exit code {result.returncode}")
-        if result.stderr:
-            print(result.stderr)
+        _run_command(_zig_build_args(output, extra_args), tool_name="zig")
 
     def _build_macos_object(self, output: Path) -> None:
         archflags = os.environ.get("ARCHFLAGS", "")
@@ -300,17 +321,7 @@ class ZigHPyBuildExt(build_ext):
             self._run_zig_build_obj(thin, ["-target", _zig_macos_target(arch)])
 
         cmd = ["lipo", "-create", "-output", str(output), *(str(path) for path in thin_outputs)]
-        print("cmd", " ".join(f'"{arg}"' if " " in arg else arg for arg in cmd))
-        print()
-        sys.stdout.flush()
-
-        result = subprocess.run(cmd, capture_output=True, encoding="utf-8")
-        if result.returncode != 0:
-            print("\nrun return:\n", result)
-            print("\n")
-            raise RuntimeError(result.stderr or f"lipo failed with exit code {result.returncode}")
-        if result.stderr:
-            print(result.stderr)
+        _run_command(cmd, tool_name="lipo")
 
         for thin in thin_outputs:
             thin.unlink(missing_ok=True)
@@ -323,7 +334,7 @@ setup(
         Extension(
             "c_uuid_v7._core",
             ["src/hpy.c"],
-            libraries=["advapi32", "ntdll"] if platform.system() == "Windows" else [],
+            libraries=["advapi32", "ntdll"] if IS_WINDOWS else [],
         ),
     ],
 )
