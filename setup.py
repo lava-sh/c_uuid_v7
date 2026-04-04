@@ -154,7 +154,15 @@ def _zig_macos_target(arch: str) -> str:
     return f"{zig_arch}-macos.{_macos_deployment_target(arch)}"
 
 
-def _windows_arch() -> str:
+def _windows_arch(plat_name: str | None = None) -> str:
+    normalized = (plat_name or "").lower().replace("_", "-")
+    if normalized == "win32":
+        return "x86"
+    if normalized == "win-amd64":
+        return "x86_64"
+    if normalized == "win-arm64":
+        return "arm64"
+
     if sys.maxsize <= 2**32:
         return "x86"
 
@@ -164,12 +172,12 @@ def _windows_arch() -> str:
     return "x86_64"
 
 
-def _zig_windows_target() -> str:
+def _zig_windows_target(plat_name: str | None = None) -> str:
     zig_arch = {
         "x86": "x86",
         "x86_64": "x86_64",
         "arm64": "aarch64",
-    }[_windows_arch()]
+    }[_windows_arch(plat_name)]
     return f"{zig_arch}-windows-msvc"
 
 
@@ -214,11 +222,11 @@ def _zig_linux_target() -> str:
     return f"{zig_arch}-linux-{libc}{abi_suffix}"
 
 
-def _zig_target() -> str | None:
+def _zig_target(plat_name: str | None = None) -> str | None:
     if platform.system() == "Darwin":
         return None
     if platform.system() == "Windows":
-        return _zig_windows_target()
+        return _zig_windows_target(plat_name)
     if platform.system() == "Linux":
         return _zig_linux_target()
     return None
@@ -240,7 +248,7 @@ class ZigHPyBuildExt(build_ext):
         if platform.system() == "Darwin":
             self._build_macos_object(output)
         else:
-            target = _zig_target()
+            target = _zig_target(getattr(self, "plat_name", None))
             extra_args = ["-target", target] if target else []
             self._run_zig_build_obj(output, extra_args)
 
