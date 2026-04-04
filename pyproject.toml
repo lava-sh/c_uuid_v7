@@ -89,8 +89,13 @@ commit_count_since_tag: int = {scm_version.distance}
 """
 
 [tool.cibuildwheel]
+# use podman instead of docker
 container-engine = "podman"
+
+# pass command line options to 'docker create'
 container-engine = { name = "docker", create-args = ["--gpus", "all"]}
+
+# disable the /host mount
 container-engine = { name = "docker", disable-host-mount = true }
 
 build-frontend = "uv"
