@@ -64,9 +64,6 @@ jobs:
             echo ".venv/bin" >> "$GITHUB_PATH"
           fi
 
-      - name: "Prepare HPy source"
-        run: python tools/prepare_hpy_source.py
-
       - name: "Install build dependencies"
         run: uv pip install . --group ci
 
