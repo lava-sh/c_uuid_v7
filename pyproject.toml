@@ -1,6 +1,6 @@
 [build-system]
 requires = [
-    "ziglang == 0.15.1",
+    "ziglang == 0.15.2",
     "setuptools == 82.0.1",
     "setuptools-scm == 10.0.5",
 ]
@@ -109,8 +109,8 @@ test-command = "pytest"
 test-groups = ["pytest"] # uv pip install --group test
 
 [tool.cibuildwheel.linux]
-archs = ["x86_64", "i686", "aarch64", "ppc64le", "s390x", "armv7l"]
-test-skip = "*-manylinux_{aarch64,ppc64le,s390x,armv7l} *-musllinux_{i686,aarch64,armv7l}"
+archs = ["x86_64", "i686", "aarch64", "s390x", "armv7l"]
+test-skip = "*-manylinux_{aarch64,s390x,armv7l} *-musllinux_{i686,aarch64,armv7l}"
 
 [tool.cibuildwheel.macos]
 archs = ["x86_64", "arm64", "universal2"]
