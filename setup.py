@@ -12,8 +12,20 @@ from setuptools.command.build_ext import build_ext
 from setuptools.dist import Distribution
 
 ROOT = Path(__file__).resolve().parent
-HPY_DEVEL = import_module("hpy.devel")
-HPY_DEVEL_BASE = Path(HPY_DEVEL.__file__).resolve().parent
+LOCAL_HPY_ROOT = ROOT / ".hpy-source" / "hpy-0.9.0"
+
+
+def _load_hpy_devel():
+    if LOCAL_HPY_ROOT.exists():
+        sys.path.insert(0, str(LOCAL_HPY_ROOT))
+        module = import_module("hpy.devel")
+        return module, LOCAL_HPY_ROOT / "hpy" / "devel"
+
+    module = import_module("hpy.devel")
+    return module, None
+
+
+HPY_DEVEL, HPY_DEVEL_BASE = _load_hpy_devel()
 HPY_DEVEL._HPY_UNIVERSAL_MODULE_STUB_TEMPLATE = """\
 def __bootstrap__():
     from importlib.resources import files

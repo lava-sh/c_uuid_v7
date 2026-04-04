@@ -144,6 +144,9 @@ jobs:
         with:
           enable-cache: false
 
+      - name: "Prepare HPy source"
+        run: python scripts/prepare_hpy_source.py
+
       - name: "Build sdist"
         env:
           PYTHONMALLOC: "mimalloc"

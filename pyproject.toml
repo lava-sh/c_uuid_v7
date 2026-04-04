@@ -1,6 +1,5 @@
 [build-system]
 requires = [
-    "hpy == 0.9.0 ; implementation_name != 'pypy'",
     "ziglang == 0.15.2",
     "setuptools == 82.0.1",
     "setuptools-scm == 10.0.5",
@@ -120,6 +119,10 @@ test-skip = "*-macosx_arm64"
 [tool.cibuildwheel.windows]
 archs = ["AMD64", "x86", "ARM64"]
 test-skip = "*-win_arm64"
+
+[[tool.cibuildwheel.overrides]]
+select = "*"
+before-build = "python scripts/prepare_hpy_source.py"
 
 [[tool.cibuildwheel.overrides]]
 select = "cp3{13,14}-*"
