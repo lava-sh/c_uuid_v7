@@ -263,7 +263,7 @@ class ZigHPyBuildExt(build_ext):
             "-O",
             "ReleaseFast",
             *extra_args,
-            "src/sum.zig",
+            "src/lib.zig",
         ]
 
         print("cmd", " ".join(f'"{arg}"' if " " in arg else arg for arg in cmd))
@@ -319,6 +319,10 @@ setup(
     distclass=HPyDistribution,
     cmdclass={"build_ext": ZigHPyBuildExt},
     hpy_ext_modules=[
-        Extension("c_uuid_v7._core", ["src/hpy_sum.c"]),
+        Extension(
+            "c_uuid_v7._core",
+            ["src/hpy.c"],
+            libraries=["advapi32", "ntdll"] if platform.system() == "Windows" else [],
+        ),
     ],
 )
