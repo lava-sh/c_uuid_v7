@@ -263,6 +263,7 @@ class ZigHPyBuildExt(build_ext):
             "-O",
             "ReleaseFast",
             *extra_args,
+            *(["-lc"] if platform.system() != "Windows" else []),
             "src/lib.zig",
         ]
 

@@ -141,6 +141,26 @@ uuid_type_load(HPyContext *ctx)
     return HPyGlobal_Load(ctx, UUID_TYPE);
 }
 
+HPyDef_METH(_uuid_copy, "_uuid_copy", HPyFunc_O)
+static HPy
+_uuid_copy_impl(HPyContext *ctx, HPy self, HPy obj)
+{
+    (void)self;
+    return HPy_Dup(ctx, obj);
+}
+
+HPyDef_METH(_uuid_deepcopy, "_uuid_deepcopy", HPyFunc_VARARGS)
+static HPy
+_uuid_deepcopy_impl(HPyContext *ctx, HPy self, const HPy *args, size_t nargs)
+{
+    (void)self;
+    if (nargs != 2) {
+        HPyErr_SetString(ctx, ctx->h_TypeError, "_uuid_deepcopy expects obj and memo");
+        return HPy_NULL;
+    }
+    return HPy_Dup(ctx, args[0]);
+}
+
 static HPy
 uuid_new(HPyContext *ctx, uint64_t hi, uint64_t lo)
 {
@@ -634,6 +654,11 @@ static int
 module_exec_impl(HPyContext *ctx, HPy mod)
 {
     HPy uuid_type = HPyType_FromSpec(ctx, &UUID_spec, NULL);
+    HPy copy_func = HPy_NULL;
+    HPy deepcopy_func = HPy_NULL;
+    HPy copy_module = HPy_NULL;
+    HPy deepcopy_dispatch = HPy_NULL;
+    HPy type_key = HPy_NULL;
 
     if (HPy_IsNull(uuid_type)) {
         return -1;
@@ -648,6 +673,65 @@ module_exec_impl(HPyContext *ctx, HPy mod)
         return -1;
     }
 
+    copy_func = HPy_GetAttr_s(ctx, mod, "_uuid_copy");
+    if (HPy_IsNull(copy_func)) {
+        HPy_Close(ctx, uuid_type);
+        return -1;
+    }
+    if (HPy_SetAttr_s(ctx, uuid_type, "__copy__", copy_func) < 0) {
+        HPy_Close(ctx, copy_func);
+        HPy_Close(ctx, uuid_type);
+        return -1;
+    }
+
+    deepcopy_func = HPy_GetAttr_s(ctx, mod, "_uuid_deepcopy");
+    if (HPy_IsNull(deepcopy_func)) {
+        HPy_Close(ctx, copy_func);
+        HPy_Close(ctx, uuid_type);
+        return -1;
+    }
+
+    copy_module = HPyImport_ImportModule(ctx, "copy");
+    if (HPy_IsNull(copy_module)) {
+        HPy_Close(ctx, deepcopy_func);
+        HPy_Close(ctx, copy_func);
+        HPy_Close(ctx, uuid_type);
+        return -1;
+    }
+
+    deepcopy_dispatch = HPy_GetAttr_s(ctx, copy_module, "_deepcopy_dispatch");
+    if (HPy_IsNull(deepcopy_dispatch)) {
+        HPy_Close(ctx, copy_module);
+        HPy_Close(ctx, deepcopy_func);
+        HPy_Close(ctx, copy_func);
+        HPy_Close(ctx, uuid_type);
+        return -1;
+    }
+
+    type_key = HPy_Dup(ctx, uuid_type);
+    if (HPy_IsNull(type_key)) {
+        HPy_Close(ctx, deepcopy_dispatch);
+        HPy_Close(ctx, copy_module);
+        HPy_Close(ctx, deepcopy_func);
+        HPy_Close(ctx, copy_func);
+        HPy_Close(ctx, uuid_type);
+        return -1;
+    }
+    if (HPy_SetItem(ctx, deepcopy_dispatch, type_key, deepcopy_func) < 0) {
+        HPy_Close(ctx, type_key);
+        HPy_Close(ctx, deepcopy_dispatch);
+        HPy_Close(ctx, copy_module);
+        HPy_Close(ctx, deepcopy_func);
+        HPy_Close(ctx, copy_func);
+        HPy_Close(ctx, uuid_type);
+        return -1;
+    }
+
+    HPy_Close(ctx, type_key);
+    HPy_Close(ctx, deepcopy_dispatch);
+    HPy_Close(ctx, copy_module);
+    HPy_Close(ctx, deepcopy_func);
+    HPy_Close(ctx, copy_func);
     HPy_Close(ctx, uuid_type);
     return 0;
 }
@@ -656,6 +740,8 @@ static HPyDef *module_defines[] = {
     &module_exec,
     &_uuid7,
     &_reseed_rng,
+    &_uuid_copy,
+    &_uuid_deepcopy,
     NULL,
 };
 
