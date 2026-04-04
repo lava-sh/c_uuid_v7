@@ -5,6 +5,8 @@ dist/
 build/
 py-src/c_uuid_v7/_version.py
 __pycache__/
+.hpy-download/
+.hpy-source/
 
 *.pyd
 uv.lock

@@ -3,12 +3,86 @@ import platform
 import re
 import subprocess
 import sys
+from importlib import import_module
 from pathlib import Path
 from sysconfig import get_config_var
 
-import hpy.devel
 from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext
+from setuptools.dist import Distribution
+
+ROOT = Path(__file__).resolve().parent
+LOCAL_HPY_ROOT = ROOT / ".hpy-source" / "hpy-0.9.0"
+
+
+def _load_hpy_devel():
+    if LOCAL_HPY_ROOT.exists():
+        sys.path.insert(0, str(LOCAL_HPY_ROOT))
+        module = import_module("hpy.devel")
+        return module, LOCAL_HPY_ROOT / "hpy" / "devel"
+
+    module = import_module("hpy.devel")
+    return module, None
+
+
+HPY_DEVEL, HPY_DEVEL_BASE = _load_hpy_devel()
+
+
+class RelativeHPyDevel(HPY_DEVEL.HPyDevel):
+    def _relative_path(self, path: Path) -> Path:
+        try:
+            return Path(path.resolve().relative_to(ROOT))
+        except ValueError:
+            return path
+
+    def get_extra_include_dirs(self) -> list[str]:
+        return [self._relative_path(self.include_dir).as_posix()]
+
+    def get_include_dir_forbid_python_h(self) -> Path:
+        return self._relative_path(super().get_include_dir_forbid_python_h())
+
+    def get_extra_sources(self) -> list[str]:
+        return [self._relative_path(Path(path)).as_posix() for path in super().get_extra_sources()]
+
+    def get_ctx_sources(self) -> list[str]:
+        return [self._relative_path(Path(path)).as_posix() for path in super().get_ctx_sources()]
+
+
+class HPyDistribution(Distribution):
+    global_options = Distribution.global_options + [
+        ("hpy-abi=", None, f"Specify the HPy ABI mode (default: {HPY_DEVEL.DEFAULT_HPY_ABI})"),
+        ("hpy-use-static-libs", None, "Use static HPy libraries when available"),
+    ]
+    hpy_abi = HPY_DEVEL.DEFAULT_HPY_ABI
+    hpy_use_static_libs = False
+
+    def __init__(self, attrs=None):
+        self.hpy_ext_modules = []
+        super().__init__(attrs)
+        self.hpydevel = RelativeHPyDevel(base_dir=HPY_DEVEL_BASE)
+        if not _hpy_build_is_patched(self):
+            self.hpydevel.fix_distribution(self)
+
+
+def _has_mro_name(cls, name: str) -> bool:
+    return any(base.__name__ == name for base in cls.__mro__)
+
+
+def _hpy_build_is_patched(dist: Distribution) -> bool:
+    build_cmd = dist.cmdclass.get("build")
+    if build_cmd is None and getattr(HPY_DEVEL.cmd, "build", None) is not None:
+        build_cmd = getattr(HPY_DEVEL.cmd.build, "build", None)
+
+    build_ext_cmd = dist.cmdclass.get("build_ext")
+    if build_ext_cmd is None:
+        build_ext_cmd = getattr(HPY_DEVEL.setuptools.command.build_ext, "build_ext", None)
+
+    return (
+        build_cmd is not None
+        and _has_mro_name(build_cmd, "build_hpy_mixin")
+        and build_ext_cmd is not None
+        and _has_mro_name(build_ext_cmd, "build_ext_hpy_mixin")
+    )
 
 def _find_zig() -> str:
     try:
@@ -219,6 +293,7 @@ class ZigHPyBuildExt(build_ext):
 
 
 setup(
+    distclass=HPyDistribution,
     cmdclass={"build_ext": ZigHPyBuildExt},
     hpy_ext_modules=[
         Extension("c_uuid_v7._core", ["src/hpy_sum.c"]),
