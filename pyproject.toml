@@ -122,7 +122,9 @@ test-skip = "*-win_arm64"
 
 [[tool.cibuildwheel.overrides]]
 select = "*"
-before-build = "python scripts/prepare_hpy_source.py"
+before-build = [
+    "python scripts/prepare_hpy_source.py",
+]
 
 [[tool.cibuildwheel.overrides]]
 select = "cp3{13,14}-*"
