@@ -12,7 +12,7 @@ from setuptools.dist import Distribution
 
 ROOT = Path(__file__).resolve().parent
 HPY_DEVEL = import_module("hpy.devel")
-HPY_DEVEL_BASE = None
+HPY_DEVEL_BASE = Path(HPY_DEVEL.__file__).resolve().parent
 HPY_DEVEL._HPY_UNIVERSAL_MODULE_STUB_TEMPLATE = """\
 def __bootstrap__():
     from importlib.resources import files

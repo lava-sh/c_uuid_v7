@@ -104,7 +104,7 @@ skip = [
     "*-musllinux_ppc64le",
     "*-musllinux_s390x",
 ]
-test-command = "pytest {project}/tests"
+test-command = "pytest"
 test-groups = ["pytest"] # uv pip install --group test
 
 [tool.cibuildwheel.linux]
