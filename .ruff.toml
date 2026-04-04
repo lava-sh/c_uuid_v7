@@ -57,7 +57,7 @@ ignore = [
     "INP001",
 ]
 # scripts
-"scripts" = [
+"scripts/**.py" = [
     "INP001",
 ]
 
