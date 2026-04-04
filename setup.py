@@ -2,6 +2,7 @@ import os
 import platform
 import re
 import subprocess
+import sys
 from importlib import import_module
 from pathlib import Path
 from sysconfig import get_config_var
