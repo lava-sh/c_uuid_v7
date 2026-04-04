@@ -90,8 +90,6 @@ commit_count_since_tag: int = {scm_version.distance}
 
 [tool.cibuildwheel]
 container-engine = "podman"
-container-engine = { name = "docker", create-args = ["--gpus", "all"]}
-container-engine = { name = "docker", disable-host-mount = true }
 
 build-frontend = "uv"
 enable = ["pypy"]
