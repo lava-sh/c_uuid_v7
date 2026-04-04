@@ -59,6 +59,8 @@ LINUX_ZIG_ARCH = {
     "armv7l": "arm",
 }
 
+EMULATED_LINUX_ARCHS = {"ppc64le", "s390x", "armv7l"}
+
 
 def _load_hpy_devel():
     if LOCAL_HPY_ROOT.exists():
@@ -258,13 +260,19 @@ def _zig_target(plat_name: str | None = None) -> str | None:
     return None
 
 
+def _zig_optimize_mode() -> str:
+    if IS_LINUX and _linux_arch() in EMULATED_LINUX_ARCHS:
+        return "ReleaseSafe"
+    return "ReleaseFast"
+
+
 def _zig_build_args(output: Path, extra_args: list[str]) -> list[str]:
     return [
         _find_zig(),
         "build-obj",
         f"-femit-bin={output}",
         "-O",
-        "ReleaseFast",
+        _zig_optimize_mode(),
         *extra_args,
         *(["-lc"] if not IS_WINDOWS else []),
         "src/lib.zig",
