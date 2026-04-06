@@ -42,7 +42,7 @@ jobs:
         with:
           extras: uv
         env:
-          CIBW_ARCHS_LINUX: "auto armv7l"
+          CIBW_ARCHS_LINUX: "x86_64 i686 armv7l ppc64le s390x riscv64"
           CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
           CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
 

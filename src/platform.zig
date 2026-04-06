@@ -26,7 +26,7 @@ fn ensureBcryptGenRandom() ?state.BCryptGenRandomFn {
     const bcrypt_name = std.unicode.utf8ToUtf16LeStringLiteral("bcrypt.dll");
     const bcrypt_module = kernel32.GetModuleHandleW(bcrypt_name) orelse windows.LoadLibraryW(bcrypt_name) catch return null;
 
-    state.runtime.bcrypt_gen_random_ptr = @ptrCast(kernel32.GetProcAddress(bcrypt_module, "BCryptGenRandom"));
+    state.runtime.bcrypt_gen_random_ptr = @ptrCast(@alignCast(kernel32.GetProcAddress(bcrypt_module, "BCryptGenRandom")));
     return state.runtime.bcrypt_gen_random_ptr;
 }
 
@@ -120,7 +120,7 @@ pub fn platformSeeded() void {
     state.runtime.query_interrupt_time_ptr = null;
 
     if (kernel32_module) |module| {
-        state.runtime.query_interrupt_time_ptr = @ptrCast(kernel32.GetProcAddress(module, "QueryInterruptTime"));
+        state.runtime.query_interrupt_time_ptr = @ptrCast(@alignCast(kernel32.GetProcAddress(module, "QueryInterruptTime")));
     }
 
     if (state.runtime.query_interrupt_time_ptr) |query_interrupt_time| {

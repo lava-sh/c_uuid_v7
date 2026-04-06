@@ -1,0 +1,39 @@
+container-engine = "podman"  
+  
+build-frontend = "uv"  
+enable = ["pypy"]  
+build = [  
+    "cp310-*", # Python 3.10  
+    "cp311-*", # Python 3.11  
+    "cp312-*", # Python 3.12  
+    "cp313-*", # Python 3.13  
+    "cp314-*", # Python 3.14  
+    "pp311-*", # PyPy 3.11  
+]  
+skip = [  
+    "*t-*", # Free-threading  
+    "*-musllinux_s390x",  
+]  
+test-command = "pytest"  
+test-groups = ["pytest"] # uv pip install --group test  
+  
+[linux]  
+archs = ["x86_64", "i686", "aarch64", "armv7l", "ppc64le", "s390x", "riscv64"]  
+test-skip = "*-manylinux_{aarch64,armv7l} *-musllinux_{i686,aarch64,armv7l}"  
+  
+[macos]  
+archs = ["x86_64", "arm64"]  
+test-skip = "*-macosx_arm64"  
+  
+[windows]  
+archs = ["AMD64", "x86"]  
+  
+[[overrides]]  
+select = "*"  
+before-build = [  
+    "python scripts/prepare_hpy_source.py",  
+]  
+  
+[[overrides]]  
+select = "cp3{13,14}-*"  
+test-environment = { PYTHONMALLOC = "mimalloc" }

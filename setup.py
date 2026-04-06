@@ -271,6 +271,7 @@ def _zig_build_args(output: Path, extra_args: list[str]) -> list[str]:
         _find_zig(),
         "build-obj",
         f"-femit-bin={output}",
+        *(["-fPIC"] if not IS_WINDOWS else []),
         "-O",
         _zig_optimize_mode(),
         *extra_args,
