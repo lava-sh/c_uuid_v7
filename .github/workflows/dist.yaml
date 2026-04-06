@@ -45,10 +45,10 @@ jobs:
           CIBW_ARCHS_LINUX: "x86_64 i686 armv7l ppc64le s390x riscv64"
           CIBW_MANYLINUX_X86_64_IMAGE: "quay.io/pypa/manylinux2014_x86_64:2026.03.01-1"
           CIBW_MANYLINUX_I686_IMAGE: "quay.io/pypa/manylinux2014_i686:2026.03.01-1"
-          CIBW_MANYLINUX_ARMV7L_IMAGE: "quay.io/pypa/manylinux2014_armv7l:2026.03.01-1"
+          CIBW_MANYLINUX_ARMV7L_IMAGE: "quay.io/pypa/manylinux_2_31_armv7l:2026.03.01-1"
           CIBW_MANYLINUX_PPC64LE_IMAGE: "quay.io/pypa/manylinux2014_ppc64le:2026.03.01-1"
           CIBW_MANYLINUX_S390X_IMAGE: "quay.io/pypa/manylinux2014_s390x:2026.03.01-1"
-          CIBW_MANYLINUX_RISCV64_IMAGE: "quay.io/pypa/manylinux_2_31_riscv64:2026.03.01-1"
+          CIBW_MANYLINUX_RISCV64_IMAGE: "quay.io/pypa/manylinux_2_39_riscv64:2026.03.01-1"
           CIBW_MUSLLINUX_X86_64_IMAGE: "quay.io/pypa/musllinux_1_2_x86_64:2026.03.01-1"
           CIBW_MUSLLINUX_I686_IMAGE: "quay.io/pypa/musllinux_1_2_i686:2026.03.01-1"
           CIBW_MUSLLINUX_ARMV7L_IMAGE: "quay.io/pypa/musllinux_1_2_armv7l:2026.03.01-1"
@@ -79,7 +79,7 @@ jobs:
           extras: uv
         env:
           CIBW_ARCHS_LINUX: "aarch64"
-          CIBW_MANYLINUX_AARCH64_IMAGE: "quay.io/pypa/manylinux_2_31_aarch64:2026.03.01-1"
+          CIBW_MANYLINUX_AARCH64_IMAGE: "quay.io/pypa/manylinux_2_39_aarch64:2026.03.01-1"
           CIBW_MUSLLINUX_AARCH64_IMAGE: "quay.io/pypa/musllinux_1_2_aarch64:2026.03.01-1"
           CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
           CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
