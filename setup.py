@@ -62,6 +62,16 @@ LINUX_ZIG_ARCH = {
     "armv7l": "arm",
 }
 
+LINUX_GLIBC_VERSION = {
+    "x86": "2.5",
+    "x86_64": "2.17",
+    "arm64": "2.31",
+    "ppc64le": "2.17",
+    "riscv64": "2.31",
+    "s390x": "2.17",
+    "armv7l": "2.17",
+}
+
 DEBUG_EMULATED_LINUX_ARCHS = {"ppc64le", "riscv64", "s390x"}
 SAFE_EMULATED_LINUX_ARCHS = {"armv7l"}
 
@@ -267,7 +277,11 @@ def _zig_linux_target() -> str:
     if arch == "armv7l" and libc == "gnu":
         abi_suffix = "eabihf"
 
-    return f"{zig_arch}-linux-{libc}{abi_suffix}"
+    libc_suffix = libc
+    if libc == "gnu":
+        libc_suffix = f"{libc}.{LINUX_GLIBC_VERSION[arch]}"
+
+    return f"{zig_arch}-linux-{libc_suffix}{abi_suffix}"
 
 
 def _zig_target(plat_name: str | None = None) -> str | None:
