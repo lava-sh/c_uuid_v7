@@ -53,11 +53,7 @@ pub fn systemMs() u64 {
         return (ticks - 116_444_736_000_000_000) / 10_000;
     }
 
-    const ts = posix.clock_gettime(posix.CLOCK.REALTIME) catch {
-        var tv: posix.timeval = undefined;
-        posix.gettimeofday(&tv, null);
-        return @as(u64, @intCast(tv.sec)) * 1000 + @as(u64, @intCast(tv.usec)) / 1000;
-    };
+    const ts = posix.clock_gettime(posix.CLOCK.REALTIME) catch unreachable;
     return @as(u64, @intCast(ts.sec)) * 1000 + @as(u64, @intCast(ts.nsec)) / 1_000_000;
 }
 
