@@ -78,12 +78,11 @@ pub fn fillRandom(buf: [*]u8, len: usize) state.Int {
     var offset: usize = 0;
 
     if (builtin.os.tag == .linux) {
-        while (offset < len) {
-            const rc = posix.system.getrandom(buf[offset .. offset + (len - offset)], 0);
-            if (posix.errno(rc) != .SUCCESS) {
-                break;
-            }
-            offset += @intCast(rc);
+        posix.getrandom(buf[0..len]) catch {
+            offset = 0;
+        };
+        if (offset == 0) {
+            offset = len;
         }
         if (offset == len) {
             return state.STATUS_OK;
