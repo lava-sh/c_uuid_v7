@@ -43,6 +43,17 @@ jobs:
           extras: uv
         env:
           CIBW_ARCHS_LINUX: "x86_64 i686 armv7l ppc64le s390x riscv64"
+          CIBW_MANYLINUX_X86_64_IMAGE: "manylinux2014"
+          CIBW_MANYLINUX_I686_IMAGE: "manylinux2014"
+          CIBW_MANYLINUX_ARMV7L_IMAGE: "manylinux2014"
+          CIBW_MANYLINUX_PPC64LE_IMAGE: "manylinux2014"
+          CIBW_MANYLINUX_S390X_IMAGE: "manylinux2014"
+          CIBW_MANYLINUX_RISCV64_IMAGE: "manylinux_2_31"
+          CIBW_MUSLLINUX_X86_64_IMAGE: "musllinux_1_2"
+          CIBW_MUSLLINUX_I686_IMAGE: "musllinux_1_2"
+          CIBW_MUSLLINUX_ARMV7L_IMAGE: "musllinux_1_2"
+          CIBW_MUSLLINUX_PPC64LE_IMAGE: "musllinux_1_2"
+          CIBW_MUSLLINUX_RISCV64_IMAGE: "musllinux_1_2"
           CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
           CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
 
@@ -67,7 +78,9 @@ jobs:
         with:
           extras: uv
         env:
-          CIBW_ARCHS_LINUX: "auto"
+          CIBW_ARCHS_LINUX: "aarch64"
+          CIBW_MANYLINUX_AARCH64_IMAGE: "manylinux_2_31"
+          CIBW_MUSLLINUX_AARCH64_IMAGE: "musllinux_1_2"
           CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
           CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
 

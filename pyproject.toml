@@ -1,6 +1,6 @@
 [build-system]
 requires = [
-    "ziglang == 0.15.2",
+    "ziglang == 0.15.1",
     "setuptools == 82.0.1",
     "setuptools-scm == 10.0.5",
 ]

@@ -47,6 +47,7 @@ LINUX_HOST_ARCH = {
     "arm64": "arm64",
     "ppc64le": "ppc64le",
     "powerpc64le": "ppc64le",
+    "riscv64": "riscv64",
     "s390x": "s390x",
     "armv7l": "armv7l",
 }
@@ -56,11 +57,13 @@ LINUX_ZIG_ARCH = {
     "x86_64": "x86_64",
     "arm64": "aarch64",
     "ppc64le": "powerpc64le",
+    "riscv64": "riscv64",
     "s390x": "s390x",
     "armv7l": "arm",
 }
 
-EMULATED_LINUX_ARCHS = {"ppc64le", "s390x", "armv7l"}
+DEBUG_EMULATED_LINUX_ARCHS = {"ppc64le", "riscv64", "s390x"}
+SAFE_EMULATED_LINUX_ARCHS = {"armv7l"}
 
 
 def _ensure_local_hpy_source() -> None:
@@ -278,8 +281,12 @@ def _zig_target(plat_name: str | None = None) -> str | None:
 
 
 def _zig_optimize_mode() -> str:
-    if IS_LINUX and _linux_arch() in EMULATED_LINUX_ARCHS:
-        return "ReleaseSafe"
+    if IS_LINUX:
+        arch = _linux_arch()
+        if arch in DEBUG_EMULATED_LINUX_ARCHS:
+            return "Debug"
+        if arch in SAFE_EMULATED_LINUX_ARCHS:
+            return "ReleaseSafe"
     return "ReleaseFast"
 
 
