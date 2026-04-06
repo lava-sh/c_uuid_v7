@@ -13,6 +13,7 @@ from setuptools.dist import Distribution
 
 ROOT = Path(__file__).resolve().parent
 LOCAL_HPY_ROOT = ROOT / ".hpy-source" / "hpy-0.9.0"
+PREPARE_HPY_SOURCE = ROOT / "scripts" / "prepare_hpy_source.py"
 SYSTEM = platform.system()
 IS_WINDOWS = SYSTEM == "Windows"
 IS_MACOS = SYSTEM == "Darwin"
@@ -62,7 +63,20 @@ LINUX_ZIG_ARCH = {
 EMULATED_LINUX_ARCHS = {"ppc64le", "s390x", "armv7l"}
 
 
+def _ensure_local_hpy_source() -> None:
+    marker = LOCAL_HPY_ROOT / "hpy" / "devel" / "__init__.py"
+    if marker.exists():
+        return
+
+    if not PREPARE_HPY_SOURCE.exists():
+        return
+
+    subprocess.run([sys.executable, str(PREPARE_HPY_SOURCE)], check=True)
+
+
 def _load_hpy_devel():
+    _ensure_local_hpy_source()
+
     if LOCAL_HPY_ROOT.exists():
         sys.path.insert(0, str(LOCAL_HPY_ROOT))
         module = import_module("hpy.devel")
@@ -121,7 +135,10 @@ class HPyDistribution(Distribution):
     def __init__(self, attrs=None):
         self.hpy_ext_modules = []
         super().__init__(attrs)
-        self.hpydevel = RelativeHPyDevel(base_dir=HPY_DEVEL_BASE)
+        if HPY_DEVEL_BASE is None:
+            self.hpydevel = RelativeHPyDevel()
+        else:
+            self.hpydevel = RelativeHPyDevel(base_dir=HPY_DEVEL_BASE)
         if not _hpy_build_is_patched(self):
             self.hpydevel.fix_distribution(self)
 
