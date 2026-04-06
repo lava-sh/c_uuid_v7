@@ -1,7 +1,7 @@
 const std = @import("std");
 const RomuTrio = @import("romu_trio.zig");
 
-const builtin = @import("c.zig").builtin;
+const builtin = @import("builtin");
 
 pub const Int = c_int;
 pub const UInt = c_uint;

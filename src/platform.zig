@@ -1,13 +1,11 @@
 const std = @import("std");
-const builtin = @import("c.zig").builtin;
+const builtin = @import("builtin");
 const state = @import("state.zig");
 
-const c = @import("c.zig").c;
 const posix = std.posix;
 const windows = std.os.windows;
 const kernel32 = windows.kernel32;
 
-const has_timespec_layout = if (builtin.os.tag == .windows) false else @typeInfo(c.timespec) != .@"opaque";
 const bcrypt_use_system_preferred_rng: u32 = 0x00000002;
 const urandom_path = "/dev/urandom";
 
@@ -55,17 +53,12 @@ pub fn systemMs() u64 {
         return (ticks - 116_444_736_000_000_000) / 10_000;
     }
 
-    if (@hasDecl(c, "CLOCK_REALTIME") and has_timespec_layout) {
-        var ts: c.timespec = undefined;
-
-        if (c.clock_gettime(c.CLOCK_REALTIME, &ts) == 0) {
-            return @as(u64, @intCast(ts.tv_sec)) * 1000 + @as(u64, @intCast(ts.tv_nsec)) / 1_000_000;
-        }
-    }
-
-    var tv: c.timeval = undefined;
-    _ = c.gettimeofday(&tv, null);
-    return @as(u64, @intCast(tv.tv_sec)) * 1000 + @as(u64, @intCast(tv.tv_usec)) / 1000;
+    const ts = posix.clock_gettime(posix.CLOCK.REALTIME) catch {
+        var tv: posix.timeval = undefined;
+        posix.gettimeofday(&tv, null);
+        return @as(u64, @intCast(tv.sec)) * 1000 + @as(u64, @intCast(tv.usec)) / 1000;
+    };
+    return @as(u64, @intCast(ts.sec)) * 1000 + @as(u64, @intCast(ts.nsec)) / 1_000_000;
 }
 
 pub fn fillRandom(buf: [*]u8, len: usize) state.Int {
