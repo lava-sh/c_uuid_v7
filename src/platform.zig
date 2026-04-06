@@ -3,11 +3,13 @@ const builtin = @import("c.zig").builtin;
 const state = @import("state.zig");
 
 const c = @import("c.zig").c;
+const posix = std.posix;
 const windows = std.os.windows;
 const kernel32 = windows.kernel32;
 
 const has_timespec_layout = if (builtin.os.tag == .windows) false else @typeInfo(c.timespec) != .@"opaque";
 const bcrypt_use_system_preferred_rng: u32 = 0x00000002;
+const urandom_path = "/dev/urandom";
 
 const winapi = if (builtin.os.tag == .windows) struct {
     pub extern "kernel32" fn GetTickCount64() callconv(.winapi) u64;
@@ -75,10 +77,10 @@ pub fn fillRandom(buf: [*]u8, len: usize) state.Int {
 
     var offset: usize = 0;
 
-    if (builtin.os.tag == .linux and @hasDecl(c, "getrandom")) {
+    if (builtin.os.tag == .linux) {
         while (offset < len) {
-            const rc = c.getrandom(buf + offset, len - offset, 0);
-            if (rc < 0) {
+            const rc = posix.system.getrandom(buf[offset .. offset + (len - offset)], 0);
+            if (posix.errno(rc) != .SUCCESS) {
                 break;
             }
             offset += @intCast(rc);
@@ -88,23 +90,22 @@ pub fn fillRandom(buf: [*]u8, len: usize) state.Int {
         }
     }
 
-    const fd = c.open("/dev/urandom", c.O_RDONLY);
+    const fd = posix.openZ(urandom_path, .{ .ACCMODE = .RDONLY }, 0) catch return state.STATUS_RANDOM_FAILURE;
     offset = 0;
 
-    if (fd < 0) {
-        return state.STATUS_RANDOM_FAILURE;
-    }
-
     while (offset < len) {
-        const rc = c.read(fd, buf + offset, len - offset);
-        if (rc <= 0) {
-            _ = c.close(fd);
+        const rc = posix.read(fd, buf[offset .. offset + (len - offset)]) catch {
+            posix.close(fd);
+            return state.STATUS_RANDOM_FAILURE;
+        };
+        if (rc == 0) {
+            posix.close(fd);
             return state.STATUS_RANDOM_FAILURE;
         }
-        offset += @intCast(rc);
+        offset += rc;
     }
 
-    _ = c.close(fd);
+    posix.close(fd);
     return state.STATUS_OK;
 }
 
