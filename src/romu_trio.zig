@@ -1,3 +1,6 @@
+// Local copy of `std.Random.RomuTrio` with only the pieces used by the fast UUIDv7 path.
+// Differences from std: only direct seeding from a 24-byte buffer and direct `next()` are kept
+// This avoids wrapper overhead on the hot path while keeping the stdlib algorithm.
 const std = @import("std");
 
 const RomuTrio = @This();
