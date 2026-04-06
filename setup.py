@@ -273,15 +273,12 @@ def _zig_linux_target() -> str:
     if "musllinux" in auditwheel_plat:
         libc = "musl"
 
-    abi_suffix = ""
-    if arch == "armv7l" and libc == "gnu":
-        abi_suffix = "eabihf"
-
     libc_suffix = libc
     if libc == "gnu":
-        libc_suffix = f"{libc}.{LINUX_GLIBC_VERSION[arch]}"
+        libc_abi = "gnueabihf" if arch == "armv7l" else libc
+        libc_suffix = f"{libc_abi}.{LINUX_GLIBC_VERSION[arch]}"
 
-    return f"{zig_arch}-linux-{libc_suffix}{abi_suffix}"
+    return f"{zig_arch}-linux-{libc_suffix}"
 
 
 def _zig_target(plat_name: str | None = None) -> str | None:
