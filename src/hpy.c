@@ -553,9 +553,8 @@ HPyDef_METH(_uuid7, "_uuid7", HPyFunc_KEYWORDS, .doc = "Generate a UUIDv7 object
         if (set_core_error(ctx, build_default(mode, &hi, &lo)) < 0) {
             return HPy_NULL;
         }
-    } else if (set_core_error(ctx,
-                              build_parts(
-                                  timestamp_s, has_timestamp, nanos, has_nanos, mode, &hi, &lo)) <
+    } else if (set_core_error(
+                   ctx, build_parts(timestamp_s, has_timestamp, nanos, has_nanos, mode, &hi, &lo)) <
                0) {
         return HPy_NULL;
     }
