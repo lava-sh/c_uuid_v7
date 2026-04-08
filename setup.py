@@ -6,6 +6,8 @@ import sys
 from importlib import import_module
 from pathlib import Path
 from sysconfig import get_config_var
+from types import ModuleType
+from typing import Any, ClassVar, cast
 
 from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext
@@ -87,7 +89,7 @@ def _ensure_local_hpy_source() -> None:
     subprocess.run([sys.executable, str(PREPARE_HPY_SOURCE)], check=True)
 
 
-def _load_hpy_devel():
+def _load_hpy_devel() -> tuple[ModuleType, Path | None]:
     _ensure_local_hpy_source()
 
     if LOCAL_HPY_ROOT.exists():
@@ -100,7 +102,7 @@ def _load_hpy_devel():
 
 
 HPY_DEVEL, HPY_DEVEL_BASE = _load_hpy_devel()
-HPY_DEVEL._HPY_UNIVERSAL_MODULE_STUB_TEMPLATE = """\
+cast(Any, HPY_DEVEL)._HPY_UNIVERSAL_MODULE_STUB_TEMPLATE = """\
 def __bootstrap__():
     from importlib.resources import files
     from os import environ
@@ -131,21 +133,28 @@ class RelativeHPyDevel(HPY_DEVEL.HPyDevel):
         return self._relative_path(super().get_include_dir_forbid_python_h())
 
     def get_extra_sources(self) -> list[str]:
-        return [self._relative_path(Path(path)).as_posix() for path in super().get_extra_sources()]
+        return [
+            self._relative_path(Path(path)).as_posix()
+            for path in super().get_extra_sources()
+        ]
 
     def get_ctx_sources(self) -> list[str]:
-        return [self._relative_path(Path(path)).as_posix() for path in super().get_ctx_sources()]
+        return [
+            self._relative_path(Path(path)).as_posix()
+            for path in super().get_ctx_sources()
+        ]
 
 
 class HPyDistribution(Distribution):
-    global_options = Distribution.global_options + [
-        ("hpy-abi=", None, f"Specify the HPy ABI mode (default: {HPY_DEVEL.DEFAULT_HPY_ABI})"),
+    global_options: ClassVar[list] = [
+        *Distribution.global_options,
+        ("hpy-abi=", None, "Specify the HPy ABI mode"),
         ("hpy-use-static-libs", None, "Use static HPy libraries when available"),
     ]
     hpy_abi = HPY_DEVEL.DEFAULT_HPY_ABI
     hpy_use_static_libs = False
 
-    def __init__(self, attrs=None):
+    def __init__(self, attrs: dict[str, Any] | None = None) -> None:
         self.hpy_ext_modules = []
         super().__init__(attrs)
         if HPY_DEVEL_BASE is None:
@@ -156,7 +165,7 @@ class HPyDistribution(Distribution):
             self.hpydevel.fix_distribution(self)
 
 
-def _has_mro_name(cls, name: str) -> bool:
+def _has_mro_name(cls: type[object], name: str) -> bool:
     return any(base.__name__ == name for base in cls.__mro__)
 
 
@@ -176,9 +185,10 @@ def _hpy_build_is_patched(dist: Distribution) -> bool:
         and _has_mro_name(build_ext_cmd, "build_ext_hpy_mixin")
     )
 
+
 def _find_zig() -> str:
     try:
-        import ziglang  # type: ignore
+        import ziglang  # type: ignore[import-not-found]
     except ModuleNotFoundError:
         return os.environ.get("PY_ZIG", "zig")
 
@@ -196,11 +206,14 @@ def _print_command(cmd: list[str]) -> None:
 
 def _run_command(cmd: list[str], *, tool_name: str) -> None:
     _print_command(cmd)
-    result = subprocess.run(cmd, capture_output=True, encoding="utf-8")
+    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", check=False)
     if result.returncode != 0:
         print("\nrun return:\n", result)
         print("\n")
-        raise RuntimeError(result.stderr or f"{tool_name} failed with exit code {result.returncode}")
+        error_msg = result.stderr
+        if not error_msg:
+            error_msg = f"{tool_name} failed with exit code {result.returncode}"
+        raise RuntimeError(error_msg)
     if result.stderr:
         print(result.stderr)
 
@@ -230,7 +243,9 @@ def _default_macos_target() -> str:
 
 
 def _macos_deployment_target(arch: str) -> str:
-    configured = os.environ.get("MACOSX_DEPLOYMENT_TARGET") or get_config_var("MACOSX_DEPLOYMENT_TARGET")
+    configured = os.environ.get("MACOSX_DEPLOYMENT_TARGET")
+    if not configured:
+        configured = get_config_var("MACOSX_DEPLOYMENT_TARGET")
     target = configured or _default_macos_target()
     if arch == "arm64":
         target = _max_version(target, "11.0")
@@ -238,7 +253,8 @@ def _macos_deployment_target(arch: str) -> str:
 
 
 def _zig_macos_target(arch: str) -> str:
-    return f"{MACOS_ZIG_ARCH[arch]}-macos.{_macos_deployment_target(arch)}"
+    zig_arch = MACOS_ZIG_ARCH.get(arch, arch)
+    return f"{zig_arch}-macos.{_macos_deployment_target(arch)}"
 
 
 def _windows_arch(plat_name: str | None = None) -> str:
@@ -256,7 +272,9 @@ def _windows_arch(plat_name: str | None = None) -> str:
 
 
 def _zig_windows_target(plat_name: str | None = None) -> str:
-    return f"{WINDOWS_ZIG_ARCH[_windows_arch(plat_name)]}-windows-msvc"
+    arch = _windows_arch(plat_name)
+    zig_arch = WINDOWS_ZIG_ARCH.get(arch, arch)
+    return f"{zig_arch}-windows-msvc"
 
 
 def _linux_arch() -> str:
@@ -266,7 +284,7 @@ def _linux_arch() -> str:
 
 def _zig_linux_target() -> str:
     arch = _linux_arch()
-    zig_arch = LINUX_ZIG_ARCH[arch]
+    zig_arch = LINUX_ZIG_ARCH.get(arch, arch)
 
     libc = "gnu"
     auditwheel_plat = os.environ.get("AUDITWHEEL_PLAT", "")
@@ -356,7 +374,8 @@ class ZigHPyBuildExt(build_ext):
             return
 
         if set(archs) != {"x86_64", "arm64"}:
-            raise RuntimeError(f"unsupported macOS ARCHFLAGS: {archflags}")
+            error_msg = f"unsupported macOS ARCHFLAGS: {archflags}"
+            raise RuntimeError(error_msg)
 
         thin_outputs: list[Path] = []
         for arch in ("x86_64", "arm64"):
@@ -364,7 +383,13 @@ class ZigHPyBuildExt(build_ext):
             thin_outputs.append(thin)
             self._run_zig_build_obj(thin, ["-target", _zig_macos_target(arch)])
 
-        cmd = ["lipo", "-create", "-output", str(output), *(str(path) for path in thin_outputs)]
+        cmd = [
+            "lipo",
+            "-create",
+            "-output",
+            str(output),
+            *(str(path) for path in thin_outputs),
+        ]
         _run_command(cmd, tool_name="lipo")
 
         for thin in thin_outputs:
@@ -378,7 +403,6 @@ setup(
         Extension(
             "c_uuid_v7._core",
             ["src/hpy.c"],
-            libraries=["advapi32", "ntdll"] if IS_WINDOWS else [],
         ),
     ],
 )

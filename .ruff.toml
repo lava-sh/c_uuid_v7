@@ -66,10 +66,11 @@ ignore = [
     "INP001",
 ]
 "setup.py" = [
-    "T201",   # Check for print statements
-    "S404",   # Check for imports of the subprocess module
-    "S603",   # Check for method calls that initiate a subprocess without a shell
-    "SLF001", # Check for accesses on "private" class members.
+    "T201",    # Check for print statements
+    "S404",    # Check for imports of the subprocess module
+    "S603",    # Check for method calls that initiate a subprocess without a shell
+    "SLF001",  # Check for accesses on "private" class members.
+    "PLC0415", # `import` should be at the top-level of a file
 ]
 
 
