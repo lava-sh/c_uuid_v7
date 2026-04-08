@@ -107,6 +107,7 @@ skip = [
     "pp311-*_i686",
 ]
 test-command = "pytest"
+test-sources = ["tests"]
 test-groups = ["pytest"]
 
 [tool.cibuildwheel.linux]
