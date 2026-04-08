@@ -89,6 +89,7 @@ commit_count_since_tag: int = {scm_version.distance}
 """
 
 [tool.cibuildwheel]
+# use `podman` instead of `docker`
 container-engine = "podman"
 build-frontend = "uv"
 enable = ["pypy"]
