@@ -32,8 +32,33 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      - uses: pypa/cibuildwheel@ee02a1537ce3071a004a6b08c41e72f0fdc42d9a # v3.4.0
+        with:
+          extras: uv
+        env:
+          CIBW_ARCHS_LINUX: "x86_64 i686"
+          CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
+          CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
+
+      - name: "Upload wheels"
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: wheels-ubuntu-latest-x64
+          path: wheelhouse/*.whl
+
+  wheels-linux-emulated:
+    name: "ubuntu-latest / wheels emulated"
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    if: ${{ github.event_name != 'pull_request' }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          fetch-tags: true
+
       - name: "Set up QEMU"
-        if: runner.os == 'Linux' && runner.arch == 'X64'
         uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
         with:
           platforms: all
@@ -42,14 +67,14 @@ jobs:
         with:
           extras: uv
         env:
-          CIBW_ARCHS_LINUX: "x86_64 i686 armv7l ppc64le s390x riscv64"
-          CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
-          CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
+          CIBW_ARCHS_LINUX: "armv7l ppc64le s390x riscv64"
+          CIBW_TEST_SKIP: "*-{armv7l,ppc64le,s390x,riscv64}"
+          CIBW_TEST_COMMAND: 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"'
 
       - name: "Upload wheels"
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: wheels-ubuntu-latest-x64
+          name: wheels-ubuntu-latest-emulated
           path: wheelhouse/*.whl
 
   wheels-linux-arm:

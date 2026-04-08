@@ -3,19 +3,19 @@ container-engine = "podman"
 build-frontend = "uv"
 enable = ["pypy"]
 build = [
-    "cp310-*", # Python 3.10  
-    "cp311-*", # Python 3.11  
-    "cp312-*", # Python 3.12  
-    "cp313-*", # Python 3.13  
-    "cp314-*", # Python 3.14  
-    "pp311-*", # PyPy 3.11  
+    "cp310-*",
+    "cp311-*",
+    "cp312-*",
+    "cp313-*",
+    "cp314-*",
+    "pp311-*",
 ]
 skip = [
-    "*t-*", # Free-threading
+    "*t-*",
     "*-musllinux_s390x",
 ]
 test-command = "pytest"
-test-groups = ["pytest"] # uv pip install --group test  
+test-groups = ["pytest"]
 
 [linux]
 archs = [
@@ -27,7 +27,6 @@ archs = [
     "s390x",
     "riscv64",
 ]
-test-skip = "*-manylinux_{aarch64,armv7l} *-musllinux_{i686,aarch64,armv7l}"
 manylinux-x86_64-image = "quay.io/pypa/manylinux2014_x86_64:2026.03.01-1"
 manylinux-i686-image = "quay.io/pypa/manylinux2014_i686:2026.03.01-1"
 manylinux-aarch64-image = "quay.io/pypa/manylinux_2_39_aarch64:2026.03.01-1"
@@ -54,6 +53,7 @@ test-skip = "*-macosx_arm64"
 archs = [
     "AMD64",
     "x86",
+    "ARM64",
 ]
 
 [[overrides]]
