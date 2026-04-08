@@ -47,8 +47,6 @@ jobs:
           extras: uv
         env:
           CIBW_ARCHS_LINUX: "x86_64 i686"
-          CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
-          CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
 
       - name: "Upload wheels"
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
@@ -87,8 +85,6 @@ jobs:
           extras: uv
         env:
           CIBW_ARCHS_LINUX: "armv7l ppc64le s390x riscv64"
-          CIBW_TEST_SKIP: "*-{armv7l,ppc64le,s390x,riscv64}"
-          CIBW_TEST_COMMAND: 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"'
 
       - name: "Upload wheels"
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
@@ -122,8 +118,6 @@ jobs:
           extras: uv
         env:
           CIBW_ARCHS_LINUX: "aarch64"
-          CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
-          CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
 
       - name: "Upload wheels"
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
@@ -155,9 +149,6 @@ jobs:
       - uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
         with:
           extras: uv
-        env:
-          CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
-          CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
 
       - name: "Upload wheels"
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
@@ -189,9 +180,6 @@ jobs:
       - uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
         with:
           extras: uv
-        env:
-          CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
-          CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
 
       - name: "Upload wheels"
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
