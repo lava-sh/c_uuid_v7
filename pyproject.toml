@@ -111,7 +111,7 @@ test-groups = ["pytest"]
 
 [tool.cibuildwheel.linux]
 before-all = "python scripts/prepare_hpy_source.py"
-test-skip = "*-armv7l *-ppc64le *-s390x *-riscv64"
+test-skip = "*_armv7l *_ppc64le *_s390x *_riscv64"
 archs = [
     "x86_64",
     "i686",
