@@ -32,6 +32,16 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      # zizmor: ignore[cache-poisoning]
+      - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: |
+            .hpy-source
+            .hpy-download
+          key: hpy-source-0.9.0
+          restore-keys: hpy-source-
+          lookup-only: true
+
       - uses: pypa/cibuildwheel@ee02a1537ce3071a004a6b08c41e72f0fdc42d9a # v3.4.0
         with:
           extras: uv
@@ -56,6 +66,16 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
           fetch-tags: true
+
+      # zizmor: ignore[cache-poisoning]
+      - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: |
+            .hpy-source
+            .hpy-download
+          key: hpy-source-0.9.0
+          restore-keys: hpy-source-
+          lookup-only: true
 
       - name: "Set up QEMU"
         uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
@@ -87,6 +107,16 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      # zizmor: ignore[cache-poisoning]
+      - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: |
+            .hpy-source
+            .hpy-download
+          key: hpy-source-0.9.0
+          restore-keys: hpy-source-
+          lookup-only: true
+
       - uses: pypa/cibuildwheel@ee02a1537ce3071a004a6b08c41e72f0fdc42d9a # v3.4.0
         with:
           extras: uv
@@ -112,6 +142,16 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      # zizmor: ignore[cache-poisoning]
+      - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: |
+            .hpy-source
+            .hpy-download
+          key: hpy-source-0.9.0
+          restore-keys: hpy-source-
+          lookup-only: true
+
       - uses: pypa/cibuildwheel@ee02a1537ce3071a004a6b08c41e72f0fdc42d9a # v3.4.0
         with:
           extras: uv
@@ -136,6 +176,16 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      # zizmor: ignore[cache-poisoning]
+      - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: |
+            .hpy-source
+            .hpy-download
+          key: hpy-source-0.9.0
+          restore-keys: hpy-source-
+          lookup-only: true
+
       - uses: pypa/cibuildwheel@ee02a1537ce3071a004a6b08c41e72f0fdc42d9a # v3.4.0
         with:
           extras: uv
@@ -158,6 +208,16 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
           fetch-tags: true
+
+      # zizmor: ignore[cache-poisoning]
+      - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: |
+            .hpy-source
+            .hpy-download
+          key: hpy-source-0.9.0
+          restore-keys: hpy-source-
+          lookup-only: true
 
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
