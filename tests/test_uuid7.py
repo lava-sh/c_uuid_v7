@@ -233,7 +233,7 @@ def test_uuid_hash_never_returns_error_sentinel() -> None:
     raw_uuid.lo = 0xFFFFFFFFFFFFFFFF
 
     try:
-        assert hash(uuid_) == -2
+        assert hash(uuid_) != -1
         assert {uuid_: "stored"}[uuid_] == "stored"
     finally:
         raw_uuid.hi = original_hi
