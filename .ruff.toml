@@ -11,6 +11,7 @@ include = [
     "benchmark/run.py",
     "pyproject.toml",
     "README.md",
+    "setup.py",
 ]
 
 [lint.isort]
@@ -23,23 +24,27 @@ preview = true
 
 select = ["ALL"]
 ignore = [
-    "ARG",    # Unused method argument
+    "ARG",     # Unused method argument
     ########
-    "D100",   # Missing docstring in public module
-    "D103",   # Missing docstring in public function
-    "D104",   # Missing docstring in public package
+    "D100",    # Missing docstring in public module
+    "D101",    # Missing docstring in public class
+    "D102",    # Missing docstring in public method
+    "D103",    # Missing docstring in public function
+    "D104",    # Missing docstring in public package
+    "D107",    # Missing docstring in `__init__`
     "D203",
     "D212",
     ########
-    "CPY001", # Check copyright notices within Python files
-    "S311",   # Forces `random` -> `secrets`
-    "ANN401", # Check `typing.Any`
-    "SIM105", # Forces `try-except-pass` -> `contextlib.suppress`
+    "CPY001",  # Check copyright notices within Python files
+    "S311",    # Force `random` -> `secrets`
+    "ANN401",  # Check `typing.Any`
+    "SIM105",  # Force `try-except-pass` -> `contextlib.suppress`
+    "PLR6301", # Check for the presence of unused self parameter in methods definitions
     ########
-    "TC001", # \
-    "TC002", #  ==> `typing.TYPE_CHECKING` block's
-    "TC003", # /
-    "TC006", # Add quotes to type expression in `typing.cast()`
+    "TC001",   # \
+    "TC002",   #  ==> `typing.TYPE_CHECKING` block's
+    "TC003",   # /
+    "TC006",   # Add quotes to type expression in `typing.cast()`
 ]
 
 [lint.per-file-ignores]
@@ -48,7 +53,7 @@ ignore = [
 "py-src/c_uuid_v7/_core.pyi" = ["PYI021"]
 # tests
 "tests/**.py" = [
-    "S101",    # Check for uses of the `assert` keyword.
+    "S101",    # Check for uses of the `assert` keyword
     "PLR2004", # Check magic value's
     "FURB171", # Check for membership tests against single-item containers
 ]
@@ -59,6 +64,11 @@ ignore = [
 # scripts
 "scripts/**.py" = [
     "INP001",
+]
+"setup.py" = [
+    "T201",   # Check for print statements
+    "S404",   # Check for imports of the subprocess module
+    "S603",   # Check for method calls that initiate a subprocess without a shell
 ]
 
 
