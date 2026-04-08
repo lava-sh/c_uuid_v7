@@ -155,3 +155,7 @@ archs = [
 [[tool.cibuildwheel.overrides]]
 select = "cp3{13,14}-*"
 test-environment = { PYTHONMALLOC = "mimalloc" }
+
+[[tool.cibuildwheel.overrides]]
+select = "*-musllinux_{ppc64le,s390x,riscv64}"
+build-frontend = "build"
