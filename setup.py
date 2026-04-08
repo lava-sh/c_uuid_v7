@@ -403,6 +403,7 @@ setup(
         Extension(
             "c_uuid_v7._core",
             ["src/hpy.c"],
+            libraries=["advapi32", "ntdll"] if IS_WINDOWS else [],
         ),
     ],
 )
