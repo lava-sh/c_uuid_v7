@@ -3,122 +3,18 @@ const builtin = @import("builtin");
 const state = @import("state.zig");
 
 const posix = std.posix;
-const windows = std.os.windows;
-const kernel32 = windows.kernel32;
-
-const bcrypt_use_system_preferred_rng: u32 = 0x00000002;
-const urandom_path = "/dev/urandom";
-
-const winapi = if (builtin.os.tag == .windows) struct {
-    pub extern "kernel32" fn GetTickCount64() callconv(.winapi) u64;
-    pub extern "kernel32" fn GetSystemTimePreciseAsFileTime(system_time_as_file_time: *windows.FILETIME) callconv(.winapi) void;
-} else struct {};
-
-fn ensureBcryptGenRandom() ?state.BCryptGenRandomFn {
-    if (builtin.os.tag != .windows) {
-        return null;
-    }
-
-    if (state.runtime.bcrypt_gen_random_ptr) |bcrypt_gen_random| {
-        return bcrypt_gen_random;
-    }
-
-    const bcrypt_name = std.unicode.utf8ToUtf16LeStringLiteral("bcrypt.dll");
-    const bcrypt_module = kernel32.GetModuleHandleW(bcrypt_name) orelse windows.LoadLibraryW(bcrypt_name) catch return null;
-
-    state.runtime.bcrypt_gen_random_ptr = @ptrCast(@alignCast(kernel32.GetProcAddress(bcrypt_module, "BCryptGenRandom")));
-    return state.runtime.bcrypt_gen_random_ptr;
-}
 
 pub fn nowMs() u64 {
-    if (builtin.os.tag == .windows) {
-        if (state.runtime.query_interrupt_time_ptr) |query_interrupt_time| {
-            var interrupt_time: u64 = 0;
-            query_interrupt_time(&interrupt_time);
-            return state.runtime.epoch_base_ms + @as(u64, interrupt_time / 10_000) - state.runtime.tick_base_ms;
-        }
-
-        return state.runtime.epoch_base_ms + @as(u64, winapi.GetTickCount64()) - state.runtime.tick_base_ms;
-    }
-
-    return systemMs();
+    const instant = std.time.Instant.now() catch unreachable;
+    return @as(u64, @intCast(instant.timestamp / std.time.ns_per_ms));
 }
 
-pub fn systemMs() u64 {
+pub fn fillRandom(buf: []u8) state.Status {
     if (builtin.os.tag == .windows) {
-        var ft: windows.FILETIME = undefined;
-
-        winapi.GetSystemTimePreciseAsFileTime(&ft);
-        const ticks = (@as(u64, ft.dwHighDateTime) << 32) | @as(u64, ft.dwLowDateTime);
-        return (ticks - 116_444_736_000_000_000) / 10_000;
+        std.crypto.random.bytes(buf);
+        return .ok;
     }
 
-    const ts = posix.clock_gettime(posix.CLOCK.REALTIME) catch unreachable;
-    return @as(u64, @intCast(ts.sec)) * 1000 + @as(u64, @intCast(ts.nsec)) / 1_000_000;
-}
-
-pub fn fillRandom(buf: [*]u8, len: usize) state.Int {
-    if (builtin.os.tag == .windows) {
-        const bcrypt_gen_random = ensureBcryptGenRandom() orelse return state.STATUS_RANDOM_FAILURE;
-        const status = bcrypt_gen_random(null, buf, @intCast(len), bcrypt_use_system_preferred_rng);
-        return if (status >= 0) state.STATUS_OK else state.STATUS_RANDOM_FAILURE;
-    }
-
-    var offset: usize = 0;
-
-    if (builtin.os.tag == .linux) {
-        posix.getrandom(buf[0..len]) catch {
-            offset = 0;
-        };
-        if (offset == 0) {
-            offset = len;
-        }
-        if (offset == len) {
-            return state.STATUS_OK;
-        }
-    }
-
-    const fd = posix.openZ(urandom_path, .{ .ACCMODE = .RDONLY }, 0) catch return state.STATUS_RANDOM_FAILURE;
-    offset = 0;
-
-    while (offset < len) {
-        const rc = posix.read(fd, buf[offset .. offset + (len - offset)]) catch {
-            posix.close(fd);
-            return state.STATUS_RANDOM_FAILURE;
-        };
-        if (rc == 0) {
-            posix.close(fd);
-            return state.STATUS_RANDOM_FAILURE;
-        }
-        offset += rc;
-    }
-
-    posix.close(fd);
-    return state.STATUS_OK;
-}
-
-pub fn platformSeeded() void {
-    if (builtin.os.tag != .windows) {
-        return;
-    }
-
-    const kernel32_name = std.unicode.utf8ToUtf16LeStringLiteral("kernel32.dll");
-    const kernel32_module = kernel32.GetModuleHandleW(kernel32_name);
-
-    state.runtime.epoch_base_ms = systemMs();
-    state.runtime.query_interrupt_time_ptr = null;
-
-    if (kernel32_module) |module| {
-        state.runtime.query_interrupt_time_ptr = @ptrCast(@alignCast(kernel32.GetProcAddress(module, "QueryInterruptTime")));
-    }
-
-    if (state.runtime.query_interrupt_time_ptr) |query_interrupt_time| {
-        var interrupt_time: u64 = 0;
-
-        query_interrupt_time(&interrupt_time);
-        state.runtime.tick_base_ms = @as(u64, interrupt_time / 10_000);
-        return;
-    }
-
-    state.runtime.tick_base_ms = @as(u64, winapi.GetTickCount64());
+    posix.getrandom(buf) catch return .random_failure;
+    return .ok;
 }

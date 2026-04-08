@@ -13,36 +13,31 @@ HPyType_HELPERS(UUIDObject)
     enum {
         UUID_MODE_FAST = 0,
         UUID_MODE_SECURE = 1,
-        STATUS_OK = 0,
-        STATUS_NANOS_OUT_OF_RANGE = 1,
-        STATUS_TIMESTAMP_TOO_LARGE = 2,
-        STATUS_RANDOM_FAILURE = 3,
-        STATUS_INVALID_MODE = 4,
     };
 
-int uuid7_build_default(int mode, uint64_t *hi, uint64_t *lo);
-int uuid7_build_parts(uint64_t timestamp_s,
-                      int has_timestamp,
-                      uint64_t nanos,
-                      int has_nanos,
-                      int mode,
-                      uint64_t *hi,
-                      uint64_t *lo);
-void uuid7_reseed(void);
-void uuid7_pack_bytes(uint64_t hi, uint64_t lo, unsigned char bytes[16]);
-void uuid7_pack_bytes_le(uint64_t hi, uint64_t lo, unsigned char bytes[16]);
-void uuid7_format_hex(uint64_t hi, uint64_t lo, char out[32]);
-void uuid7_format_hyphenated(uint64_t hi, uint64_t lo, char out[36]);
-uint64_t uuid7_timestamp_ms(uint64_t hi);
-uint32_t uuid7_time_low(uint64_t hi);
-uint16_t uuid7_time_mid(uint64_t hi);
-uint16_t uuid7_time_hi_version(uint64_t hi);
-uint8_t uuid7_clock_seq_hi_variant(uint64_t lo);
-uint8_t uuid7_clock_seq_low(uint64_t lo);
-uint16_t uuid7_clock_seq(uint64_t lo);
-uint64_t uuid7_node(uint64_t lo);
-int uuid7_compare(uint64_t left_hi, uint64_t left_lo, uint64_t right_hi, uint64_t right_lo);
-HPy_ssize_t uuid7_hash(uint64_t hi, uint64_t lo);
+int build_default(int mode, uint64_t *hi, uint64_t *lo);
+int build_parts(uint64_t timestamp_s,
+                int has_timestamp,
+                uint64_t nanos,
+                int has_nanos,
+                int mode,
+                uint64_t *hi,
+                uint64_t *lo);
+void reseed(void);
+void pack_bytes(uint64_t hi, uint64_t lo, unsigned char bytes[16]);
+void pack_bytes_le(uint64_t hi, uint64_t lo, unsigned char bytes[16]);
+void format_hex(uint64_t hi, uint64_t lo, char out[32]);
+void format_hyphenated(uint64_t hi, uint64_t lo, char out[36]);
+uint64_t timestamp_ms(uint64_t hi);
+uint32_t time_low(uint64_t hi);
+uint16_t time_mid(uint64_t hi);
+uint16_t time_hi_version(uint64_t hi);
+uint8_t clock_seq_hi_variant(uint64_t lo);
+uint8_t clock_seq_low(uint64_t lo);
+uint16_t clock_seq(uint64_t lo);
+uint64_t node(uint64_t lo);
+int compare(uint64_t left_hi, uint64_t left_lo, uint64_t right_hi, uint64_t right_lo);
+HPy_ssize_t hash(uint64_t hi, uint64_t lo);
 
 static HPyGlobal UUID_TYPE;
 
@@ -52,18 +47,18 @@ static HPy dup_singleton(HPyContext *ctx, HPy handle) {
 
 static int set_core_error(HPyContext *ctx, int status) {
     switch (status) {
-    case STATUS_OK:
+    case 0:
         return 0;
-    case STATUS_NANOS_OUT_OF_RANGE:
+    case 1:
         HPyErr_SetString(ctx, ctx->h_ValueError, "nanos must be in range 0..999999999");
         return -1;
-    case STATUS_TIMESTAMP_TOO_LARGE:
+    case 2:
         HPyErr_SetString(ctx, ctx->h_ValueError, "timestamp is too large");
         return -1;
-    case STATUS_RANDOM_FAILURE:
+    case 3:
         HPyErr_SetString(ctx, ctx->h_OSError, "unable to seed UUIDv7 generator");
         return -1;
-    case STATUS_INVALID_MODE:
+    case 4:
     default:
         HPyErr_SetString(ctx, ctx->h_ValueError, "mode must be 'fast' or 'secure'");
         return -1;
@@ -169,7 +164,7 @@ static HPy uuid_new(HPyContext *ctx, uint64_t hi, uint64_t lo) {
 static HPy uuid_string_from_words(HPyContext *ctx, uint64_t hi, uint64_t lo) {
     char text[37];
 
-    uuid7_format_hyphenated(hi, lo, text);
+    format_hyphenated(hi, lo, text);
     text[36] = '\0';
     return HPyUnicode_FromString(ctx, text);
 }
@@ -177,7 +172,7 @@ static HPy uuid_string_from_words(HPyContext *ctx, uint64_t hi, uint64_t lo) {
 static HPy uuid_hex_from_words(HPyContext *ctx, uint64_t hi, uint64_t lo) {
     char text[33];
 
-    uuid7_format_hex(hi, lo, text);
+    format_hex(hi, lo, text);
     text[32] = '\0';
     return HPyUnicode_FromString(ctx, text);
 }
@@ -227,7 +222,7 @@ HPyDef_SLOT(UUID_repr, HPy_tp_repr) static HPy UUID_repr_impl(HPyContext *ctx, H
     char text[37];
     char repr[45];
 
-    uuid7_format_hyphenated(uuid->hi, uuid->lo, text);
+    format_hyphenated(uuid->hi, uuid->lo, text);
     text[36] = '\0';
     snprintf(repr, sizeof(repr), "UUID('%s')", text);
     return HPyUnicode_FromString(ctx, repr);
@@ -243,7 +238,7 @@ HPyDef_SLOT(UUID_hash, HPy_tp_hash) static HPy_ssize_t UUID_hash_impl(HPyContext
     UUIDObject *uuid = UUIDObject_AsStruct(ctx, self);
 
     (void)ctx;
-    return uuid7_hash(uuid->hi, uuid->lo);
+    return hash(uuid->hi, uuid->lo);
 }
 
 HPyDef_SLOT(UUID_int, HPy_nb_int) static HPy UUID_int_impl(HPyContext *ctx, HPy self) {
@@ -271,7 +266,7 @@ HPyDef_SLOT(UUID_richcompare, HPy_tp_richcompare) static HPy
 
     left = UUIDObject_AsStruct(ctx, self);
     right = UUIDObject_AsStruct(ctx, other);
-    cmp = uuid7_compare(left->hi, left->lo, right->hi, right->lo);
+    cmp = compare(left->hi, left->lo, right->hi, right->lo);
 
     switch (op) {
     case HPy_LT:
@@ -305,7 +300,7 @@ HPyDef_GET(UUID_bytes, "bytes") static HPy
     unsigned char bytes[16];
 
     (void)closure;
-    uuid7_pack_bytes(uuid->hi, uuid->lo, bytes);
+    pack_bytes(uuid->hi, uuid->lo, bytes);
     return HPyBytes_FromStringAndSize(ctx, (const char *)bytes, 16);
 }
 
@@ -315,7 +310,7 @@ HPyDef_GET(UUID_bytes_le, "bytes_le") static HPy
     unsigned char bytes[16];
 
     (void)closure;
-    uuid7_pack_bytes_le(uuid->hi, uuid->lo, bytes);
+    pack_bytes_le(uuid->hi, uuid->lo, bytes);
     return HPyBytes_FromStringAndSize(ctx, (const char *)bytes, 16);
 }
 
@@ -324,7 +319,7 @@ HPyDef_GET(UUID_clock_seq, "clock_seq") static HPy
     UUIDObject *uuid = UUIDObject_AsStruct(ctx, self);
 
     (void)closure;
-    return HPyLong_FromUnsignedLong(ctx, uuid7_clock_seq(uuid->lo));
+    return HPyLong_FromUnsignedLong(ctx, clock_seq(uuid->lo));
 }
 
 HPyDef_GET(UUID_clock_seq_hi_variant, "clock_seq_hi_variant") static HPy
@@ -332,7 +327,7 @@ HPyDef_GET(UUID_clock_seq_hi_variant, "clock_seq_hi_variant") static HPy
     UUIDObject *uuid = UUIDObject_AsStruct(ctx, self);
 
     (void)closure;
-    return HPyLong_FromUnsignedLong(ctx, uuid7_clock_seq_hi_variant(uuid->lo));
+    return HPyLong_FromUnsignedLong(ctx, clock_seq_hi_variant(uuid->lo));
 }
 
 HPyDef_GET(UUID_clock_seq_low, "clock_seq_low") static HPy
@@ -340,19 +335,19 @@ HPyDef_GET(UUID_clock_seq_low, "clock_seq_low") static HPy
     UUIDObject *uuid = UUIDObject_AsStruct(ctx, self);
 
     (void)closure;
-    return HPyLong_FromUnsignedLong(ctx, uuid7_clock_seq_low(uuid->lo));
+    return HPyLong_FromUnsignedLong(ctx, clock_seq_low(uuid->lo));
 }
 
 HPyDef_GET(UUID_fields, "fields") static HPy
     UUID_fields_get(HPyContext *ctx, HPy self, void *closure) {
     UUIDObject *uuid = UUIDObject_AsStruct(ctx, self);
     HPy items[6] = {
-        HPyLong_FromUnsignedLong(ctx, uuid7_time_low(uuid->hi)),
-        HPyLong_FromUnsignedLong(ctx, uuid7_time_mid(uuid->hi)),
-        HPyLong_FromUnsignedLong(ctx, uuid7_time_hi_version(uuid->hi)),
-        HPyLong_FromUnsignedLong(ctx, uuid7_clock_seq_hi_variant(uuid->lo)),
-        HPyLong_FromUnsignedLong(ctx, uuid7_clock_seq_low(uuid->lo)),
-        HPyLong_FromUnsignedLongLong(ctx, uuid7_node(uuid->lo)),
+        HPyLong_FromUnsignedLong(ctx, time_low(uuid->hi)),
+        HPyLong_FromUnsignedLong(ctx, time_mid(uuid->hi)),
+        HPyLong_FromUnsignedLong(ctx, time_hi_version(uuid->hi)),
+        HPyLong_FromUnsignedLong(ctx, clock_seq_hi_variant(uuid->lo)),
+        HPyLong_FromUnsignedLong(ctx, clock_seq_low(uuid->lo)),
+        HPyLong_FromUnsignedLongLong(ctx, node(uuid->lo)),
     };
     HPy tuple;
     size_t i;
@@ -392,14 +387,14 @@ HPyDef_GET(UUID_node, "node") static HPy UUID_node_get(HPyContext *ctx, HPy self
     UUIDObject *uuid = UUIDObject_AsStruct(ctx, self);
 
     (void)closure;
-    return HPyLong_FromUnsignedLongLong(ctx, uuid7_node(uuid->lo));
+    return HPyLong_FromUnsignedLongLong(ctx, node(uuid->lo));
 }
 
 HPyDef_GET(UUID_time, "time") static HPy UUID_time_get(HPyContext *ctx, HPy self, void *closure) {
     UUIDObject *uuid = UUIDObject_AsStruct(ctx, self);
 
     (void)closure;
-    return HPyLong_FromUnsignedLongLong(ctx, uuid7_timestamp_ms(uuid->hi));
+    return HPyLong_FromUnsignedLongLong(ctx, timestamp_ms(uuid->hi));
 }
 
 HPyDef_GET(UUID_time_hi_version, "time_hi_version") static HPy
@@ -407,7 +402,7 @@ HPyDef_GET(UUID_time_hi_version, "time_hi_version") static HPy
     UUIDObject *uuid = UUIDObject_AsStruct(ctx, self);
 
     (void)closure;
-    return HPyLong_FromUnsignedLong(ctx, uuid7_time_hi_version(uuid->hi));
+    return HPyLong_FromUnsignedLong(ctx, time_hi_version(uuid->hi));
 }
 
 HPyDef_GET(UUID_time_low, "time_low") static HPy
@@ -415,7 +410,7 @@ HPyDef_GET(UUID_time_low, "time_low") static HPy
     UUIDObject *uuid = UUIDObject_AsStruct(ctx, self);
 
     (void)closure;
-    return HPyLong_FromUnsignedLong(ctx, uuid7_time_low(uuid->hi));
+    return HPyLong_FromUnsignedLong(ctx, time_low(uuid->hi));
 }
 
 HPyDef_GET(UUID_time_mid, "time_mid") static HPy
@@ -423,7 +418,7 @@ HPyDef_GET(UUID_time_mid, "time_mid") static HPy
     UUIDObject *uuid = UUIDObject_AsStruct(ctx, self);
 
     (void)closure;
-    return HPyLong_FromUnsignedLong(ctx, uuid7_time_mid(uuid->hi));
+    return HPyLong_FromUnsignedLong(ctx, time_mid(uuid->hi));
 }
 
 HPyDef_GET(UUID_timestamp, "timestamp") static HPy
@@ -438,7 +433,7 @@ HPyDef_GET(UUID_urn, "urn") static HPy UUID_urn_get(HPyContext *ctx, HPy self, v
     char urn[46];
 
     (void)closure;
-    uuid7_format_hyphenated(uuid->hi, uuid->lo, text);
+    format_hyphenated(uuid->hi, uuid->lo, text);
     text[36] = '\0';
     snprintf(urn, sizeof(urn), "urn:uuid:%s", text);
     return HPyUnicode_FromString(ctx, urn);
@@ -555,11 +550,11 @@ HPyDef_METH(_uuid7, "_uuid7", HPyFunc_KEYWORDS, .doc = "Generate a UUIDv7 object
     }
 
     if (!has_timestamp && !has_nanos) {
-        if (set_core_error(ctx, uuid7_build_default(mode, &hi, &lo)) < 0) {
+        if (set_core_error(ctx, build_default(mode, &hi, &lo)) < 0) {
             return HPy_NULL;
         }
     } else if (set_core_error(ctx,
-                              uuid7_build_parts(
+                              build_parts(
                                   timestamp_s, has_timestamp, nanos, has_nanos, mode, &hi, &lo)) <
                0) {
         return HPy_NULL;
@@ -574,7 +569,7 @@ HPyDef_METH(_reseed_rng,
             .doc = "Reseed the internal RNG state.") static HPy
     _reseed_rng_impl(HPyContext *ctx, HPy self) {
     (void)self;
-    uuid7_reseed();
+    reseed();
     return dup_singleton(ctx, ctx->h_None);
 }
 

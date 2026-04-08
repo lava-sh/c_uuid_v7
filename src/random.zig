@@ -1,5 +1,4 @@
 const std = @import("std");
-const builtin = @import("builtin");
 
 const platform = @import("platform.zig");
 const state = @import("state.zig");
@@ -14,25 +13,20 @@ fn u64Secure() u64 {
     return unpackU64Be(&bytes);
 }
 
-pub fn ensureSeeded() state.Int {
+pub fn ensureSeeded() state.Status {
     var seed: [24]u8 = undefined;
 
     if (state.runtime.prng_seeded) {
-        return state.STATUS_OK;
+        return .ok;
     }
 
-    if (platform.fillRandom(&seed, seed.len) != state.STATUS_OK) {
-        return state.STATUS_RANDOM_FAILURE;
+    if (platform.fillRandom(&seed) != .ok) {
+        return .random_failure;
     }
 
     state.runtime.prng.seedWithBuf(seed);
-
-    if (builtin.os.tag == .windows) {
-        platform.platformSeeded();
-    }
-
     state.runtime.prng_seeded = true;
-    return state.STATUS_OK;
+    return .ok;
 }
 
 pub fn reseed() void {
@@ -43,9 +37,9 @@ pub fn counter42() u64 {
     return state.runtime.prng.next() & state.RESEED_MASK;
 }
 
-pub fn counter42Secure(counter: *u64) state.Int {
+pub fn counter42Secure(counter: *u64) state.Status {
     counter.* = u64Secure() & state.RESEED_MASK;
-    return state.STATUS_OK;
+    return .ok;
 }
 
 pub fn splitCounter42(counter: u64, low32: u32, rand_a: *u16, out_tail62: *u64) void {
@@ -60,34 +54,34 @@ pub fn nextLow32AndIncrement(low32: *u32, increment: *u64) void {
     increment.* = 1 + ((random64 >> 32) & 0x0F);
 }
 
-pub fn nextLow32AndIncrementSecure(low32: *u32, increment: *u64) state.Int {
+pub fn nextLow32AndIncrementSecure(low32: *u32, increment: *u64) state.Status {
     const random64 = u64Secure();
 
     low32.* = @truncate(random64);
     increment.* = 1 + ((random64 >> 32) & 0x0F);
-    return state.STATUS_OK;
+    return .ok;
 }
 
 pub fn payload(rand_a: *u16, out_tail62: *u64) void {
     splitCounter42(counter42(), @truncate(state.runtime.prng.next()), rand_a, out_tail62);
 }
 
-pub fn payloadSecure(rand_a: *u16, out_tail62: *u64) state.Int {
+pub fn payloadSecure(rand_a: *u16, out_tail62: *u64) state.Status {
     var counter: u64 = 0;
 
-    if (counter42Secure(&counter) != state.STATUS_OK) {
-        return state.STATUS_RANDOM_FAILURE;
+    if (counter42Secure(&counter) != .ok) {
+        return .random_failure;
     }
 
     splitCounter42(counter, @truncate(u64Secure()), rand_a, out_tail62);
-    return state.STATUS_OK;
+    return .ok;
 }
 
 pub fn tail62() u64 {
     return state.runtime.prng.next() & state.RAND_MASK;
 }
 
-pub fn tail62Secure(out_tail62: *u64) state.Int {
+pub fn tail62Secure(out_tail62: *u64) state.Status {
     out_tail62.* = u64Secure() & state.RAND_MASK;
-    return state.STATUS_OK;
+    return .ok;
 }

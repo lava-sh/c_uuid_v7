@@ -1,36 +1,34 @@
 const std = @import("std");
 
-const hexpairs = @import("hexpairs.zig");
 const platform = @import("platform.zig");
 const random = @import("random.zig");
 const state = @import("state.zig");
 
-fn ensureSeeded() state.Int {
+fn ensureSeeded() state.Status {
     return random.ensureSeeded();
 }
 
-fn validateMode(mode: state.Int) state.Int {
-    if (mode == state.MODE_FAST or mode == state.MODE_SECURE) {
-        return state.STATUS_OK;
-    }
-    return state.STATUS_INVALID_MODE;
+fn validateMode(mode: state.Mode) state.Status {
+    return switch (mode) {
+        .fast, .secure => .ok,
+    };
 }
 
-fn validateNanos(nanos: u64) state.Int {
+fn validateNanos(nanos: u64) state.Status {
     if (nanos >= state.MAX_NANOS) {
-        return state.STATUS_NANOS_OUT_OF_RANGE;
+        return .nanos_out_of_range;
     }
-    return state.STATUS_OK;
+    return .ok;
 }
 
-fn buildTimestampMs(timestamp_s: u64, has_timestamp: bool, nanos: u64, has_nanos: bool, timestamp_ms: *u64) state.Int {
+fn buildTimestampMs(timestamp_s: u64, has_timestamp: bool, nanos: u64, has_nanos: bool, timestamp_ms: *u64) state.Status {
     if (!has_timestamp) {
         timestamp_ms.* = platform.nowMs();
-        return state.STATUS_OK;
+        return .ok;
     }
 
     if (timestamp_s > state.MAX_TIMESTAMP_S) {
-        return state.STATUS_TIMESTAMP_TOO_LARGE;
+        return .timestamp_too_large;
     }
 
     var ms = timestamp_s * 1000;
@@ -39,11 +37,11 @@ fn buildTimestampMs(timestamp_s: u64, has_timestamp: bool, nanos: u64, has_nanos
     }
 
     if (ms > state.MAX_TIMESTAMP_MS) {
-        return state.STATUS_TIMESTAMP_TOO_LARGE;
+        return .timestamp_too_large;
     }
 
     timestamp_ms.* = ms;
-    return state.STATUS_OK;
+    return .ok;
 }
 
 fn advanceMonotonicState(observed_ms: u64, timestamp_ms: *u64, rand_a: *u16, tail62: *u64) void {
@@ -71,27 +69,27 @@ fn advanceMonotonicState(observed_ms: u64, timestamp_ms: *u64, rand_a: *u16, tai
     random.splitCounter42(counter, low32, rand_a, tail62);
 }
 
-fn advanceMonotonicStateSecure(observed_ms: u64, timestamp_ms: *u64, rand_a: *u16, tail62: *u64) state.Int {
+fn advanceMonotonicStateSecure(observed_ms: u64, timestamp_ms: *u64, rand_a: *u16, tail62: *u64) state.Status {
     var counter = state.runtime.counter42;
     var current_ms = state.runtime.last_timestamp_ms;
     var increment: u64 = 0;
     var low32: u32 = 0;
 
-    if (random.nextLow32AndIncrementSecure(&low32, &increment) != state.STATUS_OK) {
-        return state.STATUS_RANDOM_FAILURE;
+    if (random.nextLow32AndIncrementSecure(&low32, &increment) != .ok) {
+        return .random_failure;
     }
 
     if (observed_ms > current_ms) {
         current_ms = observed_ms;
-        if (random.counter42Secure(&counter) != state.STATUS_OK) {
-            return state.STATUS_RANDOM_FAILURE;
+        if (random.counter42Secure(&counter) != .ok) {
+            return .random_failure;
         }
     } else {
         counter += increment;
         if (counter > state.MAX_COUNTER) {
             current_ms += 1;
-            if (random.counter42Secure(&counter) != state.STATUS_OK) {
-                return state.STATUS_RANDOM_FAILURE;
+            if (random.counter42Secure(&counter) != .ok) {
+                return .random_failure;
             }
         }
     }
@@ -100,7 +98,7 @@ fn advanceMonotonicStateSecure(observed_ms: u64, timestamp_ms: *u64, rand_a: *u1
     state.runtime.counter42 = counter;
     timestamp_ms.* = current_ms;
     random.splitCounter42(counter, low32, rand_a, tail62);
-    return state.STATUS_OK;
+    return .ok;
 }
 
 fn buildWords(timestamp_ms: u64, rand_a: u16, tail62: u64, hi: *u64, lo: *u64) void {
@@ -114,46 +112,46 @@ pub fn reseed() void {
     state.runtime.counter42 = 0;
 }
 
-pub fn buildDefault(mode: state.Int, hi: *u64, lo: *u64) state.Int {
+pub fn buildDefault(mode: state.Mode, hi: *u64, lo: *u64) state.Status {
     var timestamp_ms: u64 = 0;
     var tail62: u64 = 0;
     var rand_a: u16 = 0;
 
-    if (validateMode(mode) != state.STATUS_OK) {
-        return state.STATUS_INVALID_MODE;
+    if (validateMode(mode) != .ok) {
+        return .invalid_mode;
     }
-    if (ensureSeeded() != state.STATUS_OK) {
-        return state.STATUS_RANDOM_FAILURE;
+    if (ensureSeeded() != .ok) {
+        return .random_failure;
     }
 
-    if (mode == state.MODE_SECURE) {
-        if (advanceMonotonicStateSecure(platform.nowMs(), &timestamp_ms, &rand_a, &tail62) != state.STATUS_OK) {
-            return state.STATUS_RANDOM_FAILURE;
+    if (mode == .secure) {
+        if (advanceMonotonicStateSecure(platform.nowMs(), &timestamp_ms, &rand_a, &tail62) != .ok) {
+            return .random_failure;
         }
     } else {
         advanceMonotonicState(platform.nowMs(), &timestamp_ms, &rand_a, &tail62);
     }
 
     buildWords(timestamp_ms, rand_a, tail62, hi, lo);
-    return state.STATUS_OK;
+    return .ok;
 }
 
-fn fillRandomBits(has_timestamp: bool, has_nanos: bool, nanos: u64, rand_a: *u16, tail62: *u64) state.Int {
+fn fillRandomBits(has_timestamp: bool, has_nanos: bool, nanos: u64, rand_a: *u16, tail62: *u64) state.Status {
     if (has_timestamp and has_nanos) {
         rand_a.* = @intCast(nanos & 0x0FFF);
         tail62.* = random.tail62();
-        return state.STATUS_OK;
+        return .ok;
     }
 
     if (has_timestamp or has_nanos) {
         random.payload(rand_a, tail62);
-        return state.STATUS_OK;
+        return .ok;
     }
 
-    return 1;
+    return @enumFromInt(1);
 }
 
-fn fillRandomBitsSecure(has_timestamp: bool, has_nanos: bool, nanos: u64, rand_a: *u16, tail62: *u64) state.Int {
+fn fillRandomBitsSecure(has_timestamp: bool, has_nanos: bool, nanos: u64, rand_a: *u16, tail62: *u64) state.Status {
     if (has_timestamp and has_nanos) {
         rand_a.* = @intCast(nanos & 0x0FFF);
         return random.tail62Secure(tail62);
@@ -163,52 +161,52 @@ fn fillRandomBitsSecure(has_timestamp: bool, has_nanos: bool, nanos: u64, rand_a
         return random.payloadSecure(rand_a, tail62);
     }
 
-    return 1;
+    return @enumFromInt(1);
 }
 
-pub fn buildParts(timestamp_s: u64, has_timestamp: state.Int, nanos: u64, has_nanos: state.Int, mode: state.Int, hi: *u64, lo: *u64) state.Int {
+pub fn buildParts(timestamp_s: u64, has_timestamp: state.Int, nanos: u64, has_nanos: state.Int, mode: state.Mode, hi: *u64, lo: *u64) state.Status {
     const have_timestamp = has_timestamp != 0;
     const have_nanos = has_nanos != 0;
     var timestamp_ms: u64 = 0;
     var tail62: u64 = 0;
     var rand_a: u16 = 0;
 
-    if (validateMode(mode) != state.STATUS_OK) {
-        return state.STATUS_INVALID_MODE;
+    if (validateMode(mode) != .ok) {
+        return .invalid_mode;
     }
-    if (ensureSeeded() != state.STATUS_OK) {
-        return state.STATUS_RANDOM_FAILURE;
+    if (ensureSeeded() != .ok) {
+        return .random_failure;
     }
-    if (have_nanos and validateNanos(nanos) != state.STATUS_OK) {
-        return state.STATUS_NANOS_OUT_OF_RANGE;
+    if (have_nanos and validateNanos(nanos) != .ok) {
+        return .nanos_out_of_range;
     }
-    if (buildTimestampMs(timestamp_s, have_timestamp, nanos, have_nanos, &timestamp_ms) != state.STATUS_OK) {
-        return state.STATUS_TIMESTAMP_TOO_LARGE;
+    if (buildTimestampMs(timestamp_s, have_timestamp, nanos, have_nanos, &timestamp_ms) != .ok) {
+        return .timestamp_too_large;
     }
 
-    if (mode == state.MODE_SECURE) {
+    if (mode == .secure) {
         const random_state = fillRandomBitsSecure(have_timestamp, have_nanos, nanos, &rand_a, &tail62);
-        if (random_state == state.STATUS_OK) {
+        if (random_state == .ok) {
             buildWords(timestamp_ms, rand_a, tail62, hi, lo);
-            return state.STATUS_OK;
+            return .ok;
         }
-        if (random_state < 0) {
+        if (@intFromEnum(random_state) < 0) {
             return random_state;
         }
-        if (advanceMonotonicStateSecure(timestamp_ms, &timestamp_ms, &rand_a, &tail62) != state.STATUS_OK) {
-            return state.STATUS_RANDOM_FAILURE;
+        if (advanceMonotonicStateSecure(timestamp_ms, &timestamp_ms, &rand_a, &tail62) != .ok) {
+            return .random_failure;
         }
     } else {
         const random_state = fillRandomBits(have_timestamp, have_nanos, nanos, &rand_a, &tail62);
-        if (random_state == state.STATUS_OK) {
+        if (random_state == .ok) {
             buildWords(timestamp_ms, rand_a, tail62, hi, lo);
-            return state.STATUS_OK;
+            return .ok;
         }
         advanceMonotonicState(timestamp_ms, &timestamp_ms, &rand_a, &tail62);
     }
 
     buildWords(timestamp_ms, rand_a, tail62, hi, lo);
-    return state.STATUS_OK;
+    return .ok;
 }
 
 pub fn packBytes(hi: u64, lo: u64, bytes: *[16]u8) void {
@@ -217,46 +215,41 @@ pub fn packBytes(hi: u64, lo: u64, bytes: *[16]u8) void {
 }
 
 pub fn packBytesLe(hi: u64, lo: u64, bytes: *[16]u8) void {
-    var reordered: [16]u8 = undefined;
-    var big_endian: [16]u8 = undefined;
+    var be: [16]u8 = undefined;
+    packBytes(hi, lo, &be);
 
-    packBytes(hi, lo, &big_endian);
-    reordered[0] = big_endian[3];
-    reordered[1] = big_endian[2];
-    reordered[2] = big_endian[1];
-    reordered[3] = big_endian[0];
-    reordered[4] = big_endian[5];
-    reordered[5] = big_endian[4];
-    reordered[6] = big_endian[7];
-    reordered[7] = big_endian[6];
-    @memcpy(reordered[8..16], big_endian[8..16]);
-    bytes.* = reordered;
+    bytes[0] = be[3];
+    bytes[1] = be[2];
+    bytes[2] = be[1];
+    bytes[3] = be[0];
+    bytes[4] = be[5];
+    bytes[5] = be[4];
+    bytes[6] = be[7];
+    bytes[7] = be[6];
+    @memcpy(bytes[8..16], be[8..16]);
 }
 
 pub fn formatHex(hi: u64, lo: u64, out: *[32]u8) void {
     var bytes: [16]u8 = undefined;
-    var j: usize = 0;
-
     packBytes(hi, lo, &bytes);
-    for (bytes) |byte| {
-        hexpairs.hexPair(&out[j], byte);
-        j += 2;
-    }
+    const hex = std.fmt.bytesToHex(bytes, .lower);
+    @memcpy(out, &hex);
 }
 
 pub fn formatHyphenated(hi: u64, lo: u64, out: *[36]u8) void {
     var bytes: [16]u8 = undefined;
-    var j: usize = 0;
-
     packBytes(hi, lo, &bytes);
-    for (bytes, 0..) |byte, index| {
-        if (index == 4 or index == 6 or index == 8 or index == 10) {
-            out[j] = '-';
-            j += 1;
-        }
-        hexpairs.hexPair(&out[j], byte);
-        j += 2;
-    }
+    const hex = std.fmt.bytesToHex(bytes, .lower);
+
+    @memcpy(out[0..8], hex[0..8]);
+    out[8] = '-';
+    @memcpy(out[9..13], hex[8..12]);
+    out[13] = '-';
+    @memcpy(out[14..18], hex[12..16]);
+    out[18] = '-';
+    @memcpy(out[19..23], hex[16..20]);
+    out[23] = '-';
+    @memcpy(out[24..36], hex[20..32]);
 }
 
 pub fn timestampMs(hi: u64) u64 {
