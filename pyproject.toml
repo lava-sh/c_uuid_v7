@@ -36,10 +36,10 @@ dependencies = []
 [dependency-groups]
 typos = ["typos == 1.45.0"]
 zizmor = ["zizmor == 1.23.1"]
-rumdl = ["rumdl == 0.1.66"]
-pytest = ["pytest == 9.0.2"]
+rumdl = ["rumdl == 0.1.67"]
+pytest = ["pytest == 9.0.3"]
 ci = [
-    "ty == 0.0.28",
+    "ty == 0.0.29",
     "ruff == 0.15.9",
     { include-group = "pytest" },
 ]
@@ -109,6 +109,8 @@ test-command = "pytest"
 test-groups = ["pytest"]
 
 [tool.cibuildwheel.linux]
+before-all = "python scripts/prepare_hpy_source.py"
+test-skip = "*-{armv7l,ppc64le,s390x,riscv64}"
 archs = [
     "x86_64",
     "i686",
@@ -118,21 +120,22 @@ archs = [
     "s390x",
     "riscv64",
 ]
-manylinux-x86_64-image = "quay.io/pypa/manylinux2014_x86_64:2026.03.01-1"
-manylinux-i686-image = "quay.io/pypa/manylinux2014_i686:2026.03.01-1"
-manylinux-aarch64-image = "quay.io/pypa/manylinux_2_39_aarch64:2026.03.01-1"
-manylinux-armv7l-image = "quay.io/pypa/manylinux_2_31_armv7l:2026.03.01-1"
-manylinux-ppc64le-image = "quay.io/pypa/manylinux2014_ppc64le:2026.03.01-1"
-manylinux-s390x-image = "quay.io/pypa/manylinux2014_s390x:2026.03.01-1"
-manylinux-riscv64-image = "quay.io/pypa/manylinux_2_39_riscv64:2026.03.01-1"
-musllinux-x86_64-image = "quay.io/pypa/musllinux_1_2_x86_64:2026.03.01-1"
-musllinux-i686-image = "quay.io/pypa/musllinux_1_2_i686:2026.03.01-1"
-musllinux-aarch64-image = "quay.io/pypa/musllinux_1_2_aarch64:2026.03.01-1"
-musllinux-armv7l-image = "quay.io/pypa/musllinux_1_2_armv7l:2026.03.01-1"
-musllinux-ppc64le-image = "quay.io/pypa/musllinux_1_2_ppc64le:2026.03.01-1"
-musllinux-riscv64-image = "quay.io/pypa/musllinux_1_2_riscv64:2026.03.01-1"
+manylinux-x86_64-image = "manylinux_2_28"
+manylinux-i686-image = "manylinux_2_28"
+manylinux-aarch64-image = "manylinux_2_28"
+manylinux-armv7l-image = "manylinux_2_31"
+manylinux-ppc64le-image = "manylinux_2_28"
+manylinux-s390x-image = "manylinux_2_28"
+manylinux-riscv64-image = "manylinux_2_39"
+musllinux-x86_64-image = "musllinux_1_2"
+musllinux-i686-image = "musllinux_1_2"
+musllinux-aarch64-image = "musllinux_1_2"
+musllinux-armv7l-image = "musllinux_1_2"
+musllinux-ppc64le-image = "musllinux_1_2"
+musllinux-riscv64-image = "musllinux_1_2"
 
 [tool.cibuildwheel.macos]
+before-all = "python scripts/prepare_hpy_source.py"
 archs = [
     "x86_64",
     "arm64",
@@ -141,16 +144,11 @@ archs = [
 test-skip = "*-macosx_arm64"
 
 [tool.cibuildwheel.windows]
+before-all = "python scripts/prepare_hpy_source.py"
 archs = [
     "AMD64",
     "x86",
     "ARM64",
-]
-
-[[tool.cibuildwheel.overrides]]
-select = "*"
-before-build = [
-    "python scripts/prepare_hpy_source.py",
 ]
 
 [[tool.cibuildwheel.overrides]]
