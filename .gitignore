@@ -1,13 +1,23 @@
+# JetBrains
+.idea/
+
+# tools
+.pytest_cache/
+.ruff_cache/
+.rumdl_cache/
+
+# python
 .venv/
 venv/
-*.egg-info/
 dist/
 build/
-py-src/c_uuid_v7/_version.py
 __pycache__/
 .hpy-download/
 .hpy-source/
+py-src/c_uuid_v7/_version.py
 
+*.egg-info
 *.pyd
-uv.lock
 *.pyc
+
+uv.lock
