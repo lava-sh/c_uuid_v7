@@ -86,3 +86,71 @@ branch: str = "{scm_version.branch}"
 commit_date: str = "{scm_version.node_date}"
 commit_count_since_tag: int = {scm_version.distance}
 """
+
+[tool.cibuildwheel]
+container-engine = "podman"
+build-frontend = "uv"
+enable = ["pypy"]
+build = [
+    "cp310-*",
+    "cp311-*",
+    "cp312-*",
+    "cp313-*",
+    "cp314-*",
+    "pp311-*",
+]
+skip = [
+    "*t-*",
+    "*-musllinux_s390x",
+]
+test-command = "pytest"
+test-groups = ["pytest"]
+
+[tool.cibuildwheel.linux]
+archs = [
+    "x86_64",
+    "i686",
+    "aarch64",
+    "armv7l",
+    "ppc64le",
+    "s390x",
+    "riscv64",
+]
+manylinux-x86_64-image = "quay.io/pypa/manylinux2014_x86_64:2026.03.01-1"
+manylinux-i686-image = "quay.io/pypa/manylinux2014_i686:2026.03.01-1"
+manylinux-aarch64-image = "quay.io/pypa/manylinux_2_39_aarch64:2026.03.01-1"
+manylinux-armv7l-image = "quay.io/pypa/manylinux_2_31_armv7l:2026.03.01-1"
+manylinux-ppc64le-image = "quay.io/pypa/manylinux2014_ppc64le:2026.03.01-1"
+manylinux-s390x-image = "quay.io/pypa/manylinux2014_s390x:2026.03.01-1"
+manylinux-riscv64-image = "quay.io/pypa/manylinux_2_39_riscv64:2026.03.01-1"
+musllinux-x86_64-image = "quay.io/pypa/musllinux_1_2_x86_64:2026.03.01-1"
+musllinux-i686-image = "quay.io/pypa/musllinux_1_2_i686:2026.03.01-1"
+musllinux-aarch64-image = "quay.io/pypa/musllinux_1_2_aarch64:2026.03.01-1"
+musllinux-armv7l-image = "quay.io/pypa/musllinux_1_2_armv7l:2026.03.01-1"
+musllinux-ppc64le-image = "quay.io/pypa/musllinux_1_2_ppc64le:2026.03.01-1"
+musllinux-riscv64-image = "quay.io/pypa/musllinux_1_2_riscv64:2026.03.01-1"
+
+[tool.cibuildwheel.macos]
+archs = [
+    "x86_64",
+    "arm64",
+    "universal2",
+]
+test-skip = "*-macosx_arm64"
+
+[tool.cibuildwheel.windows]
+archs = [
+    "AMD64",
+    "x86",
+    "ARM64",
+]
+
+[[tool.cibuildwheel.overrides]]
+select = "*"
+before-build = [
+    "python scripts/prepare_hpy_source.py",
+]
+
+[[tool.cibuildwheel.overrides]]
+select = "cp3{13,14}-*"
+test-environment = { PYTHONMALLOC = "mimalloc" }
