@@ -6,15 +6,15 @@ const builtin = @import("builtin");
 pub const Int = c_int;
 pub const UInt = c_uint;
 
-pub const UUID_TIMESTAMP_SHIFT: u6 = 16;
-pub const UUID_VERSION_BITS: u64 = 0x7000;
-pub const UUID_VARIANT_BITS: u64 = 0x8000_0000_0000_0000;
-pub const UUID_MAX_TIMESTAMP_MS: u64 = 0xFFFF_FFFF_FFFF;
-pub const UUID_MAX_TIMESTAMP_S: u64 = UUID_MAX_TIMESTAMP_MS / 1000;
-pub const UUID_MAX_NANOS: u64 = 1_000_000_000;
-pub const UUID_V7_MAX_COUNTER: u64 = (1 << 42) - 1;
-pub const UUID_MODE_FAST: Int = 0;
-pub const UUID_MODE_SECURE: Int = 1;
+pub const TIMESTAMP_SHIFT: u6 = 16;
+pub const VERSION_BITS: u64 = 0x7000;
+pub const VARIANT_BITS: u64 = 0x8000_0000_0000_0000;
+pub const MAX_TIMESTAMP_MS: u64 = 0xFFFF_FFFF_FFFF;
+pub const MAX_TIMESTAMP_S: u64 = MAX_TIMESTAMP_MS / 1000;
+pub const MAX_NANOS: u64 = 1_000_000_000;
+pub const MAX_COUNTER: u64 = (1 << 42) - 1;
+pub const MODE_FAST: Int = 0;
+pub const MODE_SECURE: Int = 1;
 
 pub const STATUS_OK: Int = 0;
 pub const STATUS_NANOS_OUT_OF_RANGE: Int = 1;
@@ -22,7 +22,7 @@ pub const STATUS_TIMESTAMP_TOO_LARGE: Int = 2;
 pub const STATUS_RANDOM_FAILURE: Int = 3;
 pub const STATUS_INVALID_MODE: Int = 4;
 
-pub const UUID_RAND_MASK: u64 = 0x3FFF_FFFF_FFFF_FFFF;
+pub const RAND_MASK: u64 = 0x3FFF_FFFF_FFFF_FFFF;
 pub const RESEED_MASK: u64 = (1 << 41) - 1;
 pub const LOW30_MASK: u64 = (1 << 30) - 1;
 

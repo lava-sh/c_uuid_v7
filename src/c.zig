@@ -1,13 +1,12 @@
-pub const builtin = @import("builtin");
+const builtin = @import("builtin");
 
-pub const c = if (builtin.os.tag == .windows)
-    struct {}
-else
+pub const posix = @cImport({
+    @cInclude("time.h");
+});
+
+pub const linux = if (builtin.os.tag == .linux)
     @cImport({
-        @cInclude("sys/time.h");
-        @cInclude("time.h");
-
-        if (builtin.os.tag == .linux) {
-            @cInclude("sys/random.h");
-        }
-    });
+        @cInclude("sys/random.h");
+    })
+else
+    struct {};
