@@ -179,41 +179,25 @@ static HPy uuid_hex_from_words(HPyContext *ctx, uint64_t hi, uint64_t lo) {
 
 static HPy uuid_int_from_words(HPyContext *ctx, uint64_t hi, uint64_t lo) {
     HPy high = HPyLong_FromUnsignedLongLong(ctx, hi);
-    HPy bits = HPy_NULL;
-    HPy shifted = HPy_NULL;
-    HPy low = HPy_NULL;
-    HPy result = HPy_NULL;
-
     if (HPy_IsNull(high)) {
         return HPy_NULL;
     }
 
-    bits = HPyLong_FromLong(ctx, 64);
-    if (HPy_IsNull(bits)) {
-        HPy_Close(ctx, high);
-        return HPy_NULL;
-    }
-
-    shifted = HPy_Lshift(ctx, high, bits);
+    HPy shifted = HPy_Lshift(ctx, high, HPyLong_FromLong(ctx, 64));
+    HPy_Close(ctx, high);
     if (HPy_IsNull(shifted)) {
-        HPy_Close(ctx, bits);
-        HPy_Close(ctx, high);
         return HPy_NULL;
     }
 
-    low = HPyLong_FromUnsignedLongLong(ctx, lo);
+    HPy low = HPyLong_FromUnsignedLongLong(ctx, lo);
     if (HPy_IsNull(low)) {
         HPy_Close(ctx, shifted);
-        HPy_Close(ctx, bits);
-        HPy_Close(ctx, high);
         return HPy_NULL;
     }
 
-    result = HPy_Or(ctx, shifted, low);
+    HPy result = HPy_Or(ctx, shifted, low);
     HPy_Close(ctx, low);
     HPy_Close(ctx, shifted);
-    HPy_Close(ctx, bits);
-    HPy_Close(ctx, high);
     return result;
 }
 
@@ -574,15 +558,10 @@ HPyDef_METH(_reseed_rng,
 
 HPyDef_SLOT(module_exec, HPy_mod_exec) static int module_exec_impl(HPyContext *ctx, HPy mod) {
     HPy uuid_type = HPyType_FromSpec(ctx, &UUID_spec, NULL);
-    HPy copy_func = HPy_NULL;
-    HPy deepcopy_func = HPy_NULL;
-    HPy copy_module = HPy_NULL;
-    HPy deepcopy_dispatch = HPy_NULL;
-    HPy type_key = HPy_NULL;
-
     if (HPy_IsNull(uuid_type)) {
         return -1;
     }
+
     HPyGlobal_Store(ctx, &UUID_TYPE, uuid_type);
     if (HPyErr_Occurred(ctx)) {
         HPy_Close(ctx, uuid_type);
@@ -593,7 +572,7 @@ HPyDef_SLOT(module_exec, HPy_mod_exec) static int module_exec_impl(HPyContext *c
         return -1;
     }
 
-    copy_func = HPy_GetAttr_s(ctx, mod, "_uuid_copy");
+    HPy copy_func = HPy_GetAttr_s(ctx, mod, "_uuid_copy");
     if (HPy_IsNull(copy_func)) {
         HPy_Close(ctx, uuid_type);
         return -1;
@@ -604,14 +583,14 @@ HPyDef_SLOT(module_exec, HPy_mod_exec) static int module_exec_impl(HPyContext *c
         return -1;
     }
 
-    deepcopy_func = HPy_GetAttr_s(ctx, mod, "_uuid_deepcopy");
+    HPy deepcopy_func = HPy_GetAttr_s(ctx, mod, "_uuid_deepcopy");
     if (HPy_IsNull(deepcopy_func)) {
         HPy_Close(ctx, copy_func);
         HPy_Close(ctx, uuid_type);
         return -1;
     }
 
-    copy_module = HPyImport_ImportModule(ctx, "copy");
+    HPy copy_module = HPyImport_ImportModule(ctx, "copy");
     if (HPy_IsNull(copy_module)) {
         HPy_Close(ctx, deepcopy_func);
         HPy_Close(ctx, copy_func);
@@ -619,7 +598,7 @@ HPyDef_SLOT(module_exec, HPy_mod_exec) static int module_exec_impl(HPyContext *c
         return -1;
     }
 
-    deepcopy_dispatch = HPy_GetAttr_s(ctx, copy_module, "_deepcopy_dispatch");
+    HPy deepcopy_dispatch = HPy_GetAttr_s(ctx, copy_module, "_deepcopy_dispatch");
     if (HPy_IsNull(deepcopy_dispatch)) {
         HPy_Close(ctx, copy_module);
         HPy_Close(ctx, deepcopy_func);
@@ -628,7 +607,7 @@ HPyDef_SLOT(module_exec, HPy_mod_exec) static int module_exec_impl(HPyContext *c
         return -1;
     }
 
-    type_key = HPy_Dup(ctx, uuid_type);
+    HPy type_key = HPy_Dup(ctx, uuid_type);
     if (HPy_IsNull(type_key)) {
         HPy_Close(ctx, deepcopy_dispatch);
         HPy_Close(ctx, copy_module);
@@ -637,15 +616,8 @@ HPyDef_SLOT(module_exec, HPy_mod_exec) static int module_exec_impl(HPyContext *c
         HPy_Close(ctx, uuid_type);
         return -1;
     }
-    if (HPy_SetItem(ctx, deepcopy_dispatch, type_key, deepcopy_func) < 0) {
-        HPy_Close(ctx, type_key);
-        HPy_Close(ctx, deepcopy_dispatch);
-        HPy_Close(ctx, copy_module);
-        HPy_Close(ctx, deepcopy_func);
-        HPy_Close(ctx, copy_func);
-        HPy_Close(ctx, uuid_type);
-        return -1;
-    }
+
+    int ok = HPy_SetItem(ctx, deepcopy_dispatch, type_key, deepcopy_func) >= 0;
 
     HPy_Close(ctx, type_key);
     HPy_Close(ctx, deepcopy_dispatch);
@@ -653,7 +625,7 @@ HPyDef_SLOT(module_exec, HPy_mod_exec) static int module_exec_impl(HPyContext *c
     HPy_Close(ctx, deepcopy_func);
     HPy_Close(ctx, copy_func);
     HPy_Close(ctx, uuid_type);
-    return 0;
+    return ok ? 0 : -1;
 }
 
 static HPyDef *module_defines[] = {
