@@ -1,7 +1,16 @@
 const std = @import("std");
 
-const platform = @import("platform.zig");
 const state = @import("state.zig");
+
+pub fn nowMs() u64 {
+    const instant = std.time.Instant.now() catch unreachable;
+    return @as(u64, @intCast(instant.timestamp / std.time.ns_per_ms));
+}
+
+pub fn fillRandom(buf: []u8) state.Status {
+    std.posix.getrandom(buf) catch return .random_failure;
+    return .ok;
+}
 
 fn unpackU64Be(bytes: *const [8]u8) u64 {
     return std.mem.readInt(u64, bytes, .big);
@@ -20,7 +29,7 @@ pub fn ensureSeeded() state.Status {
         return .ok;
     }
 
-    if (platform.fillRandom(&seed) != .ok) {
+    if (fillRandom(&seed) != .ok) {
         return .random_failure;
     }
 

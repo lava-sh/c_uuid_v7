@@ -1,8 +1,6 @@
 const std = @import("std");
 const RomuTrio = @import("romu_trio.zig");
 
-pub const Int = c_int;
-
 pub const Mode = enum(c_int) {
     fast = 0,
     secure = 1,

@@ -1,12 +1,7 @@
 const std = @import("std");
 
-const platform = @import("platform.zig");
 const random = @import("random.zig");
 const state = @import("state.zig");
-
-fn ensureSeeded() state.Status {
-    return random.ensureSeeded();
-}
 
 fn validateMode(mode: state.Mode) state.Status {
     return switch (mode) {
@@ -23,7 +18,7 @@ fn validateNanos(nanos: u64) state.Status {
 
 fn buildTimestampMs(timestamp_s: u64, has_timestamp: bool, nanos: u64, has_nanos: bool, timestamp_ms: *u64) state.Status {
     if (!has_timestamp) {
-        timestamp_ms.* = platform.nowMs();
+        timestamp_ms.* = random.nowMs();
         return .ok;
     }
 
@@ -120,16 +115,16 @@ pub fn buildDefault(mode: state.Mode, hi: *u64, lo: *u64) state.Status {
     if (validateMode(mode) != .ok) {
         return .invalid_mode;
     }
-    if (ensureSeeded() != .ok) {
+    if (random.ensureSeeded() != .ok) {
         return .random_failure;
     }
 
     if (mode == .secure) {
-        if (advanceMonotonicStateSecure(platform.nowMs(), &timestamp_ms, &rand_a, &tail62) != .ok) {
+        if (advanceMonotonicStateSecure(random.nowMs(), &timestamp_ms, &rand_a, &tail62) != .ok) {
             return .random_failure;
         }
     } else {
-        advanceMonotonicState(platform.nowMs(), &timestamp_ms, &rand_a, &tail62);
+        advanceMonotonicState(random.nowMs(), &timestamp_ms, &rand_a, &tail62);
     }
 
     buildWords(timestamp_ms, rand_a, tail62, hi, lo);
@@ -164,7 +159,7 @@ fn fillRandomBitsSecure(has_timestamp: bool, has_nanos: bool, nanos: u64, rand_a
     return @enumFromInt(1);
 }
 
-pub fn buildParts(timestamp_s: u64, has_timestamp: state.Int, nanos: u64, has_nanos: state.Int, mode: state.Mode, hi: *u64, lo: *u64) state.Status {
+pub fn buildParts(timestamp_s: u64, has_timestamp: c_int, nanos: u64, has_nanos: c_int, mode: state.Mode, hi: *u64, lo: *u64) state.Status {
     const have_timestamp = has_timestamp != 0;
     const have_nanos = has_nanos != 0;
     var timestamp_ms: u64 = 0;
@@ -174,7 +169,7 @@ pub fn buildParts(timestamp_s: u64, has_timestamp: state.Int, nanos: u64, has_na
     if (validateMode(mode) != .ok) {
         return .invalid_mode;
     }
-    if (ensureSeeded() != .ok) {
+    if (random.ensureSeeded() != .ok) {
         return .random_failure;
     }
     if (have_nanos and validateNanos(nanos) != .ok) {
@@ -286,7 +281,7 @@ pub fn node(lo: u64) u64 {
     return lo & 0xFFFF_FFFF_FFFF;
 }
 
-pub fn compare(left_hi: u64, left_lo: u64, right_hi: u64, right_lo: u64) state.Int {
+pub fn compare(left_hi: u64, left_lo: u64, right_hi: u64, right_lo: u64) c_int {
     if (left_hi != right_hi) {
         return if (left_hi < right_hi) -1 else 1;
     }

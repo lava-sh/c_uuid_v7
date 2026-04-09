@@ -9,7 +9,7 @@ pub export fn build_default(mode: state.Mode, hi: *u64, lo: *u64) state.Status {
     return uuid.buildDefault(mode, hi, lo);
 }
 
-pub export fn build_parts(timestamp_s: u64, has_timestamp: state.Int, nanos: u64, has_nanos: state.Int, mode: state.Mode, hi: *u64, lo: *u64) state.Status {
+pub export fn build_parts(timestamp_s: u64, has_timestamp: c_int, nanos: u64, has_nanos: c_int, mode: state.Mode, hi: *u64, lo: *u64) state.Status {
     return uuid.buildParts(timestamp_s, has_timestamp, nanos, has_nanos, mode, hi, lo);
 }
 
@@ -61,7 +61,7 @@ pub export fn node(lo: u64) u64 {
     return uuid.node(lo);
 }
 
-pub export fn compare(left_hi: u64, left_lo: u64, right_hi: u64, right_lo: u64) state.Int {
+pub export fn compare(left_hi: u64, left_lo: u64, right_hi: u64, right_lo: u64) c_int {
     return uuid.compare(left_hi, left_lo, right_hi, right_lo);
 }
 
