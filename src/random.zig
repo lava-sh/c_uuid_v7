@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 const time = std.time;
 const posix = std.posix;
@@ -7,7 +8,13 @@ const state = @import("state.zig");
 
 pub fn nowMs() u64 {
     const now = time.Instant.now() catch unreachable;
-    return @as(u64, @intCast(now.timestamp / time.ns_per_ms));
+
+    if (builtin.os.tag == .windows) {
+        return @as(u64, @intCast(now.timestamp / time.ns_per_ms));
+    }
+
+    const ns = @as(i128, @intCast(now.timestamp.sec)) * std.time.ns_per_s + @as(i128, now.timestamp.nsec);
+    return @as(u64, @intCast(@divFloor(ns, time.ns_per_ms)));
 }
 
 pub fn fillRandom(buf: []u8) state.Status {
