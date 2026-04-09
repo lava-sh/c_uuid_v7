@@ -1,14 +1,17 @@
 const std = @import("std");
 
+const time = std.time;
+const posix = std.posix;
+
 const state = @import("state.zig");
 
 pub fn nowMs() u64 {
-    const instant = std.time.Instant.now() catch unreachable;
-    return @as(u64, @intCast(instant.timestamp / std.time.ns_per_ms));
+    const now = time.Instant.now() catch unreachable;
+    return @as(u64, @intCast(now.timestamp / time.ns_per_ms));
 }
 
 pub fn fillRandom(buf: []u8) state.Status {
-    std.posix.getrandom(buf) catch return .random_failure;
+    posix.getrandom(buf) catch return .random_failure;
     return .ok;
 }
 
