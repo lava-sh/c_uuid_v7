@@ -3,27 +3,34 @@ const std = @import("std");
 const random = @import("random.zig");
 const state = @import("state.zig");
 
-fn validateMode(mode: state.Mode) state.Status {
+const TIMESTAMP_SHIFT: u6 = 16;
+const VERSION_BITS: u64 = 0x7000;
+const VARIANT_BITS: u64 = 0x8000_0000_0000_0000;
+const MAX_TIMESTAMP_MS: u64 = 0xFFFF_FFFF_FFFF;
+const MAX_TIMESTAMP_S: u64 = MAX_TIMESTAMP_MS / 1000;
+const MAX_NANOS: u64 = 1_000_000_000;
+const MAX_COUNTER: u64 = (1 << 42) - 1;
+
+fn validateMode(mode: state.Mode) !void {
     return switch (mode) {
-        .fast, .secure => .ok,
+        .fast, .secure => {},
     };
 }
 
-fn validateNanos(nanos: u64) state.Status {
-    if (nanos >= state.MAX_NANOS) {
-        return .nanos_out_of_range;
+fn validateNanos(nanos: u64) !void {
+    if (nanos >= MAX_NANOS) {
+        return error.nanos_out_of_range;
     }
-    return .ok;
 }
 
-fn buildTimestampMs(timestamp_s: u64, has_timestamp: bool, nanos: u64, has_nanos: bool, timestamp_ms: *u64) state.Status {
+fn buildTimestampMs(timestamp_s: u64, has_timestamp: bool, nanos: u64, has_nanos: bool, timestamp_ms: *u64) !void {
     if (!has_timestamp) {
         timestamp_ms.* = random.nowMs();
-        return .ok;
+        return;
     }
 
-    if (timestamp_s > state.MAX_TIMESTAMP_S) {
-        return .timestamp_too_large;
+    if (timestamp_s > MAX_TIMESTAMP_S) {
+        return error.timestamp_too_large;
     }
 
     var ms = timestamp_s * 1000;
@@ -31,12 +38,11 @@ fn buildTimestampMs(timestamp_s: u64, has_timestamp: bool, nanos: u64, has_nanos
         ms += nanos / 1_000_000;
     }
 
-    if (ms > state.MAX_TIMESTAMP_MS) {
-        return .timestamp_too_large;
+    if (ms > MAX_TIMESTAMP_MS) {
+        return error.timestamp_too_large;
     }
 
     timestamp_ms.* = ms;
-    return .ok;
 }
 
 fn advanceMonotonicState(observed_ms: u64, timestamp_ms: *u64, rand_a: *u16, tail62: *u64) void {
@@ -52,7 +58,7 @@ fn advanceMonotonicState(observed_ms: u64, timestamp_ms: *u64, rand_a: *u16, tai
         counter = random.counter42();
     } else {
         counter += increment;
-        if (counter > state.MAX_COUNTER) {
+        if (counter > MAX_COUNTER) {
             current_ms += 1;
             counter = random.counter42();
         }
@@ -64,28 +70,22 @@ fn advanceMonotonicState(observed_ms: u64, timestamp_ms: *u64, rand_a: *u16, tai
     random.splitCounter42(counter, low32, rand_a, tail62);
 }
 
-fn advanceMonotonicStateSecure(observed_ms: u64, timestamp_ms: *u64, rand_a: *u16, tail62: *u64) state.Status {
+fn advanceMonotonicStateSecure(observed_ms: u64, timestamp_ms: *u64, rand_a: *u16, tail62: *u64) !void {
     var counter = state.runtime.counter42;
     var current_ms = state.runtime.last_timestamp_ms;
     var increment: u64 = 0;
     var low32: u32 = 0;
 
-    if (random.nextLow32AndIncrementSecure(&low32, &increment) != .ok) {
-        return .random_failure;
-    }
+    try random.nextLow32AndIncrementSecure(&low32, &increment);
 
     if (observed_ms > current_ms) {
         current_ms = observed_ms;
-        if (random.counter42Secure(&counter) != .ok) {
-            return .random_failure;
-        }
+        try random.counter42Secure(&counter);
     } else {
         counter += increment;
-        if (counter > state.MAX_COUNTER) {
+        if (counter > MAX_COUNTER) {
             current_ms += 1;
-            if (random.counter42Secure(&counter) != .ok) {
-                return .random_failure;
-            }
+            try random.counter42Secure(&counter);
         }
     }
 
@@ -93,12 +93,11 @@ fn advanceMonotonicStateSecure(observed_ms: u64, timestamp_ms: *u64, rand_a: *u1
     state.runtime.counter42 = counter;
     timestamp_ms.* = current_ms;
     random.splitCounter42(counter, low32, rand_a, tail62);
-    return .ok;
 }
 
 fn buildWords(timestamp_ms: u64, rand_a: u16, tail62: u64, hi: *u64, lo: *u64) void {
-    hi.* = (timestamp_ms << state.TIMESTAMP_SHIFT) | state.VERSION_BITS | @as(u64, rand_a);
-    lo.* = state.VARIANT_BITS | tail62;
+    hi.* = (timestamp_ms << TIMESTAMP_SHIFT) | VERSION_BITS | @as(u64, rand_a);
+    lo.* = VARIANT_BITS | tail62;
 }
 
 pub fn reseed() void {
@@ -107,99 +106,84 @@ pub fn reseed() void {
     state.runtime.counter42 = 0;
 }
 
-pub fn buildDefault(mode: state.Mode, hi: *u64, lo: *u64) state.Status {
+pub fn buildDefault(mode: state.Mode, hi: *u64, lo: *u64) !void {
     var timestamp_ms: u64 = 0;
     var tail62: u64 = 0;
     var rand_a: u16 = 0;
 
-    if (validateMode(mode) != .ok) {
-        return .invalid_mode;
-    }
-    if (random.ensureSeeded() != .ok) {
-        return .random_failure;
-    }
+    try validateMode(mode);
+    try random.ensureSeeded();
 
     if (mode == .secure) {
-        if (advanceMonotonicStateSecure(random.nowMs(), &timestamp_ms, &rand_a, &tail62) != .ok) {
-            return .random_failure;
-        }
+        try advanceMonotonicStateSecure(random.nowMs(), &timestamp_ms, &rand_a, &tail62);
     } else {
         advanceMonotonicState(random.nowMs(), &timestamp_ms, &rand_a, &tail62);
     }
 
     buildWords(timestamp_ms, rand_a, tail62, hi, lo);
-    return .ok;
 }
 
-fn fillRandomBits(has_timestamp: bool, has_nanos: bool, nanos: u64, rand_a: *u16, tail62: *u64) state.Status {
+const FillResult = enum { random, fallback };
+
+fn fillRandomBits(has_timestamp: bool, has_nanos: bool, nanos: u64, rand_a: *u16, tail62: *u64) FillResult {
     if (has_timestamp and has_nanos) {
         rand_a.* = @intCast(nanos & 0x0FFF);
         tail62.* = random.tail62();
-        return .ok;
+        return .random;
     }
 
     if (has_timestamp or has_nanos) {
         random.payload(rand_a, tail62);
-        return .ok;
+        return .random;
     }
 
-    return @enumFromInt(1);
+    return .fallback;
 }
 
-fn fillRandomBitsSecure(has_timestamp: bool, has_nanos: bool, nanos: u64, rand_a: *u16, tail62: *u64) state.Status {
+fn fillRandomBitsSecure(has_timestamp: bool, has_nanos: bool, nanos: u64, rand_a: *u16, tail62: *u64) !FillResult {
     if (has_timestamp and has_nanos) {
         rand_a.* = @intCast(nanos & 0x0FFF);
-        return random.tail62Secure(tail62);
+        try random.tail62Secure(tail62);
+        return .random;
     }
 
     if (has_timestamp or has_nanos) {
-        return random.payloadSecure(rand_a, tail62);
+        try random.payloadSecure(rand_a, tail62);
+        return .random;
     }
 
-    return @enumFromInt(1);
+    return .fallback;
 }
 
-pub fn buildParts(timestamp_s: u64, has_timestamp: bool, nanos: u64, has_nanos: bool, mode: state.Mode, hi: *u64, lo: *u64) state.Status {
+pub fn buildParts(timestamp_s: u64, has_timestamp: bool, nanos: u64, has_nanos: bool, mode: state.Mode, hi: *u64, lo: *u64) !void {
     var timestamp_ms: u64 = 0;
     var tail62: u64 = 0;
     var rand_a: u16 = 0;
 
-    if (validateMode(mode) != .ok) {
-        return .invalid_mode;
+    try validateMode(mode);
+    try random.ensureSeeded();
+    if (has_nanos) {
+        try validateNanos(nanos);
     }
-    if (random.ensureSeeded() != .ok) {
-        return .random_failure;
-    }
-    if (has_nanos and validateNanos(nanos) != .ok) {
-        return .nanos_out_of_range;
-    }
-    if (buildTimestampMs(timestamp_s, has_timestamp, nanos, has_nanos, &timestamp_ms) != .ok) {
-        return .timestamp_too_large;
-    }
+    try buildTimestampMs(timestamp_s, has_timestamp, nanos, has_nanos, &timestamp_ms);
 
     if (mode == .secure) {
-        const random_state = fillRandomBitsSecure(has_timestamp, has_nanos, nanos, &rand_a, &tail62);
-        if (random_state == .ok) {
+        const result = try fillRandomBitsSecure(has_timestamp, has_nanos, nanos, &rand_a, &tail62);
+        if (result == .random) {
             buildWords(timestamp_ms, rand_a, tail62, hi, lo);
-            return .ok;
+            return;
         }
-        if (@intFromEnum(random_state) < 0) {
-            return random_state;
-        }
-        if (advanceMonotonicStateSecure(timestamp_ms, &timestamp_ms, &rand_a, &tail62) != .ok) {
-            return .random_failure;
-        }
+        try advanceMonotonicStateSecure(timestamp_ms, &timestamp_ms, &rand_a, &tail62);
     } else {
-        const random_state = fillRandomBits(has_timestamp, has_nanos, nanos, &rand_a, &tail62);
-        if (random_state == .ok) {
+        const result = fillRandomBits(has_timestamp, has_nanos, nanos, &rand_a, &tail62);
+        if (result == .random) {
             buildWords(timestamp_ms, rand_a, tail62, hi, lo);
-            return .ok;
+            return;
         }
         advanceMonotonicState(timestamp_ms, &timestamp_ms, &rand_a, &tail62);
     }
 
     buildWords(timestamp_ms, rand_a, tail62, hi, lo);
-    return .ok;
 }
 
 pub fn packBytes(hi: u64, lo: u64, bytes: *[16]u8) void {
@@ -246,7 +230,7 @@ pub fn formatHyphenated(hi: u64, lo: u64, out: *[36]u8) void {
 }
 
 pub fn timestampMs(hi: u64) u64 {
-    return hi >> state.TIMESTAMP_SHIFT;
+    return hi >> TIMESTAMP_SHIFT;
 }
 
 pub fn timeLow(hi: u64) u32 {

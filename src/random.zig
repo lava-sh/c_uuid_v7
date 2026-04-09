@@ -6,6 +6,10 @@ const posix = std.posix;
 
 const state = @import("state.zig");
 
+const RAND_MASK: u64 = 0x3FFF_FFFF_FFFF_FFFF;
+const RESEED_MASK: u64 = (1 << 41) - 1;
+const LOW30_MASK: u64 = (1 << 30) - 1;
+
 pub fn nowMs() u64 {
     const now = time.Instant.now() catch unreachable;
     const timestamp = now.timestamp;
@@ -21,9 +25,8 @@ pub fn nowMs() u64 {
     };
 }
 
-pub fn fillRandom(buf: []u8) state.Status {
-    posix.getrandom(buf) catch return .random_failure;
-    return .ok;
+pub fn fillRandom(buf: []u8) !void {
+    try posix.getrandom(buf);
 }
 
 fn unpackU64Be(bytes: *const [8]u8) u64 {
@@ -36,20 +39,16 @@ fn u64Secure() u64 {
     return unpackU64Be(&bytes);
 }
 
-pub fn ensureSeeded() state.Status {
-    var seed: [24]u8 = undefined;
-
+pub fn ensureSeeded() !void {
     if (state.runtime.prng_seeded) {
-        return .ok;
+        return;
     }
 
-    if (fillRandom(&seed) != .ok) {
-        return .random_failure;
-    }
+    var seed: [24]u8 = undefined;
+    try fillRandom(&seed);
 
     state.runtime.prng.seedWithBuf(seed);
     state.runtime.prng_seeded = true;
-    return .ok;
 }
 
 pub fn reseed() void {
@@ -57,17 +56,16 @@ pub fn reseed() void {
 }
 
 pub fn counter42() u64 {
-    return state.runtime.prng.next() & state.RESEED_MASK;
+    return state.runtime.prng.next() & RESEED_MASK;
 }
 
-pub fn counter42Secure(counter: *u64) state.Status {
-    counter.* = u64Secure() & state.RESEED_MASK;
-    return .ok;
+pub fn counter42Secure(counter: *u64) !void {
+    counter.* = u64Secure() & RESEED_MASK;
 }
 
 pub fn splitCounter42(counter: u64, low32: u32, rand_a: *u16, out_tail62: *u64) void {
     rand_a.* = @intCast(counter >> 30);
-    out_tail62.* = ((counter & state.LOW30_MASK) << 32) | @as(u64, low32);
+    out_tail62.* = ((counter & LOW30_MASK) << 32) | @as(u64, low32);
 }
 
 pub fn nextLow32AndIncrement(low32: *u32, increment: *u64) void {
@@ -77,34 +75,27 @@ pub fn nextLow32AndIncrement(low32: *u32, increment: *u64) void {
     increment.* = 1 + ((random64 >> 32) & 0x0F);
 }
 
-pub fn nextLow32AndIncrementSecure(low32: *u32, increment: *u64) state.Status {
+pub fn nextLow32AndIncrementSecure(low32: *u32, increment: *u64) !void {
     const random64 = u64Secure();
 
     low32.* = @truncate(random64);
     increment.* = 1 + ((random64 >> 32) & 0x0F);
-    return .ok;
 }
 
 pub fn payload(rand_a: *u16, out_tail62: *u64) void {
     splitCounter42(counter42(), @truncate(state.runtime.prng.next()), rand_a, out_tail62);
 }
 
-pub fn payloadSecure(rand_a: *u16, out_tail62: *u64) state.Status {
+pub fn payloadSecure(rand_a: *u16, out_tail62: *u64) !void {
     var counter: u64 = 0;
-
-    if (counter42Secure(&counter) != .ok) {
-        return .random_failure;
-    }
-
+    try counter42Secure(&counter);
     splitCounter42(counter, @truncate(u64Secure()), rand_a, out_tail62);
-    return .ok;
 }
 
 pub fn tail62() u64 {
-    return state.runtime.prng.next() & state.RAND_MASK;
+    return state.runtime.prng.next() & RAND_MASK;
 }
 
-pub fn tail62Secure(out_tail62: *u64) state.Status {
-    out_tail62.* = u64Secure() & state.RAND_MASK;
-    return .ok;
+pub fn tail62Secure(out_tail62: *u64) !void {
+    out_tail62.* = u64Secure() & RAND_MASK;
 }

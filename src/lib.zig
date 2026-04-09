@@ -1,16 +1,28 @@
 const uuid = @import("uuid7.zig");
 const state = @import("state.zig");
 
+fn toStatus(err: anyerror) state.Status {
+    return switch (err) {
+        error.nanos_out_of_range => .nanos_out_of_range,
+        error.timestamp_too_large => .timestamp_too_large,
+        error.random_failure => .random_failure,
+        error.invalid_mode => .invalid_mode,
+        else => .random_failure,
+    };
+}
+
 pub export fn reseed() void {
     uuid.reseed();
 }
 
 pub export fn build_default(mode: state.Mode, hi: *u64, lo: *u64) state.Status {
-    return uuid.buildDefault(mode, hi, lo);
+    uuid.buildDefault(mode, hi, lo) catch |e| return toStatus(e);
+    return .ok;
 }
 
 pub export fn build_parts(timestamp_s: u64, has_timestamp: c_int, nanos: u64, has_nanos: c_int, mode: state.Mode, hi: *u64, lo: *u64) state.Status {
-    return uuid.buildParts(timestamp_s, has_timestamp != 0, nanos, has_nanos != 0, mode, hi, lo);
+    uuid.buildParts(timestamp_s, has_timestamp != 0, nanos, has_nanos != 0, mode, hi, lo) catch |e| return toStatus(e);
+    return .ok;
 }
 
 pub export fn pack_bytes(hi: u64, lo: u64, bytes: *[16]u8) void {
