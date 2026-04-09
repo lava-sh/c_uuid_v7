@@ -6,8 +6,9 @@ import sys
 import uuid
 from typing import Any, Literal
 
-import c_uuid_v7
 import pytest
+
+import c_uuid_v7
 
 Mode = Literal["fast", "secure"]
 
@@ -109,10 +110,10 @@ def test_uuid7_bytes_le_reorders() -> None:
     canonical = uuid_.bytes
 
     assert uuid_.bytes_le == (
-        canonical[3::-1]
-        + canonical[5:3:-1]
-        + canonical[7:5:-1]
-        + canonical[8:]
+            canonical[3::-1]
+            + canonical[5:3:-1]
+            + canonical[7:5:-1]
+            + canonical[8:]
     )
 
 
@@ -221,7 +222,7 @@ def test_uuid_objects_compare_and_hash() -> None:
 @pytest.mark.skipif(
     sys.implementation.name != "cpython",
     reason="Relies on CPython object layout via ctypes.from_address",
-    )
+)
 def test_uuid_hash_never_returns_error_sentinel() -> None:
     uuid_ = c_uuid_v7.uuid7()
     raw_uuid = _UUIDObject.from_address(id(uuid_))
@@ -257,7 +258,7 @@ def test_compat_uuid7_accepts_mode() -> None:
 @pytest.mark.skipif(
     sys.platform == "win32",
     reason="Does not run on Windows",
-    )
+)
 def test_reseed_is_called_when_forking() -> None:
     read_end, write_end = os.pipe()
     c_uuid_v7.uuid7()

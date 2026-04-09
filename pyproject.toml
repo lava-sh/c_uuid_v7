@@ -36,7 +36,7 @@ dependencies = []
 [dependency-groups]
 typos = ["typos == 1.45.0"]
 zizmor = ["zizmor == 1.23.1"]
-rumdl = ["rumdl == 0.1.67"]
+rumdl = ["rumdl == 0.1.68"]
 pytest = ["pytest == 9.0.3"]
 ci = [
     "ty == 0.0.29",
