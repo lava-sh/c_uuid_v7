@@ -8,13 +8,17 @@ const state = @import("state.zig");
 
 pub fn nowMs() u64 {
     const now = time.Instant.now() catch unreachable;
+    const timestamp = now.timestamp;
 
     if (builtin.os.tag == .windows) {
-        return @as(u64, @intCast(now.timestamp / time.ns_per_ms));
+        return @as(u64, @intCast(timestamp / time.ns_per_ms));
     }
 
-    const ns = @as(i128, @intCast(now.timestamp.sec)) * std.time.ns_per_s + @as(i128, now.timestamp.nsec);
-    return @as(u64, @intCast(@divFloor(ns, time.ns_per_ms)));
+    return ms: {
+        const sec = @as(u64, @intCast(timestamp.sec)) * std.time.ms_per_s;
+        const nsec = @as(u64, @intCast(timestamp.nsec)) / std.time.ns_per_ms;
+        break :ms sec + nsec;
+    };
 }
 
 pub fn fillRandom(buf: []u8) state.Status {
