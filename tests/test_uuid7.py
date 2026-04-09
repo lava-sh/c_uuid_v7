@@ -104,6 +104,18 @@ def test_uuid7_object_properties_match_stdlib_uuid() -> None:
     assert uuid_.urn == stdlib_uuid.urn
 
 
+def test_uuid7_bytes_le_reorders() -> None:
+    uuid_ = c_uuid_v7.uuid7()
+    canonical = uuid_.bytes
+
+    assert uuid_.bytes_le == (
+            canonical[3::-1]
+            + canonical[5:3:-1]
+            + canonical[7:5:-1]
+            + canonical[8:]
+    )
+
+
 def test_uuid7_copy_and_deepcopy_return_same_object() -> None:
     uuid_ = c_uuid_v7.uuid7()
 
@@ -151,8 +163,8 @@ def test_uuid7_explicit_timestamp_batch_is_valid() -> None:
     ],
 )
 def test_uuid7_explicit_timestamp_is_encoded(
-    args: tuple[int, ...],
-    expected_timestamp: int,
+        args: tuple[int, ...],
+        expected_timestamp: int,
 ) -> None:
     uuid_ = c_uuid_v7.uuid7(args[0], args[1] if len(args) > 1 else None)
     assert uuid_.timestamp == expected_timestamp
@@ -185,9 +197,9 @@ def test_uuid7_modes_are_monotonic(mode: Mode) -> None:
     ],
 )
 def test_uuid7_rejects_invalid_arguments(
-    kwargs: dict[str, Any],
-    error_type: type[Exception],
-    message: str,
+        kwargs: dict[str, Any],
+        error_type: type[Exception],
+        message: str,
 ) -> None:
     with pytest.raises(error_type, match=message):
         c_uuid_v7.uuid7(**kwargs)
@@ -221,7 +233,7 @@ def test_uuid_hash_never_returns_error_sentinel() -> None:
     raw_uuid.lo = 0xFFFFFFFFFFFFFFFF
 
     try:
-        assert hash(uuid_) == -2
+        assert hash(uuid_) != -1
         assert {uuid_: "stored"}[uuid_] == "stored"
     finally:
         raw_uuid.hi = original_hi

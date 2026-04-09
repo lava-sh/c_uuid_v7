@@ -2,7 +2,7 @@
 
 # c_uuid_v7
 
-*Fast UUID v7 generator implemented as a CPython C extension*
+*Fast UUID v7 generator implemented as a CPython Zig extension*
 
 | 🐍 PyPI                                                                                            | 🐙 GitHub                                                                                               |
 |----------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------|

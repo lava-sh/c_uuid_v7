@@ -20,9 +20,9 @@ else:
 
 
 def uuid7(
-    timestamp: int | None = None,
-    nanos: int | None = None,
-    mode: Literal["fast", "secure"] = "fast",
+        timestamp: int | None = None,
+        nanos: int | None = None,
+        mode: Literal["fast", "secure"] = "fast",
 ) -> UUID:
     """
     Generate a UUIDv7 object.

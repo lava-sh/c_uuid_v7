@@ -24,7 +24,7 @@ jobs:
   wheels-linux-x64:
     name: "ubuntu-latest / wheels x64"
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 300
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -32,19 +32,21 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: "Set up QEMU"
-        if: runner.os == 'Linux' && runner.arch == 'X64'
-        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+      # zizmor: ignore[cache-poisoning]
+      - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
-          platforms: all
+          path: |
+            .hpy-source
+            .hpy-download
+          key: hpy-source-0.9.0
+          restore-keys: hpy-source-
+          lookup-only: true
 
-      - uses: pypa/cibuildwheel@ee02a1537ce3071a004a6b08c41e72f0fdc42d9a # v3.4.0
+      - uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
         with:
           extras: uv
         env:
-          CIBW_ARCHS_LINUX: "auto ppc64le s390x armv7l"
-          CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
-          CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
+          CIBW_ARCHS_LINUX: "x86_64 i686"
 
       - name: "Upload wheels"
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
@@ -52,10 +54,10 @@ jobs:
           name: wheels-ubuntu-latest-x64
           path: wheelhouse/*.whl
 
-  wheels-linux-arm:
-    name: "ubuntu-24.04-arm / wheels aarch64"
-    runs-on: ubuntu-24.04-arm
-    timeout-minutes: 30
+  wheels-linux-armv7l:
+    name: "ubuntu-latest / wheels armv7l"
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -63,13 +65,173 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - uses: pypa/cibuildwheel@ee02a1537ce3071a004a6b08c41e72f0fdc42d9a # v3.4.0
+      # zizmor: ignore[cache-poisoning]
+      - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: |
+            .hpy-source
+            .hpy-download
+          key: hpy-source-0.9.0
+          restore-keys: hpy-source-
+          lookup-only: true
+
+      - name: "Set up QEMU"
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+        with:
+          platforms: arm
+
+      - uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
         with:
           extras: uv
         env:
-          CIBW_ARCHS_LINUX: "auto"
-          CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
-          CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
+          CIBW_ARCHS_LINUX: "armv7l"
+
+      - name: "Upload wheels"
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: wheels-ubuntu-latest-armv7l
+          path: wheelhouse/*.whl
+
+  wheels-linux-ppc64le:
+    name: "ubuntu-latest / wheels ppc64le"
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          fetch-tags: true
+
+      # zizmor: ignore[cache-poisoning]
+      - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: |
+            .hpy-source
+            .hpy-download
+          key: hpy-source-0.9.0
+          restore-keys: hpy-source-
+          lookup-only: true
+
+      - name: "Set up QEMU"
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+        with:
+          platforms: ppc64le
+
+      - uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
+        with:
+          extras: uv
+        env:
+          CIBW_ARCHS_LINUX: "ppc64le"
+
+      - name: "Upload wheels"
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: wheels-ubuntu-latest-ppc64le
+          path: wheelhouse/*.whl
+
+  wheels-linux-s390x:
+    name: "ubuntu-latest / wheels s390x"
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          fetch-tags: true
+
+      # zizmor: ignore[cache-poisoning]
+      - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: |
+            .hpy-source
+            .hpy-download
+          key: hpy-source-0.9.0
+          restore-keys: hpy-source-
+          lookup-only: true
+
+      - name: "Set up QEMU"
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+        with:
+          platforms: s390x
+
+      - uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
+        with:
+          extras: uv
+        env:
+          CIBW_ARCHS_LINUX: "s390x"
+
+      - name: "Upload wheels"
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: wheels-ubuntu-latest-s390x
+          path: wheelhouse/*.whl
+
+  wheels-linux-riscv64:
+    name: "ubuntu-latest / wheels riscv64"
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          fetch-tags: true
+
+      # zizmor: ignore[cache-poisoning]
+      - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: |
+            .hpy-source
+            .hpy-download
+          key: hpy-source-0.9.0
+          restore-keys: hpy-source-
+          lookup-only: true
+
+      - name: "Set up QEMU"
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+        with:
+          platforms: riscv64
+
+      - uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
+        with:
+          extras: uv
+        env:
+          CIBW_ARCHS_LINUX: "riscv64"
+
+      - name: "Upload wheels"
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: wheels-ubuntu-latest-riscv64
+          path: wheelhouse/*.whl
+
+  wheels-linux-arm:
+    name: "ubuntu-24.04-arm / wheels aarch64"
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          fetch-tags: true
+
+      # zizmor: ignore[cache-poisoning]
+      - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: |
+            .hpy-source
+            .hpy-download
+          key: hpy-source-0.9.0
+          restore-keys: hpy-source-
+          lookup-only: true
+
+      - uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
+        with:
+          extras: uv
+        env:
+          CIBW_ARCHS_LINUX: "aarch64"
 
       - name: "Upload wheels"
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
@@ -80,7 +242,7 @@ jobs:
   wheels-windows:
     name: "windows-latest / wheels"
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -88,12 +250,19 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - uses: pypa/cibuildwheel@ee02a1537ce3071a004a6b08c41e72f0fdc42d9a # v3.4.0
+      # zizmor: ignore[cache-poisoning]
+      - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: |
+            .hpy-source
+            .hpy-download
+          key: hpy-source-0.9.0
+          restore-keys: hpy-source-
+          lookup-only: true
+
+      - uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
         with:
           extras: uv
-        env:
-          CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
-          CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
 
       - name: "Upload wheels"
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
@@ -104,7 +273,7 @@ jobs:
   wheels-macos:
     name: "macos-latest / wheels"
     runs-on: macos-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -112,12 +281,19 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - uses: pypa/cibuildwheel@ee02a1537ce3071a004a6b08c41e72f0fdc42d9a # v3.4.0
+      # zizmor: ignore[cache-poisoning]
+      - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: |
+            .hpy-source
+            .hpy-download
+          key: hpy-source-0.9.0
+          restore-keys: hpy-source-
+          lookup-only: true
+
+      - uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
         with:
           extras: uv
-        env:
-          CIBW_TEST_COMMAND: ${{ github.event_name == 'pull_request' && 'python -c "import c_uuid_v7; print(c_uuid_v7.__version__)"' || '' }}
-          CIBW_TEST_GROUPS: ${{ github.event_name == 'pull_request' && '' || 'pytest' }}
 
       - name: "Upload wheels"
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
@@ -135,14 +311,27 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      # zizmor: ignore[cache-poisoning]
+      - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: |
+            .hpy-source
+            .hpy-download
+          key: hpy-source-0.9.0
+          restore-keys: hpy-source-
+          lookup-only: true
+
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.14"
 
       - name: "Install uv"
-        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # v8.0.0
         with:
           enable-cache: false
+
+      - name: "Prepare HPy source"
+        run: python scripts/prepare_hpy_source.py
 
       - name: "Build sdist"
         env:

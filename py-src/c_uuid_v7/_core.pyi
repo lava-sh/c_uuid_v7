@@ -19,7 +19,7 @@ class _UUID:
 
     @property
     def fields(
-        self,
+            self,
     ) -> tuple[
         builtins.int,
         builtins.int,
@@ -81,9 +81,9 @@ class _UUID:
 # |                            rand_b                             |
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 def _uuid7(
-    timestamp: int | None = None,
-    nanos: int | None = None,
-    mode: Literal["fast", "secure"] = "fast",
+        timestamp: int | None = None,
+        nanos: int | None = None,
+        mode: Literal["fast", "secure"] = "fast",
 ) -> _UUID:
     """
     Generate a UUIDv7 object.
