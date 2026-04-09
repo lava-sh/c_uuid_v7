@@ -1,4 +1,3 @@
-const std = @import("std");
 const RomuTrio = @import("romu_trio.zig");
 
 pub const Mode = enum(c_int) {
