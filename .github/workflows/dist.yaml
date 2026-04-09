@@ -54,8 +54,8 @@ jobs:
           name: wheels-ubuntu-latest-x64
           path: wheelhouse/*.whl
 
-  wheels-linux-emulated:
-    name: "ubuntu-latest / wheels emulated"
+  wheels-linux-armv7l:
+    name: "ubuntu-latest / wheels armv7l"
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
@@ -78,24 +78,138 @@ jobs:
       - name: "Set up QEMU"
         uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
         with:
-          platforms: all
+          platforms: arm
 
       - uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
         with:
           extras: uv
         env:
-          CIBW_ARCHS_LINUX: "armv7l ppc64le s390x riscv64"
+          CIBW_ARCHS_LINUX: "armv7l"
 
       - name: "Upload wheels"
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: wheels-ubuntu-latest-emulated
+          name: wheels-ubuntu-latest-armv7l
+          path: wheelhouse/*.whl
+
+  wheels-linux-ppc64le:
+    name: "ubuntu-latest / wheels ppc64le"
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          fetch-tags: true
+
+      # zizmor: ignore[cache-poisoning]
+      - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: |
+            .hpy-source
+            .hpy-download
+          key: hpy-source-0.9.0
+          restore-keys: hpy-source-
+          lookup-only: true
+
+      - name: "Set up QEMU"
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+        with:
+          platforms: ppc64le
+
+      - uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
+        with:
+          extras: uv
+        env:
+          CIBW_ARCHS_LINUX: "ppc64le"
+
+      - name: "Upload wheels"
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: wheels-ubuntu-latest-ppc64le
+          path: wheelhouse/*.whl
+
+  wheels-linux-s390x:
+    name: "ubuntu-latest / wheels s390x"
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          fetch-tags: true
+
+      # zizmor: ignore[cache-poisoning]
+      - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: |
+            .hpy-source
+            .hpy-download
+          key: hpy-source-0.9.0
+          restore-keys: hpy-source-
+          lookup-only: true
+
+      - name: "Set up QEMU"
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+        with:
+          platforms: s390x
+
+      - uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
+        with:
+          extras: uv
+        env:
+          CIBW_ARCHS_LINUX: "s390x"
+
+      - name: "Upload wheels"
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: wheels-ubuntu-latest-s390x
+          path: wheelhouse/*.whl
+
+  wheels-linux-riscv64:
+    name: "ubuntu-latest / wheels riscv64"
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          fetch-tags: true
+
+      # zizmor: ignore[cache-poisoning]
+      - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: |
+            .hpy-source
+            .hpy-download
+          key: hpy-source-0.9.0
+          restore-keys: hpy-source-
+          lookup-only: true
+
+      - name: "Set up QEMU"
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+        with:
+          platforms: riscv64
+
+      - uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
+        with:
+          extras: uv
+        env:
+          CIBW_ARCHS_LINUX: "riscv64"
+
+      - name: "Upload wheels"
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: wheels-ubuntu-latest-riscv64
           path: wheelhouse/*.whl
 
   wheels-linux-arm:
     name: "ubuntu-24.04-arm / wheels aarch64"
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 60
+    timeout-minutes: 300
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
