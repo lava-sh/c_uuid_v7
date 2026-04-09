@@ -7,15 +7,8 @@ const TIMESTAMP_SHIFT: u6 = 16;
 const VERSION_BITS: u64 = 0x7000;
 const VARIANT_BITS: u64 = 0x8000_0000_0000_0000;
 const MAX_TIMESTAMP_MS: u64 = 0xFFFF_FFFF_FFFF;
-const MAX_TIMESTAMP_S: u64 = MAX_TIMESTAMP_MS / 1000;
 const MAX_NANOS: u64 = 1_000_000_000;
 const MAX_COUNTER: u64 = (1 << 42) - 1;
-
-fn validateMode(mode: state.Mode) !void {
-    return switch (mode) {
-        .fast, .secure => {},
-    };
-}
 
 fn validateNanos(nanos: u64) !void {
     if (nanos >= MAX_NANOS) {
@@ -29,15 +22,7 @@ fn buildTimestampMs(timestamp_s: u64, has_timestamp: bool, nanos: u64, has_nanos
         return;
     }
 
-    if (timestamp_s > MAX_TIMESTAMP_S) {
-        return error.timestamp_too_large;
-    }
-
-    var ms = timestamp_s * 1000;
-    if (has_nanos) {
-        ms += nanos / 1_000_000;
-    }
-
+    const ms = timestamp_s * 1000 + if (has_nanos) nanos / 1_000_000 else 0;
     if (ms > MAX_TIMESTAMP_MS) {
         return error.timestamp_too_large;
     }
@@ -48,8 +33,8 @@ fn buildTimestampMs(timestamp_s: u64, has_timestamp: bool, nanos: u64, has_nanos
 fn advanceMonotonicState(observed_ms: u64, timestamp_ms: *u64, rand_a: *u16, tail62: *u64) void {
     var counter = state.runtime.counter42;
     var current_ms = state.runtime.last_timestamp_ms;
-    var increment: u64 = 0;
-    var low32: u32 = 0;
+    var increment: u64 = undefined;
+    var low32: u32 = undefined;
 
     random.nextLow32AndIncrement(&low32, &increment);
 
@@ -73,8 +58,8 @@ fn advanceMonotonicState(observed_ms: u64, timestamp_ms: *u64, rand_a: *u16, tai
 fn advanceMonotonicStateSecure(observed_ms: u64, timestamp_ms: *u64, rand_a: *u16, tail62: *u64) !void {
     var counter = state.runtime.counter42;
     var current_ms = state.runtime.last_timestamp_ms;
-    var increment: u64 = 0;
-    var low32: u32 = 0;
+    var increment: u64 = undefined;
+    var low32: u32 = undefined;
 
     try random.nextLow32AndIncrementSecure(&low32, &increment);
 
@@ -107,11 +92,10 @@ pub fn reseed() void {
 }
 
 pub fn buildDefault(mode: state.Mode, hi: *u64, lo: *u64) !void {
-    var timestamp_ms: u64 = 0;
-    var tail62: u64 = 0;
-    var rand_a: u16 = 0;
+    var timestamp_ms: u64 = undefined;
+    var tail62: u64 = undefined;
+    var rand_a: u16 = undefined;
 
-    try validateMode(mode);
     try random.ensureSeeded();
 
     if (mode == .secure) {
@@ -156,11 +140,10 @@ fn fillRandomBitsSecure(has_timestamp: bool, has_nanos: bool, nanos: u64, rand_a
 }
 
 pub fn buildParts(timestamp_s: u64, has_timestamp: bool, nanos: u64, has_nanos: bool, mode: state.Mode, hi: *u64, lo: *u64) !void {
-    var timestamp_ms: u64 = 0;
-    var tail62: u64 = 0;
-    var rand_a: u16 = 0;
+    var timestamp_ms: u64 = undefined;
+    var tail62: u64 = undefined;
+    var rand_a: u16 = undefined;
 
-    try validateMode(mode);
     try random.ensureSeeded();
     if (has_nanos) {
         try validateNanos(nanos);
@@ -275,14 +258,10 @@ pub fn compare(left_hi: u64, left_lo: u64, right_hi: u64, right_lo: u64) c_int {
 
 pub fn hash(hi: u64, lo: u64) isize {
     const mixed = hi ^ (hi >> 32) ^ lo ^ (lo >> 32);
-    var result: isize = if (@bitSizeOf(isize) == 64)
+    const raw: isize = if (@bitSizeOf(isize) == 64)
         @bitCast(mixed)
     else
         @bitCast(@as(u32, @truncate(mixed ^ (mixed >> 32))));
 
-    if (result == -1) {
-        result = -2;
-    }
-
-    return result;
+    return if (raw == -1) -2 else raw;
 }

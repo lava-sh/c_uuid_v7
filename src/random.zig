@@ -25,30 +25,20 @@ pub fn nowMs() u64 {
     };
 }
 
-pub fn fillRandom(buf: []u8) !void {
-    try posix.getrandom(buf);
-}
+pub fn ensureSeeded() !void {
+    if (state.runtime.prng_seeded) return;
 
-fn unpackU64Be(bytes: *const [8]u8) u64 {
-    return std.mem.readInt(u64, bytes, .big);
+    var seed: [24]u8 = undefined;
+    try posix.getrandom(&seed);
+
+    state.runtime.prng.seedWithBuf(seed);
+    state.runtime.prng_seeded = true;
 }
 
 fn u64Secure() u64 {
     var bytes: [8]u8 = undefined;
     std.crypto.random.bytes(&bytes);
-    return unpackU64Be(&bytes);
-}
-
-pub fn ensureSeeded() !void {
-    if (state.runtime.prng_seeded) {
-        return;
-    }
-
-    var seed: [24]u8 = undefined;
-    try fillRandom(&seed);
-
-    state.runtime.prng.seedWithBuf(seed);
-    state.runtime.prng_seeded = true;
+    return std.mem.readInt(u64, &bytes, .big);
 }
 
 pub fn reseed() void {

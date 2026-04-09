@@ -10,10 +10,10 @@ y_state: u64,
 z_state: u64,
 
 pub fn seedWithBuf(self: *RomuTrio, buf: [24]u8) void {
-    const seed_buf = @as([3]u64, @bitCast(buf));
-    self.x_state = seed_buf[0];
-    self.y_state = seed_buf[1];
-    self.z_state = seed_buf[2];
+    const seeds: [3]u64 = @bitCast(buf);
+    self.x_state = seeds[0];
+    self.y_state = seeds[1];
+    self.z_state = seeds[2];
 }
 
 pub fn next(self: *RomuTrio) u64 {

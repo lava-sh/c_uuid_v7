@@ -1,12 +1,5 @@
 const RomuTrio = @import("romu_trio.zig");
 
-pub const Error = error{
-    nanos_out_of_range,
-    timestamp_too_large,
-    random_failure,
-    invalid_mode,
-};
-
 pub const Mode = enum(c_int) {
     fast = 0,
     secure = 1,
