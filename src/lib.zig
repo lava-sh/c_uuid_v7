@@ -10,7 +10,7 @@ pub export fn build_default(mode: state.Mode, hi: *u64, lo: *u64) state.Status {
 }
 
 pub export fn build_parts(timestamp_s: u64, has_timestamp: c_int, nanos: u64, has_nanos: c_int, mode: state.Mode, hi: *u64, lo: *u64) state.Status {
-    return uuid.buildParts(timestamp_s, has_timestamp, nanos, has_nanos, mode, hi, lo);
+    return uuid.buildParts(timestamp_s, has_timestamp != 0, nanos, has_nanos != 0, mode, hi, lo);
 }
 
 pub export fn pack_bytes(hi: u64, lo: u64, bytes: *[16]u8) void {

@@ -159,9 +159,7 @@ fn fillRandomBitsSecure(has_timestamp: bool, has_nanos: bool, nanos: u64, rand_a
     return @enumFromInt(1);
 }
 
-pub fn buildParts(timestamp_s: u64, has_timestamp: c_int, nanos: u64, has_nanos: c_int, mode: state.Mode, hi: *u64, lo: *u64) state.Status {
-    const have_timestamp = has_timestamp != 0;
-    const have_nanos = has_nanos != 0;
+pub fn buildParts(timestamp_s: u64, has_timestamp: bool, nanos: u64, has_nanos: bool, mode: state.Mode, hi: *u64, lo: *u64) state.Status {
     var timestamp_ms: u64 = 0;
     var tail62: u64 = 0;
     var rand_a: u16 = 0;
@@ -172,15 +170,15 @@ pub fn buildParts(timestamp_s: u64, has_timestamp: c_int, nanos: u64, has_nanos:
     if (random.ensureSeeded() != .ok) {
         return .random_failure;
     }
-    if (have_nanos and validateNanos(nanos) != .ok) {
+    if (has_nanos and validateNanos(nanos) != .ok) {
         return .nanos_out_of_range;
     }
-    if (buildTimestampMs(timestamp_s, have_timestamp, nanos, have_nanos, &timestamp_ms) != .ok) {
+    if (buildTimestampMs(timestamp_s, has_timestamp, nanos, has_nanos, &timestamp_ms) != .ok) {
         return .timestamp_too_large;
     }
 
     if (mode == .secure) {
-        const random_state = fillRandomBitsSecure(have_timestamp, have_nanos, nanos, &rand_a, &tail62);
+        const random_state = fillRandomBitsSecure(has_timestamp, has_nanos, nanos, &rand_a, &tail62);
         if (random_state == .ok) {
             buildWords(timestamp_ms, rand_a, tail62, hi, lo);
             return .ok;
@@ -192,7 +190,7 @@ pub fn buildParts(timestamp_s: u64, has_timestamp: c_int, nanos: u64, has_nanos:
             return .random_failure;
         }
     } else {
-        const random_state = fillRandomBits(have_timestamp, have_nanos, nanos, &rand_a, &tail62);
+        const random_state = fillRandomBits(has_timestamp, has_nanos, nanos, &rand_a, &tail62);
         if (random_state == .ok) {
             buildWords(timestamp_ms, rand_a, tail62, hi, lo);
             return .ok;
