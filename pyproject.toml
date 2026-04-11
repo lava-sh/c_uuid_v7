@@ -161,3 +161,7 @@ test-skip = "*-win_arm64"
 [[tool.cibuildwheel.overrides]]
 select = "cp3{13,14}-*"
 test-environment = { PYTHONMALLOC = "mimalloc" }
+
+[[tool.cibuildwheel.overrides]]
+select = "*-musllinux_{ppc64le,s390x}"
+build-frontend = "build"
