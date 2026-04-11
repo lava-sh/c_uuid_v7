@@ -8,10 +8,12 @@
 #ifdef _WIN32
     #define WIN32_LEAN_AND_MEAN
 
-    #include <intrin.h>
     #include <windows.h>
 
-    #pragma intrinsic(_umul128)
+    #if defined(_M_X64)
+        #include <intrin.h>
+        #pragma intrinsic(_umul128)
+    #endif
 
 extern uint64_t epoch_base_ms;
 extern uint64_t tick_base_ms;
