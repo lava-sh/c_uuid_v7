@@ -91,14 +91,7 @@ class ZigBuildExt(build_ext):
         command.extend(str(Path(source)) for source in ext.sources)
 
         library_dirs = list(ext.library_dirs or [])
-        libdir = sysconfig.get_config_var("LIBDIR")
-        if libdir:
-            library_dirs.append(libdir)
-
-        python_home = Path(sys.executable).resolve().parent.parent
-        candidate_libdir = python_home / "libs"
-        if candidate_libdir.is_dir():
-            library_dirs.append(str(candidate_libdir))
+        library_dirs.extend(self._python_library_dirs())
 
         seen_library_dirs: set[str] = set()
         for directory in library_dirs:
@@ -110,10 +103,11 @@ class ZigBuildExt(build_ext):
             seen_library_dirs.add(resolved)
             command.extend(["-L", resolved])
 
+        python_import_library = self._python_import_library()
+        if python_import_library is not None:
+            command.append(str(python_import_library))
+
         libraries = list(ext.libraries or [])
-        python_library = self._python_library_name()
-        if python_library is not None:
-            libraries.append(python_library)
         if any(Path(source).name == "windows.c" for source in ext.sources):
             libraries.append("advapi32")
 
@@ -160,18 +154,58 @@ class ZigBuildExt(build_ext):
         return targets.get(plat_name)
 
     @staticmethod
-    def _python_library_name() -> str | None:
-        version = sysconfig.get_python_version().replace(".", "")
-        libdir = sysconfig.get_config_var("LIBDIR")
-        if libdir:
-            for stem in (f"python{version}", "python3"):
-                if (Path(libdir) / f"{stem}.lib").is_file():
-                    return stem
+    def _python_library_dirs() -> list[str]:
+        directories: list[str] = []
+        seen: set[str] = set()
 
-        python_home = Path(sys.executable).resolve().parent.parent / "libs"
-        for stem in (f"python{version}", "python3"):
-            if (python_home / f"{stem}.lib").is_file():
-                return stem
+        roots = [
+            Path(sys.prefix),
+            Path(sys.base_prefix),
+            Path(sys.exec_prefix),
+            Path(sys.base_exec_prefix),
+            Path(sys.executable).resolve().parent,
+            Path(sys.executable).resolve().parent.parent,
+        ]
+
+        for key in ("BINDIR", "LIBDIR", "LIBPL", "installed_base", "installed_platbase", "base", "platbase"):
+            value = sysconfig.get_config_var(key)
+            if value:
+                roots.append(Path(value))
+
+        for key in ("include", "platinclude", "stdlib", "platstdlib", "scripts"):
+            value = sysconfig.get_path(key)
+            if value:
+                roots.append(Path(value))
+
+        candidates: list[Path] = []
+        for root in roots:
+            candidates.extend(
+                [
+                    root,
+                    root / "libs",
+                    root / "Libs",
+                    root.parent / "libs",
+                    root.parent / "Libs",
+                ]
+            )
+
+        for directory in candidates:
+            resolved = str(directory)
+            if resolved in seen or not directory.is_dir():
+                continue
+            seen.add(resolved)
+            directories.append(resolved)
+
+        return directories
+
+    @classmethod
+    def _python_import_library(cls) -> Path | None:
+        version = sysconfig.get_python_version().replace(".", "")
+        for directory in cls._python_library_dirs():
+            for stem in (f"python{version}", "python3"):
+                candidate = Path(directory) / f"{stem}.lib"
+                if candidate.is_file():
+                    return candidate
 
         return None
 
