@@ -21,22 +21,42 @@ def _filter_zig_unix_args(args: list[str]) -> list[str]:
     blocked = {
         "-Wl,-Bsymbolic-functions",
     }
-    return [arg for arg in args if arg not in blocked]
+    filtered: list[str] = []
+    skip_next = False
+    for arg in args:
+        if skip_next:
+            skip_next = False
+            continue
+        if arg == "-arch":
+            skip_next = True
+            continue
+        if arg in blocked:
+            continue
+        filtered.append(arg)
+    return filtered
 
 
 class ZigBuildExt(build_ext):
     def build_extensions(self) -> None:
         zig = self._find_zig()
         if zig is not None and os.name != "nt" and self.compiler.compiler_type == "unix":
+            if sys.platform == "darwin" and self._darwin_target() is None:
+                super().build_extensions()
+                return
+
             compiler = list(self.compiler.compiler)
             compiler_so = list(self.compiler.compiler_so)
             linker_so = list(self.compiler.linker_so)
             linker_exe = list(self.compiler.linker_exe)
+            prefix = [zig, "cc"]
+            target = self._zig_unix_target()
+            if target is not None:
+                prefix.extend(["-target", target])
 
-            self.compiler.compiler = [zig, "cc", *compiler[1:]]
-            self.compiler.compiler_so = [zig, "cc", *compiler_so[1:]]
-            self.compiler.linker_so = [zig, "cc", *_filter_zig_unix_args(linker_so[1:])]
-            self.compiler.linker_exe = [zig, "cc", *_filter_zig_unix_args(linker_exe[1:])]
+            self.compiler.compiler = [*prefix, *_filter_zig_unix_args(compiler[1:])]
+            self.compiler.compiler_so = [*prefix, *_filter_zig_unix_args(compiler_so[1:])]
+            self.compiler.linker_so = [*prefix, *_filter_zig_unix_args(linker_so[1:])]
+            self.compiler.linker_exe = [*prefix, *_filter_zig_unix_args(linker_exe[1:])]
         super().build_extensions()
 
     def build_extension(self, ext) -> None:
@@ -152,6 +172,21 @@ class ZigBuildExt(build_ext):
             "win-arm64": "aarch64-windows-msvc",
         }
         return targets.get(plat_name)
+
+    def _zig_unix_target(self) -> str | None:
+        if sys.platform != "darwin":
+            return None
+        return self._darwin_target()
+
+    def _darwin_target(self) -> str | None:
+        plat_name = self.plat_name or self.get_platform()
+        if "universal2" in plat_name:
+            return None
+        if "arm64" in plat_name:
+            return "aarch64-macos"
+        if "x86_64" in plat_name:
+            return "x86_64-macos"
+        return None
 
     @staticmethod
     def _python_library_dirs() -> list[str]:
