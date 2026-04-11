@@ -165,4 +165,4 @@ test-environment = { PYTHONMALLOC = "mimalloc" }
 [[tool.cibuildwheel.overrides]]
 # uv is not available in these images
 build-frontend = "build"
-select = "*-musllinux_{ppc64le,s390x}"
+select = "*-musllinux_{ppc64le,s390x,riscv64}"
