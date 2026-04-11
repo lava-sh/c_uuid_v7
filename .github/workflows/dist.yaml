@@ -22,7 +22,7 @@ env:
 
 jobs:
   wheels-linux-x64:
-    name: "ubuntu-latest / wheels x86_64 i686"
+    name: "ubuntu-latest / wheels / x86_64, i686"
     runs-on: ubuntu-latest
     timeout-minutes: 300
     steps:
@@ -45,7 +45,7 @@ jobs:
           path: wheelhouse/*.whl
 
   wheels-linux-arm64:
-    name: "ubuntu-24.04-arm / wheels aarch64"
+    name: "ubuntu-24.04-arm / wheels / aarch64"
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 300
     steps:
@@ -68,7 +68,7 @@ jobs:
           path: wheelhouse/*.whl
 
   wheels-linux-armv7l:
-    name: "ubuntu-24.04-arm / wheels armv7l"
+    name: "ubuntu-24.04-arm / wheels / armv7l"
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 60
     steps:
@@ -96,7 +96,7 @@ jobs:
           path: wheelhouse/*.whl
 
   wheels-linux-ppc64le:
-    name: "ubuntu-24.04-arm / wheels ppc64le"
+    name: "ubuntu-24.04-arm / wheels / ppc64le"
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 60
     steps:
@@ -124,7 +124,7 @@ jobs:
           path: wheelhouse/*.whl
 
   wheels-linux-s390x:
-    name: "ubuntu-24.04-arm / wheels s390x"
+    name: "ubuntu-24.04-arm / wheels / s390x"
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 60
     steps:
@@ -152,7 +152,7 @@ jobs:
           path: wheelhouse/*.whl
 
   wheels-linux-riscv64:
-    name: "ubuntu-24.04-arm / wheels riscv64"
+    name: "ubuntu-24.04-arm / wheels / riscv64"
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 60
     steps:
@@ -180,7 +180,7 @@ jobs:
           path: wheelhouse/*.whl
 
   wheels-windows:
-    name: "windows-latest / wheels AMD64 x86"
+    name: "windows-latest / wheels / AMD64, x86"
     runs-on: windows-latest
     timeout-minutes: 60
     steps:
@@ -203,7 +203,7 @@ jobs:
           path: wheelhouse/*.whl
 
   wheels-windows-arm64:
-    name: "windows-11-arm / wheels ARM64"
+    name: "windows-11-arm / wheels / ARM64"
     runs-on: windows-11-arm
     timeout-minutes: 60
     steps:
@@ -226,7 +226,7 @@ jobs:
           path: wheelhouse/*.whl
 
   wheels-macos:
-    name: "macos-latest / wheels x86_64 arm64 universal2"
+    name: "macos-latest / wheels / x86_64, arm64, universal2"
     runs-on: macos-latest
     timeout-minutes: 60
     steps:

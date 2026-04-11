@@ -163,5 +163,6 @@ select = "cp3{13,14}-*"
 test-environment = { PYTHONMALLOC = "mimalloc" }
 
 [[tool.cibuildwheel.overrides]]
-select = "*-musllinux_{ppc64le,s390x}"
+# uv is not available in these images
 build-frontend = "build"
+select = "*-musllinux_{ppc64le,s390x}"
