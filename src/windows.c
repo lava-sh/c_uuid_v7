@@ -3,8 +3,7 @@
 // clang-format off
 #include "platform.h"
 
-#include <bcrypt.h>
-#pragma comment(lib, "bcrypt.lib")
+#pragma comment(lib, "advapi32.lib")
 // clang-format on
 
 uint64_t epoch_base_ms = 0;
@@ -21,9 +20,10 @@ uint64_t system_ms(void) {
     return (ticks.QuadPart - 116444736000000000ULL) / 10000ULL;
 }
 
+BOOLEAN WINAPI SystemFunction036(PVOID, ULONG);
+
 int fill_random(unsigned char *buf, const Py_ssize_t len) {
-    const NTSTATUS status = BCryptGenRandom(NULL, buf, (ULONG)len, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
-    return status >= 0 ? 0 : -1;
+    return SystemFunction036(buf, (ULONG)len) ? 0 : -1;
 }
 
 void platform_seeded(void) {
