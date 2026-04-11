@@ -39,7 +39,7 @@ jobs:
           CIBW_ARCHS_LINUX: "x86_64 i686"
 
       - name: "Upload wheels"
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: wheels-ubuntu-latest-x64
           path: wheelhouse/*.whl
@@ -62,7 +62,7 @@ jobs:
           CIBW_ARCHS_LINUX: "aarch64"
 
       - name: "Upload wheels"
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: wheels-ubuntu-24.04-arm64
           path: wheelhouse/*.whl
@@ -90,7 +90,7 @@ jobs:
           CIBW_ARCHS_LINUX: "armv7l"
 
       - name: "Upload wheels"
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: wheels-ubuntu-24.04-armv7l
           path: wheelhouse/*.whl
@@ -118,7 +118,7 @@ jobs:
           CIBW_ARCHS_LINUX: "ppc64le"
 
       - name: "Upload wheels"
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: wheels-ubuntu-24.04-ppc64le
           path: wheelhouse/*.whl
@@ -146,7 +146,7 @@ jobs:
           CIBW_ARCHS_LINUX: "s390x"
 
       - name: "Upload wheels"
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: wheels-ubuntu-24.04-s390x
           path: wheelhouse/*.whl
@@ -174,7 +174,7 @@ jobs:
           CIBW_ARCHS_LINUX: "riscv64"
 
       - name: "Upload wheels"
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: wheels-ubuntu-24.04-riscv64
           path: wheelhouse/*.whl
@@ -197,7 +197,7 @@ jobs:
           CIBW_ARCHS_WINDOWS: "AMD64 x86"
 
       - name: "Upload wheels"
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: wheels-windows-latest
           path: wheelhouse/*.whl
@@ -220,7 +220,7 @@ jobs:
           CIBW_ARCHS_WINDOWS: "ARM64"
 
       - name: "Upload wheels"
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: wheels-windows-11-arm
           path: wheelhouse/*.whl
@@ -243,7 +243,7 @@ jobs:
           CIBW_ARCHS_MACOS: "x86_64 arm64 universal2"
 
       - name: "Upload wheels"
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: wheels-macos-latest
           path: wheelhouse/*.whl
@@ -273,7 +273,7 @@ jobs:
         run: uv build --sdist
 
       - name: "Upload sdist"
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: sdist
           path: dist/*.tar.gz
