@@ -17,6 +17,13 @@ def _split_flags(value: str | None) -> list[str]:
     return shlex.split(value, posix=os.name != "nt")
 
 
+def _filter_zig_unix_args(args: list[str]) -> list[str]:
+    blocked = {
+        "-Wl,-Bsymbolic-functions",
+    }
+    return [arg for arg in args if arg not in blocked]
+
+
 class ZigBuildExt(build_ext):
     def build_extensions(self) -> None:
         zig = self._find_zig()
@@ -28,8 +35,8 @@ class ZigBuildExt(build_ext):
 
             self.compiler.compiler = [zig, "cc", *compiler[1:]]
             self.compiler.compiler_so = [zig, "cc", *compiler_so[1:]]
-            self.compiler.linker_so = [zig, "cc", *linker_so[1:]]
-            self.compiler.linker_exe = [zig, "cc", *linker_exe[1:]]
+            self.compiler.linker_so = [zig, "cc", *_filter_zig_unix_args(linker_so[1:])]
+            self.compiler.linker_exe = [zig, "cc", *_filter_zig_unix_args(linker_exe[1:])]
         super().build_extensions()
 
     def build_extension(self, ext) -> None:
