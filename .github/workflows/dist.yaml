@@ -22,9 +22,9 @@ env:
 
 jobs:
   wheels-linux-x64:
-    name: "ubuntu-latest / wheels x64"
+    name: "ubuntu-latest"
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 300
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -45,9 +45,9 @@ jobs:
           path: wheelhouse/*.whl
 
   wheels-linux-arm64:
-    name: "ubuntu-24.04-arm / wheels aarch64"
+    name: "ubuntu-24.04-arm"
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 60
+    timeout-minutes: 300
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -64,11 +64,11 @@ jobs:
       - name: "Upload wheels"
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: wheels-ubuntu-24.04-arm
+          name: wheels-ubuntu-24.04-arm64
           path: wheelhouse/*.whl
 
   wheels-linux-armv7l:
-    name: "ubuntu-24.04-arm / wheels armv7l"
+    name: "ubuntu-24.04-arm"
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 60
     steps:
@@ -96,7 +96,7 @@ jobs:
           path: wheelhouse/*.whl
 
   wheels-linux-ppc64le:
-    name: "ubuntu-24.04-arm / wheels ppc64le"
+    name: "ubuntu-24.04-arm"
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 60
     steps:
@@ -124,7 +124,7 @@ jobs:
           path: wheelhouse/*.whl
 
   wheels-linux-s390x:
-    name: "ubuntu-24.04-arm / wheels s390x"
+    name: "ubuntu-24.04-arm"
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 60
     steps:
@@ -152,7 +152,7 @@ jobs:
           path: wheelhouse/*.whl
 
   wheels-linux-riscv64:
-    name: "ubuntu-24.04-arm / wheels riscv64"
+    name: "ubuntu-24.04-arm"
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 60
     steps:
@@ -180,7 +180,7 @@ jobs:
           path: wheelhouse/*.whl
 
   wheels-windows:
-    name: "windows-latest / wheels"
+    name: "windows-latest"
     runs-on: windows-latest
     timeout-minutes: 60
     steps:
@@ -193,6 +193,8 @@ jobs:
       - uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
         with:
           extras: uv
+        env:
+          CIBW_ARCHS_WINDOWS: "AMD64 x86"
 
       - name: "Upload wheels"
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
@@ -200,8 +202,31 @@ jobs:
           name: wheels-windows-latest
           path: wheelhouse/*.whl
 
+  wheels-windows-arm64:
+    name: "windows-11-arm"
+    runs-on: windows-11-arm
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
+        with:
+          extras: uv
+        env:
+          CIBW_ARCHS_WINDOWS: "ARM64"
+
+      - name: "Upload wheels"
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: wheels-windows-11-arm
+          path: wheelhouse/*.whl
+
   wheels-macos:
-    name: "macos-latest / wheels"
+    name: "macos-latest"
     runs-on: macos-latest
     timeout-minutes: 60
     steps:
@@ -214,6 +239,8 @@ jobs:
       - uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
         with:
           extras: uv
+        env:
+          CIBW_ARCHS_MACOS: "x86_64 arm64 universal2"
 
       - name: "Upload wheels"
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
@@ -222,7 +249,7 @@ jobs:
           path: wheelhouse/*.whl
 
   sdist:
-    name: "sdist"
+    name: "ubuntu-latest"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
