@@ -29,7 +29,7 @@ static inline uint64_t wy_mix(uint64_t a, uint64_t b) {
 #elif defined(_MSC_VER) && defined(_M_X64)
     #include <intrin.h>
     #pragma intrinsic(_umul128)
-static inline uint64_t wy_mix(uint64_t a, uint64_t b) {
+static uint64_t wy_mix(const uint64_t a, const uint64_t b) {
     uint64_t hi;
     _umul128(a, b, &hi);
     return hi ^ a * b;

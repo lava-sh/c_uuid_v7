@@ -104,19 +104,18 @@ class ZigBuildExt(build_ext):
                 *extra,
                 *_filter_zig_unix_args(compiler_so[1:]),
             ]
-            if sys.platform != "darwin":
-                linker_so = list(self.compiler.linker_so)
-                linker_exe = list(self.compiler.linker_exe)
-                self.compiler.linker_so = [
-                    *prefix,
-                    *extra,
-                    *_filter_zig_unix_args(linker_so[1:]),
-                ]
-                self.compiler.linker_exe = [
-                    *prefix,
-                    *extra,
-                    *_filter_zig_unix_args(linker_exe[1:]),
-                ]
+            linker_so = list(self.compiler.linker_so)
+            linker_exe = list(self.compiler.linker_exe)
+            self.compiler.linker_so = [
+                *prefix,
+                *extra,
+                *_filter_zig_unix_args(linker_so[1:]),
+            ]
+            self.compiler.linker_exe = [
+                *prefix,
+                *extra,
+                *_filter_zig_unix_args(linker_exe[1:]),
+            ]
         super().build_extensions()
 
     def build_extension(self, ext: Extension) -> None:
