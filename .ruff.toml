@@ -67,6 +67,7 @@ ignore = [
     ########
     "PLR0912", # too many branches
     "PLR0915", # too many statements
+    "PLR1702",
 ]
 
 [lint.flake8-tidy-imports.banned-api]

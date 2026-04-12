@@ -149,29 +149,7 @@ class ZigBuildExt(build_ext):
             )
 
             if sys.platform == "darwin":
-                clang = shutil.which("clang")
-                if clang:
-                    linker_args = [clang]
-                    result = subprocess.run(
-                        [
-                            clang,
-                            "-Wl,-no_warn_version_mismatches",
-                            "-shared",
-                            "-o",
-                            os.devnull,
-                            "-x",
-                            "c",
-                            "-",
-                        ],
-                        check=False,
-                        input="",
-                        capture_output=True,
-                        text=True,
-                    )
-                    if result.returncode == 0 or "unknown option" not in result.stderr:
-                        linker_args.append("-Wl,-no_warn_version_mismatches")
-                    _set_compiler(self.compiler, "linker_so", linker_args)
-                    _set_compiler(self.compiler, "linker_exe", linker_args)
+                self._configure_darwin_linker()
             else:
                 _set_compiler(self.compiler, "linker_so", prefix)
                 _set_compiler(self.compiler, "linker_exe", prefix)
@@ -244,6 +222,43 @@ class ZigBuildExt(build_ext):
         if "x86_64" in plat_name:
             return "x86_64-macos"
         return None
+
+    @staticmethod
+    def _supports_linker_flag(clang: str, flag: str) -> bool:
+        result = subprocess.run(
+            [
+                clang,
+                flag,
+                "-shared",
+                "-o",
+                os.devnull,
+                "-x",
+                "c",
+                "-",
+            ],
+            check=False,
+            input="",
+            capture_output=True,
+            text=True,
+        )
+        return result.returncode == 0 or "unknown option" not in result.stderr
+
+    def _configure_darwin_linker(self) -> None:
+        clang = shutil.which("clang")
+        if not clang:
+            return
+        linker_flag = "-Wl,-no_warn_version_mismatches"
+        supports_flag = self._supports_linker_flag(clang, linker_flag)
+        if supports_flag:
+            for ext in self.extensions:
+                extra_link_args = list(ext.extra_link_args or [])
+                if linker_flag not in extra_link_args:
+                    ext.extra_link_args = [*extra_link_args, linker_flag]
+        linker_args = [clang]
+        if supports_flag:
+            linker_args.append(linker_flag)
+        _set_compiler(self.compiler, "linker_so", linker_args)
+        _set_compiler(self.compiler, "linker_exe", linker_args)
 
     @staticmethod
     def _windows_arch_macro(target: str | None) -> list[str]:
