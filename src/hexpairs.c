@@ -1,7 +1,5 @@
 #include "hexpairs.h"
 
-#include <assert.h>
-
 _Static_assert(sizeof(uint16_t) == 2U, "uint16_t must be 16-bit");
 
 #if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
