@@ -110,7 +110,7 @@ def _python_paths() -> list[str]:
             root / "libs",
             root / "Libs",
             root.parent / "libs",
-            root.parent / "Libs"
+            root.parent / "Libs",
         ])
     return _iter_unique_paths(candidates, existing_only=True)
 
