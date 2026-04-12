@@ -50,19 +50,20 @@ ignore = [
 "py-src/c_uuid_v7/_core.pyi" = ["PYI021"]
 # tests
 "tests/**.py" = [
-    "S101",    # Check `assert`'s
-    "PLR2004", # Check magic value's
+    "S101",    # Check `assert`
+    "PLR2004", # Check magic values
     "FURB171", # Check for membership tests against single-item containers
 ]
 # benchmark
 "benchmark/**.py" = [
-    "INP001",
+    "INP001", # Check for packages that are missing an `__init__.py` file
 ]
 "setup.py" = [
-    "C901",
-    "PLR0912",
-    "PLR0915",
-    "B009",
+    "B009",    # Check for uses of `getattr` that take a constant attribute value as an argument
+    "C901",    # Check for functions with a high McCabe complexity
+    ########
+    "PLR0912", # too many branches
+    "PLR0915", # too many statements
 ]
 
 [lint.flake8-tidy-imports.banned-api]
