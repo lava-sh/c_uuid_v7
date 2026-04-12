@@ -47,7 +47,7 @@ def _iter_unique_paths(
         *,
         existing_only: bool = False,
 ) -> list[str]:
-    seen: set[str] = set()
+    seen = set()
     result = []
     for path in paths:
         if not path:
@@ -75,16 +75,16 @@ def _extend_with_prefixed_paths(
 
 def _extend_with_unique_libraries(
         command: list[str],
-        libraries: list[str | None],
+        libraries: list[str],
 ) -> None:
     seen = set()
     for library in libraries:
-        if library and library not in seen:
+        if library not in seen:
             seen.add(library)
             command.append(f"-l{library}")
 
 
-def _python_paths() -> list[str | Path | None]:
+def _python_paths() -> list[str]:
     roots = [
         Path(sys.prefix),
         Path(sys.base_prefix),
@@ -110,7 +110,7 @@ def _python_paths() -> list[str | Path | None]:
             root / "libs",
             root / "Libs",
             root.parent / "libs",
-            root.parent / "Libs",
+            root.parent / "Libs"
         ])
     return _iter_unique_paths(candidates, existing_only=True)
 
@@ -186,12 +186,10 @@ class ZigBuildExt(build_ext):
 
     @staticmethod
     def _find_zig() -> str | None:
-        return (
-                shutil.which("python-zig") or shutil.which("zig")
-        )
+        return shutil.which("python-zig") or shutil.which("zig")
 
     def _windows_target(self) -> str | None:
-        plat_name = self.plat_name or self.get_platform()
+        plat_name = self.plat_name or getattr(self, "get_platform")()
         return {
             "win32": "x86-windows-msvc",
             "win-amd64": "x86_64-windows-msvc",
@@ -202,7 +200,7 @@ class ZigBuildExt(build_ext):
         return None if sys.platform != "darwin" else self._darwin_target()
 
     def _darwin_target(self) -> str | None:
-        plat_name = self.plat_name or self.get_platform()
+        plat_name = self.plat_name or getattr(self, "get_platform")()
         if "universal2" in plat_name:
             return None
         if "arm64" in plat_name:
@@ -213,6 +211,8 @@ class ZigBuildExt(build_ext):
 
     @staticmethod
     def _windows_arch_macro(target: str | None) -> list[str]:
+        if target is None:
+            return []
         macro = {
             "x86-windows-msvc": "-D_X86_",
             "x86_64-windows-msvc": "-D_AMD64_",
@@ -258,7 +258,8 @@ class ZigBuildExt(build_ext):
         for name in (
                 "lib.lib",
                 "lib.exp",
-                f"{ext_path.stem}.lib", f"{ext_path.stem}.exp",
+                f"{ext_path.stem}.lib",
+                f"{ext_path.stem}.exp",
         ):
             artifact = ext_path.parent / name
             if artifact.exists():
