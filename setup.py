@@ -168,7 +168,7 @@ class ZigBuildExt(build_ext):
         command = self._zig_cc_prefix(zig, target)
         command.extend(self._optimization_flags())
         command.extend(self._windows_arch_macro(target))
-        command.extend(["-Wno-empty-translation-unit", "-shared"])
+        command.extend(["-Wno-empty-translation-unit", "-Wno-visibility", "-shared"])
         command.extend(self._macro_flags(ext))
         _extend_with_prefixed_paths(command, "-I", self._include_dirs(ext))
 
