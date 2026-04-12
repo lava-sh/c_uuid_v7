@@ -253,8 +253,7 @@ class ZigBuildExt(build_ext):
             if artifact.exists():
                 artifact.unlink()
 
-    @classmethod
-    def _python_import_library(cls) -> Path | None:
+    def _python_import_library(self) -> Path | None:
         version = sysconfig.get_python_version().replace(".", "")
         for directory in _python_paths():
             for stem in (f"python{version}", "python3"):
