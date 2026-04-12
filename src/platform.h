@@ -11,7 +11,7 @@
     #include <realtimeapiset.h>
     #include <windows.h>
 
-    #if defined(_M_X64)
+    #if defined(_MSC_VER) && defined(_M_X64)
         #include <intrin.h>
         #pragma intrinsic(_umul128)
     #endif
@@ -26,13 +26,7 @@ int fill_random(unsigned char *buf, Py_ssize_t len);
 void platform_seeded(void);
 #endif
 
-#if defined(__GNUC__) || defined(__clang__)
-    #define NOT_UNUSED __attribute__((unused))
-#else
-    #define NOT_UNUSED
-#endif
-
-static NOT_UNUSED uint64_t now_ms(void) {
+static uint64_t now_ms(void) {
 #ifdef _WIN32
     ULONGLONG interrupt_time = 0;
 
@@ -42,7 +36,5 @@ static NOT_UNUSED uint64_t now_ms(void) {
     return system_ms();
 #endif
 }
-
-#undef NOT_UNUSED
 
 #endif
