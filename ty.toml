@@ -8,5 +8,4 @@ include = [
     "py-src/**/*.pyi",
     "tests/*.py",
     "noxfile.py",
-    "setup.py",
 ]
