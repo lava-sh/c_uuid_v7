@@ -94,7 +94,11 @@ class ZigBuildExt(build_ext):
             prefix = self._zig_cc_prefix(zig, self._zig_unix_target())
 
             self.compiler.compiler = [*prefix, *_filter_zig_unix_args(compiler[1:])]
-            self.compiler.compiler_so = [*prefix, *_filter_zig_unix_args(compiler_so[1:])]
+            self.compiler.compiler_so = [
+                *prefix,
+                "-Wno-empty-translation-unit",
+                *_filter_zig_unix_args(compiler_so[1:]),
+            ]
 
             if sys.platform == "darwin":
                 clang = shutil.which("clang")
