@@ -310,7 +310,7 @@ class ZigBuildExt(build_ext):
 
     def _libraries(self, ext: Extension) -> list[str]:
         libraries = list(ext.libraries or [])
-        if any(Path(s).name == "windows.c" for s in ext.sources):
+        if os.name == "nt" and any(Path(s).name == "windows.c" for s in ext.sources):
             libraries.extend(("advapi32", "Mincore"))
         return libraries
 
