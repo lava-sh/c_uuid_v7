@@ -86,7 +86,7 @@ jobs:
       - name: "Run zizmor"
         run: zizmor .github/
 
-  tests:
+  lint:
     name: "${{ matrix.os }} / python ${{ matrix.python }}"
     runs-on: ${{ matrix.os }}
     strategy:
@@ -98,7 +98,6 @@ jobs:
         python: [
           "3.10",
           "3.14",
-          "pypy3.11",
         ]
     timeout-minutes: 10
     steps:
@@ -117,14 +116,24 @@ jobs:
         with:
           enable-cache: ${{ !startsWith(github.ref, 'refs/tags/') }} # zizmor: ignore[cache-poisoning]
 
+      - name: "Create and activate .venv"
+        shell: bash
+        run: |
+          uv venv .venv --python ${{ matrix.python-version }}
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            echo ".venv/Scripts" >> "$GITHUB_PATH"
+          else
+            echo ".venv/bin" >> "$GITHUB_PATH"
+          fi
+
       - name: "Install dependencies"
-        run: uv pip install --group pytest --system
+        run: uv pip install . --group ci
 
-      - name: "Install"
-        run: uv pip install . --system
+      - name: "Run ruff"
+        run: ruff check
 
-      - name: "Run tests"
-        run: pytest
+      - name: "Run ty"
+        run: ty check
 
   linux:
     needs: [ tests, rumdl, typos, zizmor ]
