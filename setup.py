@@ -132,10 +132,27 @@ def _python_paths() -> list[str]:
 
 class ZigBuildExt(build_ext):
     def build_extensions(self) -> None:
+        zig = self._find_zig()
         if sys.platform == "darwin":
+            if zig is not None:
+                prefix = self._zig_cc_prefix(zig, None)
+                _set_compiler(self.compiler, "compiler", prefix)
+                _set_compiler(
+                    self.compiler,
+                    "compiler_so",
+                    prefix,
+                    [
+                        "-Wno-empty-translation-unit",
+                        "-Wno-visibility",
+                        "-fvisibility=hidden",
+                        "-O3",
+                    ],
+                )
+                linker_suffix = ["-s"] if not self.debug else []
+                _set_compiler(self.compiler, "linker_so", [*prefix, *linker_suffix])
+                _set_compiler(self.compiler, "linker_exe", prefix)
             super().build_extensions()
             return
-        zig = self._find_zig()
         if zig is not None and os.name != "nt" and self.compiler.compiler_type == "unix":
             prefix = self._zig_cc_prefix(zig, None)
             _set_compiler(self.compiler, "compiler", prefix)
@@ -147,6 +164,7 @@ class ZigBuildExt(build_ext):
                     "-Wno-empty-translation-unit",
                     "-Wno-visibility",
                     "-fvisibility=hidden",
+                    "-O3",
                 ],
             )
             linker_suffix = ["-s"] if not self.debug else []
