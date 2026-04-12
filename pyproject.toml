@@ -150,8 +150,7 @@ archs = [
     "universal2",
 ]
 test-skip = "*-macosx_arm64"
-environment = { MACOSX_DEPLOYMENT_TARGET = "10.13" }
-config-settings = { "build-args" = "bdist_wheel --plat-name macosx-10_13-x86_64" }
+environment = { MACOSX_DEPLOYMENT_TARGET = "10.13", CFLAGS = "-mmacosx-version-min=10.13", LDFLAGS = "-mmacosx-version-min=10.13" }
 
 [tool.cibuildwheel.windows]
 archs = [
