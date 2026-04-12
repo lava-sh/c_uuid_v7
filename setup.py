@@ -1,6 +1,7 @@
 import os
 import shlex
 import shutil
+import subprocess
 import sys
 import sysconfig
 from pathlib import Path
@@ -32,10 +33,10 @@ def _filter_zig_unix_args(args: list[str]) -> list[str]:
 
 
 def _set_compiler(
-        compiler: build_ext,
-        tool: str,
-        prefix: list[str],
-        extra_args: list[str] | None = None,
+    compiler: build_ext,
+    tool: str,
+    prefix: list[str],
+    extra_args: list[str] | None = None,
 ) -> None:
     orig = getattr(compiler, tool)
     filtered = _filter_zig_unix_args(orig[1:])
@@ -43,9 +44,9 @@ def _set_compiler(
 
 
 def _iter_unique_paths(
-        paths: list[str | Path | None],
-        *,
-        existing_only: bool = False,
+    paths: list[str | Path | None],
+    *,
+    existing_only: bool = False,
 ) -> list[str]:
     seen = set()
     result = []
@@ -63,19 +64,19 @@ def _iter_unique_paths(
 
 
 def _extend_with_prefixed_paths(
-        command: list[str],
-        prefix: str,
-        paths: list[str | Path | None],
-        *,
-        existing_only: bool = False,
+    command: list[str],
+    prefix: str,
+    paths: list[str | Path | None],
+    *,
+    existing_only: bool = False,
 ) -> None:
     for path in _iter_unique_paths(paths, existing_only=existing_only):
         command.extend([prefix, path])
 
 
 def _extend_with_unique_libraries(
-        command: list[str],
-        libraries: list[str],
+    command: list[str],
+    libraries: list[str],
 ) -> None:
     seen = set()
     for library in libraries:
@@ -92,13 +93,28 @@ def _python_paths() -> list[str]:
         Path(sys.base_exec_prefix),
         Path(sys.executable).resolve().parent,
         Path(sys.executable).resolve().parent.parent,
-        *(sysconfig.get_config_var(k) for k in (
-            "BINDIR", "LIBDIR", "LIBPL", "installed_base",
-            "installed_platbase", "base", "platbase",
-        )),
-        *(sysconfig.get_path(k) for k in (
-            "include", "platinclude", "stdlib", "platstdlib", "scripts",
-        )),
+        *(
+            sysconfig.get_config_var(k)
+            for k in (
+                "BINDIR",
+                "LIBDIR",
+                "LIBPL",
+                "installed_base",
+                "installed_platbase",
+                "base",
+                "platbase",
+            )
+        ),
+        *(
+            sysconfig.get_path(k)
+            for k in (
+                "include",
+                "platinclude",
+                "stdlib",
+                "platstdlib",
+                "scripts",
+            )
+        ),
     ]
     candidates = []
     for root_path in roots:
@@ -135,16 +151,26 @@ class ZigBuildExt(build_ext):
             if sys.platform == "darwin":
                 clang = shutil.which("clang")
                 if clang:
-                    _set_compiler(
-                        self.compiler,
-                        "linker_so",
-                        [clang, "-Wl,-no_warn_version_mismatches"],
+                    linker_args = [clang]
+                    result = subprocess.run(
+                        [
+                            clang,
+                            "-Wl,-no_warn_version_mismatches",
+                            "-shared",
+                            "-o",
+                            os.devnull,
+                            "-x",
+                            "c",
+                            "-",
+                        ],
+                        input="",
+                        capture_output=True,
+                        text=True,
                     )
-                    _set_compiler(
-                        self.compiler,
-                        "linker_exe",
-                        [clang, "-Wl,-no_warn_version_mismatches"],
-                    )
+                    if result.returncode == 0 or "unknown option" not in result.stderr:
+                        linker_args.append("-Wl,-no_warn_version_mismatches")
+                    _set_compiler(self.compiler, "linker_so", linker_args)
+                    _set_compiler(self.compiler, "linker_exe", linker_args)
             else:
                 _set_compiler(self.compiler, "linker_so", prefix)
                 _set_compiler(self.compiler, "linker_exe", prefix)
@@ -173,7 +199,8 @@ class ZigBuildExt(build_ext):
         command.extend(str(Path(s)) for s in ext.sources)
 
         _extend_with_prefixed_paths(
-            command, "-L",
+            command,
+            "-L",
             [*(ext.library_dirs or []), *_python_paths()],
             existing_only=True,
         )
@@ -264,10 +291,10 @@ class ZigBuildExt(build_ext):
     @staticmethod
     def _cleanup_windows_link_artifacts(ext_path: Path) -> None:
         for name in (
-                "lib.lib",
-                "lib.exp",
-                f"{ext_path.stem}.lib",
-                f"{ext_path.stem}.exp",
+            "lib.lib",
+            "lib.exp",
+            f"{ext_path.stem}.lib",
+            f"{ext_path.stem}.exp",
         ):
             artifact = ext_path.parent / name
             if artifact.exists():
