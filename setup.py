@@ -109,19 +109,12 @@ class ZigBuildExt(build_ext):
             linker_blocked = {"-g", "-fno-common"}
             linker_so_filtered = [a for a in linker_so[1:] if a not in linker_blocked]
             linker_exe_filtered = [a for a in linker_exe[1:] if a not in linker_blocked]
-            if sys.platform == "darwin":
-                linker_so_filtered = [
-                    a for a in linker_so_filtered
-                    if not a.startswith("-arch")
-                ]
             self.compiler.linker_so = [
                 *prefix,
-                *extra,
                 *_filter_zig_unix_args(linker_so_filtered),
             ]
             self.compiler.linker_exe = [
                 *prefix,
-                *extra,
                 *_filter_zig_unix_args(linker_exe_filtered),
             ]
         super().build_extensions()
