@@ -86,7 +86,7 @@ jobs:
       - name: "Run zizmor"
         run: zizmor .github/
 
-  tests:
+  lint:
     name: "${{ matrix.os }} / python ${{ matrix.python }}"
     runs-on: ${{ matrix.os }}
     strategy:
@@ -98,7 +98,6 @@ jobs:
         python: [
           "3.10",
           "3.14",
-          "pypy3.11",
         ]
     timeout-minutes: 10
     steps:
@@ -117,17 +116,27 @@ jobs:
         with:
           enable-cache: ${{ !startsWith(github.ref, 'refs/tags/') }} # zizmor: ignore[cache-poisoning]
 
+      - name: "Create and activate .venv"
+        shell: bash
+        run: |
+          uv venv .venv --python ${{ matrix.python }}
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            echo ".venv/Scripts" >> "$GITHUB_PATH"
+          else
+            echo ".venv/bin" >> "$GITHUB_PATH"
+          fi
+
       - name: "Install dependencies"
-        run: uv pip install --group pytest --system
+        run: uv pip install . --group ci
 
-      - name: "Install"
-        run: uv pip install . --system
+      - name: "Run ruff"
+        run: ruff check
 
-      - name: "Run tests"
-        run: pytest
+      - name: "Run ty"
+        run: ty check
 
   linux:
-    needs: [ tests, rumdl, typos, zizmor ]
+    needs: [ rumdl, typos, zizmor, lint ]
     name: "ubuntu-latest / wheels / x86_64, i686"
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -151,7 +160,7 @@ jobs:
           path: wheelhouse/*.whl
 
   linux-arm64:
-    needs: [ tests, rumdl, typos, zizmor ]
+    needs: [ rumdl, typos, zizmor, lint ]
     name: "ubuntu-24.04-arm / wheels / aarch64"
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 60
@@ -175,7 +184,7 @@ jobs:
           path: wheelhouse/*.whl
 
   windows:
-    needs: [ tests, rumdl, typos, zizmor ]
+    needs: [ rumdl, typos, zizmor, lint ]
     name: "windows-latest / wheels / AMD64, x86"
     runs-on: windows-latest
     timeout-minutes: 60
@@ -199,7 +208,7 @@ jobs:
           path: wheelhouse/*.whl
 
   windows-arm64:
-    needs: [ tests, rumdl, typos, zizmor ]
+    needs: [ rumdl, typos, zizmor, lint ]
     name: "windows-11-arm / wheels / ARM64"
     runs-on: windows-11-arm
     timeout-minutes: 60
@@ -223,7 +232,7 @@ jobs:
           path: wheelhouse/*.whl
 
   macos:
-    needs: [ tests, rumdl, typos, zizmor ]
+    needs: [ rumdl, typos, zizmor, lint ]
     name: "macos-latest / wheels / x86_64, arm64, universal2"
     runs-on: macos-latest
     timeout-minutes: 60
@@ -247,7 +256,7 @@ jobs:
           path: wheelhouse/*.whl
 
   linux-armv7:
-    needs: [ tests, rumdl, typos, zizmor ]
+    needs: [ rumdl, typos, zizmor, lint ]
     name: "ubuntu-latest / wheels / armv7l"
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -275,7 +284,7 @@ jobs:
           path: wheelhouse/*.whl
 
   linux-ppc64le:
-    needs: [ tests, rumdl, typos, zizmor ]
+    needs: [ rumdl, typos, zizmor, lint ]
     name: "ubuntu-latest / wheels / ppc64le"
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -303,7 +312,7 @@ jobs:
           path: wheelhouse/*.whl
 
   linux-s390x:
-    needs: [ tests, rumdl, typos, zizmor ]
+    needs: [ rumdl, typos, zizmor, lint ]
     name: "ubuntu-latest / wheels / s390x"
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -331,7 +340,7 @@ jobs:
           path: wheelhouse/*.whl
 
   linux-riscv64:
-    needs: [ tests, rumdl, typos, zizmor ]
+    needs: [ rumdl, typos, zizmor, lint ]
     name: "ubuntu-latest / wheels / riscv64"
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -359,7 +368,7 @@ jobs:
           path: wheelhouse/*.whl
 
   sdist:
-    needs: [ tests, rumdl, typos, zizmor ]
+    needs: [ rumdl, typos, zizmor, lint ]
     name: "ubuntu-latest / sdist"
     runs-on: ubuntu-latest
     steps:
@@ -388,7 +397,18 @@ jobs:
           path: dist/*.tar.gz
 
   release:
-    needs: [ linux, linux-arm64, linux-armv7, linux-ppc64le, linux-s390x, linux-riscv64, windows, windows-arm64, macos, sdist ]
+    needs: [
+      linux,
+      linux-arm64,
+      linux-armv7,
+      linux-ppc64le,
+      linux-s390x,
+      linux-riscv64,
+      windows,
+      windows-arm64,
+      macos,
+      sdist,
+    ]
     name: "Release"
     runs-on: ubuntu-latest
     if: ${{ startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' }}
