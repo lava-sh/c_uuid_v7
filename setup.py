@@ -131,26 +131,13 @@ def _python_paths() -> list[str]:
 
 
 class ZigBuildExt(build_ext):
-    def finalize_options(self) -> None:
-        super().finalize_options()
-        linker_args = self._darwin_linker_args()
-        if not linker_args[1:]:
-            return
-        for ext in self.extensions:
-            extra_link_args = list(ext.extra_link_args or [])
-            for arg in linker_args[1:]:
-                if arg not in extra_link_args:
-                    extra_link_args.append(arg)
-            ext.extra_link_args = extra_link_args
-
     def build_extensions(self) -> None:
+        if sys.platform == "darwin":
+            super().build_extensions()
+            return
         zig = self._find_zig()
         if zig is not None and os.name != "nt" and self.compiler.compiler_type == "unix":
-            if sys.platform == "darwin" and self._darwin_target() is None:
-                super().build_extensions()
-                return
-
-            prefix = self._zig_cc_prefix(zig, self._zig_unix_target())
+            prefix = self._zig_cc_prefix(zig, None)
             _set_compiler(self.compiler, "compiler", prefix)
             _set_compiler(
                 self.compiler,
@@ -158,12 +145,8 @@ class ZigBuildExt(build_ext):
                 prefix,
                 ["-Wno-empty-translation-unit", "-Wno-visibility"],
             )
-
-            if sys.platform == "darwin":
-                self._configure_darwin_linker()
-            else:
-                _set_compiler(self.compiler, "linker_so", prefix)
-                _set_compiler(self.compiler, "linker_exe", prefix)
+            _set_compiler(self.compiler, "linker_so", prefix)
+            _set_compiler(self.compiler, "linker_exe", prefix)
         super().build_extensions()
 
     def build_extension(self, ext: Extension) -> None:
@@ -219,34 +202,6 @@ class ZigBuildExt(build_ext):
             "win-amd64": "x86_64-windows-msvc",
             "win-arm64": "aarch64-windows-msvc",
         }.get(plat_name)
-
-    def _zig_unix_target(self) -> str | None:
-        return None if sys.platform != "darwin" else self._darwin_target()
-
-    def _darwin_target(self) -> str | None:
-        plat_name = self.plat_name or getattr(self, "get_platform")()
-        if "universal2" in plat_name:
-            return None
-        if "arm64" in plat_name:
-            return "aarch64-macos"
-        if "x86_64" in plat_name:
-            return "x86_64-macos"
-        return None
-
-    def _configure_darwin_linker(self) -> None:
-        linker_args = self._darwin_linker_args()
-        if not linker_args:
-            return
-        _set_compiler(self.compiler, "linker_so", linker_args)
-        _set_compiler(self.compiler, "linker_exe", linker_args)
-
-    def _darwin_linker_args(self) -> list[str]:
-        if sys.platform != "darwin":
-            return []
-        clang = shutil.which("clang")
-        if not clang:
-            return []
-        return [clang, "-Wl,-no_warn_version_mismatches"]
 
     def _windows_arch_macro(self, target: str | None) -> list[str]:
         if target is None:
