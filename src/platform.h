@@ -47,34 +47,6 @@ static NOT_UNUSED uint64_t now_ms(void) {
 #endif
 }
 
-static NOT_UNUSED uint64_t prng_mix64(const uint64_t left, const uint64_t right) {
-#if defined(__SIZEOF_INT128__)
-    const __uint128_t product = (__uint128_t)left * right;
-
-    return (uint64_t)product ^ (uint64_t)(product >> 64);
-#elif defined(_MSC_VER) && defined(_M_X64)
-    uint64_t high = 0;
-    const uint64_t low = _umul128(left, right, &high);
-
-    return low ^ high;
-#else
-    const uint64_t left_hi = left >> 32;
-    const uint64_t left_lo = (uint32_t)left;
-    const uint64_t right_hi = right >> 32;
-    const uint64_t right_lo = (uint32_t)right;
-    const uint64_t rh = left_hi * right_hi;
-    const uint64_t rm0 = left_hi * right_lo;
-    const uint64_t rm1 = right_hi * left_lo;
-    const uint64_t rl = left_lo * right_lo;
-    const uint64_t t = rl + (rm0 << 32);
-    const uint64_t carry = t < rl;
-    const uint64_t low = t + (rm1 << 32);
-    const uint64_t high = rh + (rm0 >> 32) + (rm1 >> 32) + carry + (low < t);
-
-    return low ^ high;
-#endif
-}
-
 #undef NOT_UNUSED
 
 #endif
