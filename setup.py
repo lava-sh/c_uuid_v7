@@ -113,8 +113,11 @@ class ZigBuildExt(build_ext):
                 "-Wno-empty-translation-unit",
                 "-Wno-visibility",
                 "-fvisibility=hidden",
+                "-fPIC",
                 "-O3",
             ]
+            if is_macos:
+                cflags.append("-mmacosx-version-min=10.9")
             self.compiler.compiler = [*prefix]
             self.compiler.compiler_so = [*prefix, *cflags]
             self.compiler.linker_so = [*prefix, "-shared", "-s"]
@@ -177,6 +180,7 @@ class ZigBuildExt(build_ext):
             "-O3",
             "-DNDEBUG",
             "-s",
+            "-mmacosx-version-min=10.9",
             "-Wno-empty-translation-unit",
             "-Wno-visibility",
             "-shared",
