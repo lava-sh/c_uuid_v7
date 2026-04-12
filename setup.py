@@ -183,8 +183,10 @@ class ZigBuildExt(build_ext):
             return
 
         if sys.platform == "darwin":
-            self._build_macos(ext, zig)
-            return
+            plat_name = self.plat_name or getattr(self, "get_platform")()
+            if "universal2" not in plat_name:
+                self._build_macos(ext, zig)
+                return
 
         super().build_extension(ext)
 
@@ -258,12 +260,19 @@ class ZigBuildExt(build_ext):
         self.spawn(command)
 
     def _macos_target(self) -> str | None:
+        archflags = os.environ.get("ARCHFLAGS", "")
+        if "-arch arm64" in archflags:
+            return "arm64-macos"
+        if "-arch x86_64" in archflags:
+            return "x86_64-macos"
         plat_name = self.plat_name or getattr(self, "get_platform")()
-        return {
-            "macosx_x86_64": "x86_64-macos",
-            "macosx_arm64": "arm64-macos",
-            "macosx_universal2": None,
-        }.get(plat_name)
+        if "universal2" in plat_name:
+            return None
+        if "arm64" in plat_name:
+            return "arm64-macos"
+        if "x86_64" in plat_name:
+            return "x86_64-macos"
+        return None
 
     def _find_zig(self) -> str | None:
         return shutil.which("python-zig") or shutil.which("zig")
