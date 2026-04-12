@@ -1,12 +1,11 @@
 name: "CI"
 
-permissions:
-  contents: read
+permissions: { }
 
 on:
   push:
     branches:
-      - "main"
+      - main
     tags:
       - "*"
   pull_request:
@@ -16,65 +15,61 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref_name }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 
-env:
-  UV_PYTHON_DOWNLOADS: 0
-
 jobs:
   tests:
-    name: "${{ matrix.os }} / python ${{ matrix.python-version }}"
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 5
-    strategy:
-      matrix:
-        os: [
-          ubuntu-latest,
-          windows-latest,
-        ]
-        python-version: [
-          "3.10",
-          "3.14",
-          "pypy3.11"
-        ]
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
+    uses: ./.github/workflows/tests.yaml
 
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+  zizmor:
+    name: "zizmor"
+    uses: ./.github/workflows/zizmor.yaml
+
+  typos:
+    name: "typos"
+    uses: ./.github/workflows/typos.yaml
+
+  rumdl:
+    name: "rumdl"
+    uses: ./.github/workflows/rumdl.yaml
+
+  linux:
+    needs: [ tests, zizmor, typos, rumdl ]
+    uses: ./.github/workflows/linux.yaml
+
+  windows:
+    needs: [ tests, zizmor, typos, rumdl ]
+    uses: ./.github/workflows/windows.yaml
+
+  macos:
+    needs: [ tests, zizmor, typos, rumdl ]
+    uses: ./.github/workflows/macos.yaml
+
+  sdist:
+    needs: [ tests, zizmor, typos, rumdl ]
+    uses: ./.github/workflows/sdist.yaml
+
+  release:
+    name: "Release"
+    runs-on: ubuntu-latest
+    if: ${{ startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' }}
+    needs: [ linux, windows, macos, sdist ]
+    permissions:
+      id-token: write
+      contents: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+
+      - name: "Generate artifact attestation"
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
-          python-version: ${{ matrix.python-version }}
+          subject-path: "wheels-*/*"
 
       - name: "Install uv"
         uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # v8.0.0
         with:
-          enable-cache: ${{ !startsWith(github.ref, 'refs/tags/') }} # zizmor: ignore[cache-poisoning]
+          enable-cache: false
 
-      - name: "Create and activate .venv"
-        shell: bash
-        run: |
-          uv venv .venv --python ${{ matrix.python-version }}
-
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            echo ".venv/Scripts" >> "$GITHUB_PATH"
-          else
-            echo ".venv/bin" >> "$GITHUB_PATH"
-          fi
-
-      - name: "Install build dependencies"
-        run: uv pip install . --group ci
-
-      - name: "Run ruff"
-        run: ruff check
-
-      - name: "Run ty"
-        run: ty check
-
-      - name: "Run pytest (mimalloc)"
-        if: matrix.python-version == '3.13' || matrix.python-version == '3.14'
+      - name: "Publish to PyPI"
+        run: uv publish 'wheels-*/*' 'sdist/*'
         env:
-          PYTHONMALLOC: mimalloc
-        run: pytest
-
-      - name: "Run pytest (default)"
-        if: matrix.python-version != '3.13' && matrix.python-version != '3.14'
-        run: pytest
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }} # zizmor: ignore[secrets-outside-env]

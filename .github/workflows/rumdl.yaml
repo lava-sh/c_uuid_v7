@@ -1,23 +1,7 @@
 name: "rumdl"
 
 on:
-  push:
-    branches:
-      - "main"
-    tags:
-      - "*"
-  pull_request:
-  workflow_dispatch:
-
-permissions:
-  contents: read
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref_name }}-${{ github.event.pull_request.number || github.sha }}
-  cancel-in-progress: true
-
-env:
-  UV_PYTHON_DOWNLOADS: 0
+  workflow_call:
 
 jobs:
   rumdl:
