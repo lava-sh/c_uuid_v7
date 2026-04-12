@@ -102,6 +102,10 @@ class ZigBuildExt(build_ext):
             super().build_extensions()
             return
 
+        if os.name != "nt" or sys.platform == "darwin":
+            super().build_extensions()
+            return
+
         is_unix = os.name != "nt" and self.compiler.compiler_type == "unix"
 
         if is_unix:
