@@ -25,4 +25,4 @@ jobs:
         run: uv pip install --group typos --system
 
       - name: "Run typos"
-        run: typos --config .typos.toml
+        run: typos
