@@ -4,7 +4,7 @@ on:
   workflow_call:
 
 jobs:
-  typos:
+  run:
     name: "typos"
     runs-on: ubuntu-latest
     steps:

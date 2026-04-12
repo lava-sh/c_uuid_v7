@@ -4,7 +4,7 @@ on:
   workflow_call:
 
 jobs:
-  rumdl:
+  run:
     name: "rumdl"
     runs-on: ubuntu-latest
     steps:
