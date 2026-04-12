@@ -26,7 +26,7 @@ int fill_random(unsigned char *buf, Py_ssize_t len);
 void platform_seeded(void);
 #endif
 
-static uint64_t now_ms(void) {
+static inline uint64_t now_ms(void) {
 #ifdef _WIN32
     ULONGLONG interrupt_time = 0;
 

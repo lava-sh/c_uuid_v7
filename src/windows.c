@@ -19,10 +19,11 @@ uint64_t system_ms(void) {
     return (ticks.QuadPart - 116444736000000000ULL) / 10000ULL;
 }
 
-BOOLEAN WINAPI RtlGenRandom(PVOID, ULONG);
+// RtlGenRandom (advapi32.dll), exported as SystemFunction036
+BOOLEAN WINAPI SystemFunction036(PVOID, ULONG);
 
 int fill_random(unsigned char *buf, const Py_ssize_t len) {
-    return RtlGenRandom(buf, (ULONG)len) ? 0 : -1;
+    return SystemFunction036(buf, (ULONG)len) ? 0 : -1;
 }
 
 void platform_seeded(void) {

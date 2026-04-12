@@ -63,4 +63,10 @@ int fill_random(unsigned char *buf, const Py_ssize_t len) {
     close(fd);
     return 0;
 }
+
+#endif
+
+#ifdef _WIN32
+void posix_dummy(void);
+void posix_dummy(void) { }
 #endif

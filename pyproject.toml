@@ -150,7 +150,7 @@ archs = [
     "universal2",
 ]
 test-skip = "*-macosx_arm64"
-environment = { MACOSX_DEPLOYMENT_TARGET = "10.13", CFLAGS = "-mmacosx-version-min=10.13", LDFLAGS = "-mmacosx-version-min=10.13" }
+environment = { MACOSX_DEPLOYMENT_TARGET = "10.13" }
 
 [tool.cibuildwheel.windows]
 archs = [

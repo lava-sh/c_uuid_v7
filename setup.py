@@ -199,7 +199,9 @@ class ZigBuildExt(build_ext):
     def _macos_version_min() -> list[str]:
         if sys.platform != "darwin":
             return []
-        version = sysconfig.get_config_var("MACOSX_DEPLOYMENT_TARGET")
+        version = os.environ.get("MACOSX_DEPLOYMENT_TARGET")
+        if not version:
+            version = sysconfig.get_config_var("MACOSX_DEPLOYMENT_TARGET")
         if version:
             return [f"-mmacosx-version-min={version}"]
         return []
