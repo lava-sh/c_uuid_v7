@@ -92,31 +92,25 @@ class ZigBuildExt(build_ext):
             compiler = list(self.compiler.compiler)
             compiler_so = list(self.compiler.compiler_so)
             prefix = self._zig_cc_prefix(zig, self._zig_unix_target())
-            extra = self._macos_version_min()
 
-            self.compiler.compiler = [
-                *prefix,
-                *extra,
-                *_filter_zig_unix_args(compiler[1:]),
-            ]
-            self.compiler.compiler_so = [
-                *prefix,
-                *extra,
-                *_filter_zig_unix_args(compiler_so[1:]),
-            ]
-            linker_so = list(self.compiler.linker_so)
-            linker_exe = list(self.compiler.linker_exe)
-            linker_blocked = {"-g", "-fno-common"}
-            linker_so_filtered = [a for a in linker_so[1:] if a not in linker_blocked]
-            linker_exe_filtered = [a for a in linker_exe[1:] if a not in linker_blocked]
-            self.compiler.linker_so = [
-                *prefix,
-                *_filter_zig_unix_args(linker_so_filtered),
-            ]
-            self.compiler.linker_exe = [
-                *prefix,
-                *_filter_zig_unix_args(linker_exe_filtered),
-            ]
+            self.compiler.compiler = [*prefix, *_filter_zig_unix_args(compiler[1:])]
+            self.compiler.compiler_so = [*prefix, *_filter_zig_unix_args(compiler_so[1:])]
+
+            if sys.platform == "darwin":
+                clang = shutil.which("clang")
+                if clang:
+                    linker_so = list(self.compiler.linker_so)
+                    linker_exe = list(self.compiler.linker_exe)
+                    self.compiler.linker_so = [clang, *_filter_zig_unix_args(linker_so[1:])]
+                    self.compiler.linker_exe = [clang, *_filter_zig_unix_args(linker_exe[1:])]
+            else:
+                linker_so = list(self.compiler.linker_so)
+                linker_exe = list(self.compiler.linker_exe)
+                self.compiler.linker_so = [*prefix, *_filter_zig_unix_args(linker_so[1:])]
+                self.compiler.linker_exe = [
+                    *prefix,
+                    *_filter_zig_unix_args(linker_exe[1:]),
+                ]
         super().build_extensions()
 
     def build_extension(self, ext: Extension) -> None:
