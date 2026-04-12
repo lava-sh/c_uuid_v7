@@ -133,27 +133,27 @@ def _python_paths() -> list[str]:
 class ZigBuildExt(build_ext):
     def build_extensions(self) -> None:
         zig = self._find_zig()
-        if sys.platform == "darwin":
-            if zig is not None:
-                prefix = self._zig_cc_prefix(zig, None)
-                _set_compiler(self.compiler, "compiler", prefix)
-                _set_compiler(
-                    self.compiler,
-                    "compiler_so",
-                    prefix,
-                    [
-                        "-Wno-empty-translation-unit",
-                        "-Wno-visibility",
-                        "-fvisibility=hidden",
-                        "-O3",
-                    ],
-                )
-                linker_suffix = ["-s"] if not self.debug else []
-                _set_compiler(self.compiler, "linker_so", [*prefix, *linker_suffix])
-                _set_compiler(self.compiler, "linker_exe", prefix)
-            super().build_extensions()
-            return
-        if zig is not None and os.name != "nt" and self.compiler.compiler_type == "unix":
+        if sys.platform == "darwin" and zig is not None:
+            target = self._macos_target()
+            prefix = self._zig_cc_prefix(zig, target)
+            _set_compiler(self.compiler, "compiler", prefix)
+            _set_compiler(
+                self.compiler,
+                "compiler_so",
+                prefix,
+                [
+                    "-Wno-empty-translation-unit",
+                    "-Wno-visibility",
+                    "-fvisibility=hidden",
+                    "-O3",
+                ],
+            )
+            linker_suffix = ["-s"] if not self.debug else []
+            _set_compiler(self.compiler, "linker_so", [*prefix, *linker_suffix])
+            _set_compiler(self.compiler, "linker_exe", prefix)
+        elif (
+            zig is not None and os.name != "nt" and self.compiler.compiler_type == "unix"
+        ):
             prefix = self._zig_cc_prefix(zig, None)
             _set_compiler(self.compiler, "compiler", prefix)
             _set_compiler(
@@ -174,10 +174,21 @@ class ZigBuildExt(build_ext):
 
     def build_extension(self, ext: Extension) -> None:
         zig = self._find_zig()
-        if os.name != "nt" or zig is None:
+        if zig is None:
             super().build_extension(ext)
             return
 
+        if os.name == "nt":
+            self._build_windows(ext, zig)
+            return
+
+        if sys.platform == "darwin":
+            self._build_macos(ext, zig)
+            return
+
+        super().build_extension(ext)
+
+    def _build_windows(self, ext: Extension, zig: str) -> None:
         ext_path = Path(self.get_ext_fullpath(ext.name))
         ext_path.parent.mkdir(parents=True, exist_ok=True)
         Path(self.build_temp).mkdir(parents=True, exist_ok=True)
@@ -186,7 +197,7 @@ class ZigBuildExt(build_ext):
         command = self._zig_cc_prefix(zig, target)
         command.extend(self._optimization_flags())
         command.extend(self._windows_arch_macro(target))
-        command.extend(["-Wno-empty-translation-unit", "-Wno-visibility", "-shared"])
+        command.extend(["-Wno-empty-translation-unit", "-shared"])
         command.extend(self._macro_flags(ext))
         _extend_with_prefixed_paths(command, "-I", self._include_dirs(ext))
 
@@ -213,6 +224,45 @@ class ZigBuildExt(build_ext):
 
         self.spawn(command)
         self._cleanup_windows_link_artifacts(ext_path)
+
+    def _build_macos(self, ext: Extension, zig: str) -> None:
+        ext_path = Path(self.get_ext_fullpath(ext.name))
+        ext_path.parent.mkdir(parents=True, exist_ok=True)
+        Path(self.build_temp).mkdir(parents=True, exist_ok=True)
+
+        target = self._macos_target()
+        command = self._zig_cc_prefix(zig, target)
+        command.extend(["-O3", "-DNDEBUG", "-s"])
+        command.extend(["-Wno-empty-translation-unit", "-Wno-visibility", "-shared"])
+        command.extend(self._macro_flags(ext))
+        _extend_with_prefixed_paths(command, "-I", self._include_dirs(ext))
+
+        command.extend(_split_flags(os.environ.get("CFLAGS")))
+        command.extend(str(Path(s)) for s in ext.sources)
+
+        _extend_with_prefixed_paths(
+            command,
+            "-L",
+            [*(ext.library_dirs or []), *_python_paths()],
+            existing_only=True,
+        )
+
+        _extend_with_unique_libraries(command, self._libraries(ext))
+
+        command.extend(_split_flags(os.environ.get("LDFLAGS")))
+        command.extend(str(a) for a in ext.extra_compile_args or [])
+        command.extend(str(a) for a in ext.extra_link_args or [])
+        command.extend(["-o", str(ext_path)])
+
+        self.spawn(command)
+
+    def _macos_target(self) -> str | None:
+        plat_name = self.plat_name or getattr(self, "get_platform")()
+        return {
+            "macosx_x86_64": "x86_64-macos",
+            "macosx_arm64": "arm64-macos",
+            "macosx_universal2": None,
+        }.get(plat_name)
 
     def _find_zig(self) -> str | None:
         return shutil.which("python-zig") or shutil.which("zig")
