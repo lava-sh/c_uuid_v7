@@ -258,6 +258,10 @@ jobs:
           fetch-tags: true
           persist-credentials: false
 
+      - uses: docker/setup-qemu-action@29109295f81e9208d7d86ff0c63dab314a5b51ac # v3.9.0
+        with:
+          platforms: all
+
       - uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
         with:
           extras: uv
@@ -281,6 +285,10 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           persist-credentials: false
+
+      - uses: docker/setup-qemu-action@29109295f81e9208d7d86ff0c63dab314a5b51ac # v3.9.0
+        with:
+          platforms: all
 
       - uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
         with:
@@ -306,6 +314,10 @@ jobs:
           fetch-tags: true
           persist-credentials: false
 
+      - uses: docker/setup-qemu-action@29109295f81e9208d7d86ff0c63dab314a5b51ac # v3.9.0
+        with:
+          platforms: all
+
       - uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
         with:
           extras: uv
@@ -329,6 +341,10 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           persist-credentials: false
+
+      - uses: docker/setup-qemu-action@29109295f81e9208d7d86ff0c63dab314a5b51ac # v3.9.0
+        with:
+          platforms: all
 
       - uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
         with:
