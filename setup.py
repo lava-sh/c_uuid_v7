@@ -92,15 +92,29 @@ class ZigBuildExt(build_ext):
             compiler = list(self.compiler.compiler)
             compiler_so = list(self.compiler.compiler_so)
             prefix = self._zig_cc_prefix(zig, self._zig_unix_target())
+            extra = self._macos_version_min()
 
-            self.compiler.compiler = [*prefix, *_filter_zig_unix_args(compiler[1:])]
-            self.compiler.compiler_so = [*prefix, *_filter_zig_unix_args(compiler_so[1:])]
+            self.compiler.compiler = [
+                *prefix,
+                *extra,
+                *_filter_zig_unix_args(compiler[1:]),
+            ]
+            self.compiler.compiler_so = [
+                *prefix,
+                *extra,
+                *_filter_zig_unix_args(compiler_so[1:]),
+            ]
             if sys.platform != "darwin":
                 linker_so = list(self.compiler.linker_so)
                 linker_exe = list(self.compiler.linker_exe)
-                self.compiler.linker_so = [*prefix, *_filter_zig_unix_args(linker_so[1:])]
+                self.compiler.linker_so = [
+                    *prefix,
+                    *extra,
+                    *_filter_zig_unix_args(linker_so[1:]),
+                ]
                 self.compiler.linker_exe = [
                     *prefix,
+                    *extra,
                     *_filter_zig_unix_args(linker_exe[1:]),
                 ]
         super().build_extensions()
@@ -115,8 +129,10 @@ class ZigBuildExt(build_ext):
         ext_path.parent.mkdir(parents=True, exist_ok=True)
         Path(self.build_temp).mkdir(parents=True, exist_ok=True)
 
-        command = self._zig_cc_prefix(zig, self._windows_target())
+        target = self._windows_target()
+        command = self._zig_cc_prefix(zig, target)
         command.extend(self._optimization_flags())
+        command.extend(self._windows_arch_macro(target))
         command.append("-shared")
         command.extend(self._macro_flags(ext))
         _extend_with_prefixed_paths(command, "-I", self._include_dirs(ext))
@@ -169,6 +185,25 @@ class ZigBuildExt(build_ext):
         if sys.platform != "darwin":
             return None
         return self._darwin_target()
+
+    @staticmethod
+    def _windows_arch_macro(target: str | None) -> list[str]:
+        arch_macros = {
+            "x86-windows-msvc": "-D_X86_",
+            "x86_64-windows-msvc": "-D_AMD64_",
+            "aarch64-windows-msvc": "-D_ARM64_",
+        }
+        macro = arch_macros.get(target)
+        return [macro] if macro else []
+
+    @staticmethod
+    def _macos_version_min() -> list[str]:
+        if sys.platform != "darwin":
+            return []
+        version = sysconfig.get_config_var("MACOSX_DEPLOYMENT_TARGET")
+        if version:
+            return [f"-mmacosx-version-min={version}"]
+        return []
 
     def _darwin_target(self) -> str | None:
         plat_name = self.plat_name or self.get_platform()
