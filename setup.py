@@ -234,6 +234,7 @@ class ZigBuildExt(build_ext):
         command = self._zig_cc_prefix(zig, target)
         command.extend(["-O3", "-DNDEBUG", "-s"])
         command.extend(["-Wno-empty-translation-unit", "-Wno-visibility", "-shared"])
+        command.extend(["-undefined", "dynamic_lookup"])
         command.extend(self._macro_flags(ext))
         _extend_with_prefixed_paths(command, "-I", self._include_dirs(ext))
 
