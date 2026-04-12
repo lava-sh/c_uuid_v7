@@ -104,8 +104,9 @@ class ZigBuildExt(build_ext):
 
         is_unix = os.name != "nt" and self.compiler.compiler_type == "unix"
         is_macos = sys.platform == "darwin"
+        macos_plat = self.plat_name or "" if is_macos else ""
 
-        if is_unix or is_macos:
+        if is_unix or (is_macos and "universal2" not in macos_plat):
             target = self._macos_target() if is_macos else None
             prefix = [zig, "cc"] + (["-target", target] if target else [])
             cflags = [
@@ -116,7 +117,7 @@ class ZigBuildExt(build_ext):
             ]
             self.compiler.compiler = [*prefix]
             self.compiler.compiler_so = [*prefix, *cflags]
-            self.compiler.linker_so = [*prefix, "-s"]
+            self.compiler.linker_so = [*prefix, "-shared", "-s"]
             self.compiler.linker_exe = [*prefix]
 
         super().build_extensions()
