@@ -9,7 +9,8 @@ include = [
     "tests/**.py",
     "benchmark/run.py",
     "pyproject.toml",
-    "README.md"
+    "README.md",
+    "setup.py",
 ]
 
 [lint.isort]
@@ -22,23 +23,26 @@ preview = true
 
 select = ["ALL"]
 ignore = [
-    "ARG",    # Unused method argument
+    "ARG",     # Unused method argument
     ########
-    "D100",   # Missing docstring in public module
-    "D103",   # Missing docstring in public function
-    "D104",   # Missing docstring in public package
+    "D100",    # Missing docstring in public module
+    "D101",    # Missing docstring in public class
+    "D102",    # Missing docstring in public method
+    "D103",    # Missing docstring in public function
+    "D104",    # Missing docstring in public package
     "D203",
     "D212",
     ########
-    "CPY001", # Check copyright notices within Python files
-    "S311",   # Forces `random` -> `secrets`
-    "ANN401", # Check `typing.Any`
-    "SIM105", # Forces `try-except-pass` -> `contextlib.suppress`
+    "CPY001",  # Check copyright notices within Python files
+    "S311",    # Forces `random` -> `secrets`
+    "ANN401",  # Check `typing.Any`
+    "SIM105",  # Force `try-except-pass` -> `contextlib.suppress`
+    "PLR6301", # Check for the presence of unused self parameter in methods definitions
     ########
-    "TC001",  # \
-    "TC002",  #  ==> `typing.TYPE_CHECKING` block's
-    "TC003",  # /
-    "TC006",  # Add quotes to type expression in `typing.cast()`
+    "TC001",   # \
+    "TC002",   #  ==> `typing.TYPE_CHECKING` block's
+    "TC003",   # /
+    "TC006",   # Add quotes to type expression in `typing.cast()`
 ]
 
 [lint.per-file-ignores]
@@ -47,13 +51,24 @@ ignore = [
 "py-src/c_uuid_v7/_core.pyi" = ["PYI021"]
 # tests
 "tests/**.py" = [
-    "S101",    # Check `assert`'s
-    "PLR2004", # Check magic value's
+    "S101",    # Check `assert`
+    "PLR2004", # Check magic values
     "FURB171", # Check for membership tests against single-item containers
 ]
 # benchmark
 "benchmark/**.py" = [
-    "INP001",
+    "INP001", # Check for packages that are missing an `__init__.py` file
+]
+"setup.py" = [
+    "B009",    # Check for uses of `getattr` that take a constant attribute value as an argument
+    "C901",    # Check for functions with a high McCabe complexity
+    ########
+    "S404",
+    "S603",
+    ########
+    "PLR0912", # too many branches
+    "PLR0915", # too many statements
+    "PLR1702",
 ]
 
 [lint.flake8-tidy-imports.banned-api]

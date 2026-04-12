@@ -56,3 +56,21 @@ import c_uuid_v7.compat as uuid
 print(repr(uuid.uuid7()))
 # UUID('019d1ab3-f95a-79df-b868-56fe41c33af3')
 ```
+
+## Supported wheels
+
+| OS      | Arch         | manylinux        | musllinux       | CPython   | PyPy |
+|---------|--------------|------------------|-----------------|-----------|------|
+| Linux   | `x86_64`     | `manylinux_2_28` | `musllinux_1_2` | 3.10–3.14 | 3.11 |
+| Linux   | `i686`       | `manylinux_2_28` | `musllinux_1_2` | 3.10–3.14 | 3.11 |
+| Linux   | `aarch64`    | `manylinux_2_28` | `musllinux_1_2` | 3.10–3.14 | 3.11 |
+| Linux   | `armv7l`     | `manylinux_2_31` | `musllinux_1_2` | 3.10–3.14 | 3.11 |
+| Linux   | `ppc64le`    | `manylinux_2_28` | `musllinux_1_2` | 3.10–3.14 | 3.11 |
+| Linux   | `s390x`      | `manylinux_2_28` | `musllinux_1_2` | 3.10–3.14 | 3.11 |
+| Linux   | `riscv64`    | `manylinux_2_39` | `musllinux_1_2` | 3.10–3.14 | 3.11 |
+| Windows | `AMD64`      | —                | —               | 3.10–3.14 | 3.11 |
+| Windows | `x86`        | —                | —               | 3.10–3.14 | 3.11 |
+| Windows | `ARM64`      | —                | —               | 3.10–3.14 | 3.11 |
+| macOS   | `x86_64`     | —                | —               | 3.10–3.14 | 3.11 |
+| macOS   | `arm64`      | —                | —               | 3.10–3.14 | 3.11 |
+| macOS   | `universal2` | —                | —               | 3.10–3.14 | 3.11 |
