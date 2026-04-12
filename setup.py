@@ -163,6 +163,7 @@ class ZigBuildExt(build_ext):
                             "c",
                             "-",
                         ],
+                        check=False,
                         input="",
                         capture_output=True,
                         text=True,
