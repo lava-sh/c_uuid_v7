@@ -19,32 +19,29 @@ jobs:
   tests:
     uses: ./.github/workflows/tests.yaml
 
-  zizmor:
-    name: "zizmor"
-    uses: ./.github/workflows/zizmor.yaml
-
-  typos:
-    name: "typos"
-    uses: ./.github/workflows/typos.yaml
-
   rumdl:
-    name: "rumdl"
     uses: ./.github/workflows/rumdl.yaml
 
+  typos:
+    uses: ./.github/workflows/typos.yaml
+
+  zizmor:
+    uses: ./.github/workflows/zizmor.yaml
+
   linux:
-    needs: [ tests, zizmor, typos, rumdl ]
+    needs: [ tests, rumdl, typos, zizmor ]
     uses: ./.github/workflows/linux.yaml
 
   windows:
-    needs: [ tests, zizmor, typos, rumdl ]
+    needs: [ tests, rumdl, typos, zizmor ]
     uses: ./.github/workflows/windows.yaml
 
   macos:
-    needs: [ tests, zizmor, typos, rumdl ]
+    needs: [ tests, rumdl, typos, zizmor ]
     uses: ./.github/workflows/macos.yaml
 
   sdist:
-    needs: [ tests, zizmor, typos, rumdl ]
+    needs: [ tests, rumdl, typos, zizmor ]
     uses: ./.github/workflows/sdist.yaml
 
   release:

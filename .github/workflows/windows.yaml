@@ -4,8 +4,7 @@ on:
   workflow_call:
 
 jobs:
-  windows:
-    name: "${{ matrix.platform.runner }} / ${{ matrix.platform.target }}"
+  run:
     runs-on: ${{ matrix.platform.runner }}
     timeout-minutes: 60
     strategy:
@@ -13,17 +12,14 @@ jobs:
         platform:
           - {
             target: AMD64,
-            python_arch: x64,
             runner: windows-latest,
           }
           - {
-            runner: windows-latest,
             target: x86,
-            python_arch: x86,
+            runner: windows-latest,
           }
           - {
             target: ARM64,
-            python_arch: arm64,
             runner: windows-11-arm,
           }
     steps:

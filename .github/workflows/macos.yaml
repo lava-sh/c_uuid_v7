@@ -4,8 +4,7 @@ on:
   workflow_call:
 
 jobs:
-  macos:
-    name: "${{ matrix.platform.runner }} / ${{ matrix.platform.target }}"
+  run:
     runs-on: ${{ matrix.platform.runner }}
     timeout-minutes: 60
     strategy:

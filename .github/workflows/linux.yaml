@@ -4,8 +4,7 @@ on:
   workflow_call:
 
 jobs:
-  linux:
-    name: "ubuntu-latest / ${{ matrix.platform.target }}"
+  run:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
@@ -40,15 +39,13 @@ jobs:
           name: wheels-linux-${{ matrix.platform.target }}
           path: wheelhouse/*.whl
 
-  linux-cross:
-    name: "ubuntu-24.04-arm / ${{ matrix.platform.target }}"
+  run-cross:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 60
     strategy:
       matrix:
         platform:
           - {
-            qemu: false,
             target: aarch64,
           }
     steps:
