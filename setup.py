@@ -258,7 +258,7 @@ class ZigBuildExt(build_ext):
         for name in (
                 "lib.lib",
                 "lib.exp",
-                f"{ext_path.stem}.lib", f"{ext_path.stem}.exp"
+                f"{ext_path.stem}.lib", f"{ext_path.stem}.exp",
         ):
             artifact = ext_path.parent / name
             if artifact.exists():
