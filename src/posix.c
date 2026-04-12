@@ -1,17 +1,15 @@
 #ifndef _WIN32
 
-// clang-format off
-#include "platform.h"
+    #include "platform.h"
 
-#include <fcntl.h>
-#include <sys/time.h>
-#include <time.h>
-#include <unistd.h>
+    #include <fcntl.h>
+    #include <sys/time.h>
+    #include <time.h>
+    #include <unistd.h>
 
-#if defined(__linux__)
-    #include <sys/random.h>
-#endif
-// clang-format on
+    #if defined(__linux__)
+        #include <sys/random.h>
+    #endif
 
 uint64_t system_ms(void) {
     #if defined(CLOCK_REALTIME)
