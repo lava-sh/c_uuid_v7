@@ -81,6 +81,9 @@ int random_ensure_seeded(void) {
     memcpy(&left, seed, sizeof(left));
     memcpy(&right, seed + sizeof(left), sizeof(right));
     wyrand_global.state = left ^ wy_mix(right, right ^ WYRAND_MIX_CONST);
+#ifdef _WIN32
+    platform_seeded();
+#endif
     wyrand_seeded = 1;
     return 0;
 }
