@@ -45,18 +45,19 @@ def _add_include(command: list[str], ext: Extension) -> None:
 
 
 def _add_library_dirs(command: list[str], ext: Extension) -> None:
-    for p in _unique_paths(
-        [
-            *(ext.library_dirs or []),
-            sys.prefix,
-            sys.base_prefix,
-            sys.exec_prefix,
-            sys.base_exec_prefix,
-        ],
-        existing_only=True,
-    ):
+    seen = set()
+    roots = _unique_paths([
+        sys.prefix,
+        sys.base_prefix,
+        sys.exec_prefix,
+        sys.base_exec_prefix,
+    ], existing_only=True)
+    for p in [*roots, *(ext.library_dirs or [])]:
         for sub in ("libs", "Libs"):
-            command.extend(["-L", f"{p}/{sub}"])
+            lib_dir = f"{p}/{sub}"
+            if lib_dir not in seen and Path(lib_dir).is_dir():
+                seen.add(lib_dir)
+                command.extend(["-L", lib_dir])
 
 
 def _add_libraries(command: list[str], ext: Extension) -> None:
@@ -142,7 +143,10 @@ class ZigBuildExt(build_ext):
         ext_path.parent.mkdir(parents=True, exist_ok=True)
 
         target = self._windows_target()
-        cmd = [zig, "cc", "-target", target, *self._opt_flags()]
+        cmd: list[str] = [zig, "cc"]
+        if target:
+            cmd.extend(["-target", target])
+        cmd.extend(self._opt_flags())
         cmd.extend(self._win_arch_macro(target))
         cmd.extend(["-Wno-empty-translation-unit", "-shared"])
         cmd.extend(self._macro_flags(ext))
