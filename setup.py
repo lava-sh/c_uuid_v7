@@ -132,6 +132,21 @@ def _python_paths() -> list[str]:
 
 
 class ZigBuildExt(build_ext):
+    def finalize_options(self) -> None:
+        super().finalize_options()
+        if sys.platform != "darwin":
+            return
+        clang = shutil.which("clang")
+        if not clang:
+            return
+        linker_flag = "-Wl,-no_warn_version_mismatches"
+        if not self._supports_linker_flag(clang, linker_flag):
+            return
+        for ext in self.extensions:
+            extra_link_args = list(ext.extra_link_args or [])
+            if linker_flag not in extra_link_args:
+                ext.extra_link_args = [*extra_link_args, linker_flag]
+
     def build_extensions(self) -> None:
         zig = self._find_zig()
         if zig is not None and os.name != "nt" and self.compiler.compiler_type == "unix":
@@ -249,11 +264,6 @@ class ZigBuildExt(build_ext):
             return
         linker_flag = "-Wl,-no_warn_version_mismatches"
         supports_flag = self._supports_linker_flag(clang, linker_flag)
-        if supports_flag:
-            for ext in self.extensions:
-                extra_link_args = list(ext.extra_link_args or [])
-                if linker_flag not in extra_link_args:
-                    ext.extra_link_args = [*extra_link_args, linker_flag]
         linker_args = [clang]
         if supports_flag:
             linker_args.append(linker_flag)
