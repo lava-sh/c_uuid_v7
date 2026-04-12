@@ -36,7 +36,7 @@ void platform_seeded(void) {
 
     if (kernel32 != NULL) {
         query_interrupt_time_ptr =
-            (VOID(WINAPI *)(PULONGLONG))GetProcAddress(kernel32, "QueryInterruptTime");
+            (VOID(WINAPI *)(PULONGLONG))(uintptr_t)GetProcAddress(kernel32, "QueryInterruptTime");
     }
 
     if (query_interrupt_time_ptr != NULL) {

@@ -791,6 +791,10 @@ static PyModuleDef module_def = {
     "Fast UUIDv7 generator.",
     -1,
     module_methods,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
 };
 
 PyMODINIT_FUNC PyInit__core(void) {
