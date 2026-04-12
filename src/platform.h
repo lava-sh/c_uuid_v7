@@ -8,6 +8,7 @@
 #ifdef _WIN32
     #define WIN32_LEAN_AND_MEAN
 
+    #include <realtimeapiset.h>
     #include <windows.h>
 
     #if defined(_M_X64)
@@ -17,7 +18,6 @@
 
 extern uint64_t epoch_base_ms;
 extern uint64_t tick_base_ms;
-extern VOID(WINAPI *query_interrupt_time_ptr)(PULONGLONG);
 #endif
 
 uint64_t system_ms(void);
@@ -34,14 +34,10 @@ void platform_seeded(void);
 
 static NOT_UNUSED uint64_t now_ms(void) {
 #ifdef _WIN32
-    if (query_interrupt_time_ptr != NULL) {
-        ULONGLONG interrupt_time = 0;
+    ULONGLONG interrupt_time = 0;
 
-        query_interrupt_time_ptr(&interrupt_time);
-        return epoch_base_ms + interrupt_time / 10000ULL - tick_base_ms;
-    }
-
-    return epoch_base_ms + GetTickCount64() - tick_base_ms;
+    QueryInterruptTime(&interrupt_time);
+    return epoch_base_ms + interrupt_time / 10000ULL - tick_base_ms;
 #else
     return system_ms();
 #endif

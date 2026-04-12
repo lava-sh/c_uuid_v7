@@ -215,6 +215,7 @@ class ZigBuildExt(build_ext):
         libraries = list(ext.libraries or [])
         if any(Path(source).name == "windows.c" for source in ext.sources):
             libraries.append("advapi32")
+            libraries.append("Mincore")
         return libraries
 
     @staticmethod
