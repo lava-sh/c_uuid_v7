@@ -7,6 +7,7 @@ from pathlib import Path
 
 from setuptools import setup
 from setuptools.command.build_ext import build_ext
+from setuptools.extension import Extension
 
 ROOT = Path(__file__).resolve().parent
 
@@ -57,10 +58,13 @@ class ZigBuildExt(build_ext):
                 linker_so = list(self.compiler.linker_so)
                 linker_exe = list(self.compiler.linker_exe)
                 self.compiler.linker_so = [*prefix, *_filter_zig_unix_args(linker_so[1:])]
-                self.compiler.linker_exe = [*prefix, *_filter_zig_unix_args(linker_exe[1:])]
+                self.compiler.linker_exe = [
+                    *prefix,
+                    *_filter_zig_unix_args(linker_exe[1:]),
+                ]
         super().build_extensions()
 
-    def build_extension(self, ext) -> None:
+    def build_extension(self, ext: Extension) -> None:
         zig = self._find_zig()
         if os.name != "nt" or zig is None:
             super().build_extension(ext)
@@ -87,8 +91,7 @@ class ZigBuildExt(build_ext):
                 command.append(f"-D{name}")
             else:
                 command.append(f"-D{name}={value}")
-        for name in ext.undef_macros or []:
-            command.append(f"-U{name}")
+        command.extend(f"-U{name}" for name in ext.undef_macros or [])
 
         include_dirs = list(ext.include_dirs or [])
         for key in ("include", "platinclude"):
@@ -203,7 +206,15 @@ class ZigBuildExt(build_ext):
             Path(sys.executable).resolve().parent.parent,
         ]
 
-        for key in ("BINDIR", "LIBDIR", "LIBPL", "installed_base", "installed_platbase", "base", "platbase"):
+        for key in (
+            "BINDIR",
+            "LIBDIR",
+            "LIBPL",
+            "installed_base",
+            "installed_platbase",
+            "base",
+            "platbase",
+        ):
             value = sysconfig.get_config_var(key)
             if value:
                 roots.append(Path(value))
@@ -215,15 +226,13 @@ class ZigBuildExt(build_ext):
 
         candidates: list[Path] = []
         for root in roots:
-            candidates.extend(
-                [
-                    root,
-                    root / "libs",
-                    root / "Libs",
-                    root.parent / "libs",
-                    root.parent / "Libs",
-                ]
-            )
+            candidates.extend([
+                root,
+                root / "libs",
+                root / "Libs",
+                root.parent / "libs",
+                root.parent / "Libs",
+            ])
 
         for directory in candidates:
             resolved = str(directory)

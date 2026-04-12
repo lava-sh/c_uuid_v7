@@ -9,7 +9,8 @@ include = [
     "tests/**.py",
     "benchmark/run.py",
     "pyproject.toml",
-    "README.md"
+    "README.md",
+    "setup.py",
 ]
 
 [lint.isort]
@@ -25,6 +26,8 @@ ignore = [
     "ARG",    # Unused method argument
     ########
     "D100",   # Missing docstring in public module
+    "D101",   # Missing docstring in public class
+    "D102",   # Missing docstring in public method
     "D103",   # Missing docstring in public function
     "D104",   # Missing docstring in public package
     "D203",
@@ -54,6 +57,11 @@ ignore = [
 # benchmark
 "benchmark/**.py" = [
     "INP001",
+]
+"setup.py" = [
+    "C901",
+    "PLR0912",
+    "PLR0915",
 ]
 
 [lint.flake8-tidy-imports.banned-api]
