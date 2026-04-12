@@ -119,7 +119,7 @@ jobs:
       - name: "Create and activate .venv"
         shell: bash
         run: |
-          uv venv .venv --python ${{ matrix.python-version }}
+          uv venv .venv --python ${{ matrix.python }}
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             echo ".venv/Scripts" >> "$GITHUB_PATH"
           else
