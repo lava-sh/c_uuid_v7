@@ -103,12 +103,9 @@ class ZigBuildExt(build_ext):
             return
 
         is_unix = os.name != "nt" and self.compiler.compiler_type == "unix"
-        is_macos = sys.platform == "darwin"
-        macos_plat = self.plat_name or "" if is_macos else ""
 
-        if is_unix or (is_macos and "universal2" not in macos_plat):
-            target = self._macos_target() if is_macos else None
-            prefix = [zig, "cc"] + (["-target", target] if target else [])
+        if is_unix:
+            prefix = [zig, "cc"]
             cflags = [
                 "-Wno-empty-translation-unit",
                 "-Wno-visibility",
@@ -116,8 +113,6 @@ class ZigBuildExt(build_ext):
                 "-fPIC",
                 "-O3",
             ]
-            if is_macos:
-                cflags.append("-mmacosx-version-min=10.9")
             self.compiler.compiler = [*prefix]
             self.compiler.compiler_so = [*prefix, *cflags]
             self.compiler.linker_so = [*prefix, "-shared", "-s"]
@@ -133,14 +128,9 @@ class ZigBuildExt(build_ext):
 
         if os.name == "nt":
             self._build_windows(ext, zig)
-        elif sys.platform == "darwin":
-            plat = self.plat_name or getattr(self, "get_platform")()
-            if "universal2" not in plat:
-                self._build_macos(ext, zig)
-            else:
-                super().build_extension(ext)
-        else:
-            super().build_extension(ext)
+            return
+
+        super().build_extension(ext)
 
     def _build_windows(self, ext: Extension, zig: str) -> None:
         ext_path = Path(self.get_ext_fullpath(ext.name))
@@ -170,35 +160,6 @@ class ZigBuildExt(build_ext):
         self.spawn(cmd)
         self._cleanup_artifacts(ext_path)
 
-    def _build_macos(self, ext: Extension, zig: str) -> None:
-        ext_path = Path(self.get_ext_fullpath(ext.name))
-        ext_path.parent.mkdir(parents=True, exist_ok=True)
-
-        target = self._macos_target()
-        cmd = [zig, "cc"] + (["-target", target] if target else [])
-        cmd.extend([
-            "-O3",
-            "-DNDEBUG",
-            "-s",
-            "-mmacosx-version-min=10.9",
-            "-Wno-empty-translation-unit",
-            "-Wno-visibility",
-            "-shared",
-        ])
-        cmd.extend(["-undefined", "dynamic_lookup"])
-        cmd.extend(self._macro_flags(ext))
-        _add_include(cmd, ext)
-        cmd.extend(_split_flags(os.environ.get("CFLAGS")))
-        cmd.extend(str(Path(s)) for s in ext.sources)
-        _add_library_dirs(cmd, ext)
-        _add_libraries(cmd, ext)
-        cmd.extend(_split_flags(os.environ.get("LDFLAGS")))
-        cmd.extend(str(a) for a in ext.extra_compile_args or [])
-        cmd.extend(str(a) for a in ext.extra_link_args or [])
-        cmd.extend(["-o", str(ext_path)])
-
-        self.spawn(cmd)
-
     def _find_zig(self) -> str | None:
         return shutil.which("python-zig") or shutil.which("zig")
 
@@ -219,21 +180,6 @@ class ZigBuildExt(build_ext):
             "aarch64-windows-msvc": "-D_ARM64_",
         }.get(target)
         return [macro] if macro else []
-
-    def _macos_target(self) -> str | None:
-        archflags = os.environ.get("ARCHFLAGS", "")
-        if "-arch arm64" in archflags:
-            return "arm64-macos"
-        if "-arch x86_64" in archflags:
-            return "x86_64-macos"
-        plat = self.plat_name or getattr(self, "get_platform")()
-        if "universal2" in plat:
-            return None
-        if "arm64" in plat:
-            return "arm64-macos"
-        if "x86_64" in plat:
-            return "x86_64-macos"
-        return None
 
     def _opt_flags(self) -> list[str]:
         return ["-O0", "-g"] if self.debug else ["-O3", "-DNDEBUG", "-s"]
