@@ -143,7 +143,11 @@ class ZigBuildExt(build_ext):
                 self.compiler,
                 "compiler_so",
                 prefix,
-                ["-Wno-empty-translation-unit", "-Wno-visibility"],
+                [
+                    "-Wno-empty-translation-unit",
+                    "-Wno-visibility",
+                    "-fvisibility=hidden",
+                ],
             )
             linker_suffix = ["-s"] if not self.debug else []
             _set_compiler(self.compiler, "linker_so", [*prefix, *linker_suffix])
@@ -168,7 +172,6 @@ class ZigBuildExt(build_ext):
         command.extend(self._macro_flags(ext))
         _extend_with_prefixed_paths(command, "-I", self._include_dirs(ext))
 
-        command.extend(_split_flags(os.environ.get("CPPFLAGS")))
         command.extend(_split_flags(os.environ.get("CFLAGS")))
         command.extend(str(Path(s)) for s in ext.sources)
 
