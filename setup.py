@@ -22,7 +22,7 @@ def _filter_zig_unix_args(args: list[str]) -> list[str]:
     blocked = {
         "-Wl,-Bsymbolic-functions",
     }
-    filtered: list[str] = []
+    filtered = []
     skip_next = False
     for arg in args:
         if skip_next:
@@ -37,6 +37,50 @@ def _filter_zig_unix_args(args: list[str]) -> list[str]:
     return filtered
 
 
+def _iter_unique_paths(
+    paths: list[str | Path | None],
+    *,
+    existing_only: bool = False,
+) -> list[str]:
+    resolved_paths = []
+    seen = set()
+    for path in paths:
+        if not path:
+            continue
+        resolved = Path(path)
+        if existing_only and not resolved.is_dir():
+            continue
+        resolved_str = str(resolved)
+        if resolved_str in seen:
+            continue
+        seen.add(resolved_str)
+        resolved_paths.append(resolved_str)
+    return resolved_paths
+
+
+def _extend_with_prefixed_paths(
+    command: list[str],
+    prefix: str,
+    paths: list[str | Path | None],
+    *,
+    existing_only: bool = False,
+) -> None:
+    for path in _iter_unique_paths(paths, existing_only=existing_only):
+        command.extend([prefix, path])
+
+
+def _extend_with_unique_libraries(
+    command: list[str],
+    libraries: list[str | None],
+) -> None:
+    seen = set()
+    for library in libraries:
+        if not library or library in seen:
+            continue
+        seen.add(library)
+        command.append(f"-l{library}")
+
+
 class ZigBuildExt(build_ext):
     def build_extensions(self) -> None:
         zig = self._find_zig()
@@ -47,10 +91,7 @@ class ZigBuildExt(build_ext):
 
             compiler = list(self.compiler.compiler)
             compiler_so = list(self.compiler.compiler_so)
-            prefix = [zig, "cc"]
-            target = self._zig_unix_target()
-            if target is not None:
-                prefix.extend(["-target", target])
+            prefix = self._zig_cc_prefix(zig, self._zig_unix_target())
 
             self.compiler.compiler = [*prefix, *_filter_zig_unix_args(compiler[1:])]
             self.compiler.compiler_so = [*prefix, *_filter_zig_unix_args(compiler_so[1:])]
@@ -74,73 +115,28 @@ class ZigBuildExt(build_ext):
         ext_path.parent.mkdir(parents=True, exist_ok=True)
         Path(self.build_temp).mkdir(parents=True, exist_ok=True)
 
-        command = [zig, "cc"]
-        target = self._windows_target()
-        if target is not None:
-            command.extend(["-target", target])
-
-        if self.debug:
-            command.extend(["-O0", "-g"])
-        else:
-            command.extend(["-O3", "-DNDEBUG", "-s"])
-
+        command = self._zig_cc_prefix(zig, self._windows_target())
+        command.extend(self._optimization_flags())
         command.append("-shared")
-
-        for name, value in ext.define_macros or []:
-            if value is None:
-                command.append(f"-D{name}")
-            else:
-                command.append(f"-D{name}={value}")
-        command.extend(f"-U{name}" for name in ext.undef_macros or [])
-
-        include_dirs = list(ext.include_dirs or [])
-        for key in ("include", "platinclude"):
-            path = sysconfig.get_path(key)
-            if path:
-                include_dirs.append(path)
-        include_dirs.append(sysconfig.get_config_var("INCLUDEPY"))
-
-        seen_include_dirs: set[str] = set()
-        for directory in include_dirs:
-            if not directory:
-                continue
-            resolved = str(Path(directory))
-            if resolved in seen_include_dirs:
-                continue
-            seen_include_dirs.add(resolved)
-            command.extend(["-I", resolved])
+        command.extend(self._macro_flags(ext))
+        _extend_with_prefixed_paths(command, "-I", self._include_dirs(ext))
 
         command.extend(_split_flags(os.environ.get("CPPFLAGS")))
         command.extend(_split_flags(os.environ.get("CFLAGS")))
         command.extend(str(Path(source)) for source in ext.sources)
 
-        library_dirs = list(ext.library_dirs or [])
-        library_dirs.extend(self._python_library_dirs())
-
-        seen_library_dirs: set[str] = set()
-        for directory in library_dirs:
-            if not directory:
-                continue
-            resolved = str(Path(directory))
-            if resolved in seen_library_dirs:
-                continue
-            seen_library_dirs.add(resolved)
-            command.extend(["-L", resolved])
+        _extend_with_prefixed_paths(
+            command,
+            "-L",
+            [*(ext.library_dirs or []), *self._python_library_dirs()],
+            existing_only=True,
+        )
 
         python_import_library = self._python_import_library()
         if python_import_library is not None:
             command.append(str(python_import_library))
 
-        libraries = list(ext.libraries or [])
-        if any(Path(source).name == "windows.c" for source in ext.sources):
-            libraries.append("advapi32")
-
-        seen_libraries: set[str] = set()
-        for library in libraries:
-            if library in seen_libraries:
-                continue
-            seen_libraries.add(library)
-            command.append(f"-l{library}")
+        _extend_with_unique_libraries(command, self._libraries(ext))
 
         command.extend(_split_flags(os.environ.get("LDFLAGS")))
         command.extend(str(arg) for arg in ext.extra_compile_args or [])
@@ -148,15 +144,7 @@ class ZigBuildExt(build_ext):
         command.extend(["-o", str(ext_path)])
 
         self.spawn(command)
-
-        for artifact in (
-            ext_path.parent / "lib.lib",
-            ext_path.parent / "lib.exp",
-            ext_path.parent / f"{ext_path.stem}.lib",
-            ext_path.parent / f"{ext_path.stem}.exp",
-        ):
-            if artifact.exists():
-                artifact.unlink()
+        self._cleanup_windows_link_artifacts(ext_path)
 
     @staticmethod
     def _find_zig() -> str | None:
@@ -193,11 +181,56 @@ class ZigBuildExt(build_ext):
         return None
 
     @staticmethod
-    def _python_library_dirs() -> list[str]:
-        directories: list[str] = []
-        seen: set[str] = set()
+    def _zig_cc_prefix(zig: str, target: str | None) -> list[str]:
+        prefix = [zig, "cc"]
+        if target is not None:
+            prefix.extend(["-target", target])
+        return prefix
 
-        roots = [
+    def _optimization_flags(self) -> list[str]:
+        if self.debug:
+            return ["-O0", "-g"]
+        return ["-O3", "-DNDEBUG", "-s"]
+
+    @staticmethod
+    def _macro_flags(ext: Extension) -> list[str]:
+        flags: list[str] = []
+        for name, value in ext.define_macros or []:
+            if value is None:
+                flags.append(f"-D{name}")
+            else:
+                flags.append(f"-D{name}={value}")
+        flags.extend(f"-U{name}" for name in ext.undef_macros or [])
+        return flags
+
+    @staticmethod
+    def _include_dirs(ext: Extension) -> list[str | Path | None]:
+        directories: list[str | Path | None] = [*(ext.include_dirs or [])]
+        directories.extend(sysconfig.get_path(key) for key in ("include", "platinclude"))
+        directories.append(sysconfig.get_config_var("INCLUDEPY"))
+        return directories
+
+    @staticmethod
+    def _libraries(ext: Extension) -> list[str]:
+        libraries = list(ext.libraries or [])
+        if any(Path(source).name == "windows.c" for source in ext.sources):
+            libraries.append("advapi32")
+        return libraries
+
+    @staticmethod
+    def _cleanup_windows_link_artifacts(ext_path: Path) -> None:
+        for artifact in (
+            ext_path.parent / "lib.lib",
+            ext_path.parent / "lib.exp",
+            ext_path.parent / f"{ext_path.stem}.lib",
+            ext_path.parent / f"{ext_path.stem}.exp",
+        ):
+            if artifact.exists():
+                artifact.unlink()
+
+    @staticmethod
+    def _python_library_dirs() -> list[str]:
+        roots: list[str | Path | None] = [
             Path(sys.prefix),
             Path(sys.base_prefix),
             Path(sys.exec_prefix),
@@ -206,26 +239,28 @@ class ZigBuildExt(build_ext):
             Path(sys.executable).resolve().parent.parent,
         ]
 
-        for key in (
-            "BINDIR",
-            "LIBDIR",
-            "LIBPL",
-            "installed_base",
-            "installed_platbase",
-            "base",
-            "platbase",
-        ):
-            value = sysconfig.get_config_var(key)
-            if value:
-                roots.append(Path(value))
+        roots.extend(
+            sysconfig.get_config_var(key)
+            for key in (
+                "BINDIR",
+                "LIBDIR",
+                "LIBPL",
+                "installed_base",
+                "installed_platbase",
+                "base",
+                "platbase",
+            )
+        )
+        roots.extend(
+            sysconfig.get_path(key)
+            for key in ("include", "platinclude", "stdlib", "platstdlib", "scripts")
+        )
 
-        for key in ("include", "platinclude", "stdlib", "platstdlib", "scripts"):
-            value = sysconfig.get_path(key)
-            if value:
-                roots.append(Path(value))
-
-        candidates: list[Path] = []
-        for root in roots:
+        candidates = []
+        for root_path in roots:
+            if not root_path:
+                continue
+            root = Path(root_path)
             candidates.extend([
                 root,
                 root / "libs",
@@ -233,15 +268,7 @@ class ZigBuildExt(build_ext):
                 root.parent / "libs",
                 root.parent / "Libs",
             ])
-
-        for directory in candidates:
-            resolved = str(directory)
-            if resolved in seen or not directory.is_dir():
-                continue
-            seen.add(resolved)
-            directories.append(resolved)
-
-        return directories
+        return _iter_unique_paths(candidates, existing_only=True)
 
     @classmethod
     def _python_import_library(cls) -> Path | None:
