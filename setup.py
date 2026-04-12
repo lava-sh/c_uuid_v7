@@ -38,9 +38,9 @@ def _filter_zig_unix_args(args: list[str]) -> list[str]:
 
 
 def _iter_unique_paths(
-    paths: list[str | Path | None],
-    *,
-    existing_only: bool = False,
+        paths: list[str | Path | None],
+        *,
+        existing_only: bool = False,
 ) -> list[str]:
     resolved_paths = []
     seen = set()
@@ -59,19 +59,19 @@ def _iter_unique_paths(
 
 
 def _extend_with_prefixed_paths(
-    command: list[str],
-    prefix: str,
-    paths: list[str | Path | None],
-    *,
-    existing_only: bool = False,
+        command: list[str],
+        prefix: str,
+        paths: list[str | Path | None],
+        *,
+        existing_only: bool = False,
 ) -> None:
     for path in _iter_unique_paths(paths, existing_only=existing_only):
         command.extend([prefix, path])
 
 
 def _extend_with_unique_libraries(
-    command: list[str],
-    libraries: list[str | None],
+        command: list[str],
+        libraries: list[str | None],
 ) -> None:
     seen = set()
     for library in libraries:
@@ -105,8 +105,14 @@ class ZigBuildExt(build_ext):
                 if clang:
                     linker_so = list(self.compiler.linker_so)
                     linker_exe = list(self.compiler.linker_exe)
-                    self.compiler.linker_so = [clang, *_filter_zig_unix_args(linker_so[1:])]
-                    self.compiler.linker_exe = [clang, *_filter_zig_unix_args(linker_exe[1:])]
+                    self.compiler.linker_so = [
+                        clang,
+                        *_filter_zig_unix_args(linker_so[1:]),
+                    ]
+                    self.compiler.linker_exe = [
+                        clang,
+                        *_filter_zig_unix_args(linker_exe[1:]),
+                    ]
             else:
                 linker_so = list(self.compiler.linker_so)
                 linker_exe = list(self.compiler.linker_exe)
@@ -255,10 +261,10 @@ class ZigBuildExt(build_ext):
     @staticmethod
     def _cleanup_windows_link_artifacts(ext_path: Path) -> None:
         for artifact in (
-            ext_path.parent / "lib.lib",
-            ext_path.parent / "lib.exp",
-            ext_path.parent / f"{ext_path.stem}.lib",
-            ext_path.parent / f"{ext_path.stem}.exp",
+                ext_path.parent / "lib.lib",
+                ext_path.parent / "lib.exp",
+                ext_path.parent / f"{ext_path.stem}.lib",
+                ext_path.parent / f"{ext_path.stem}.exp",
         ):
             if artifact.exists():
                 artifact.unlink()
