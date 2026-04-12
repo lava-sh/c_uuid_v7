@@ -129,14 +129,22 @@ class ZigBuildExt(build_ext):
                 self.compiler,
                 "compiler_so",
                 prefix,
-                ["-Wno-empty-translation-unit"],
+                ["-Wno-empty-translation-unit", "-Wno-visibility"],
             )
 
             if sys.platform == "darwin":
                 clang = shutil.which("clang")
                 if clang:
-                    _set_compiler(self.compiler, "linker_so", [clang])
-                    _set_compiler(self.compiler, "linker_exe", [clang])
+                    _set_compiler(
+                        self.compiler,
+                        "linker_so",
+                        [clang, "-Wl,-no_warn_version_mismatches"],
+                    )
+                    _set_compiler(
+                        self.compiler,
+                        "linker_exe",
+                        [clang, "-Wl,-no_warn_version_mismatches"],
+                    )
             else:
                 _set_compiler(self.compiler, "linker_so", prefix)
                 _set_compiler(self.compiler, "linker_exe", prefix)
