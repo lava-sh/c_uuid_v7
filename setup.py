@@ -1,7 +1,6 @@
 import os
 import shlex
 import shutil
-import subprocess
 import sys
 import sysconfig
 from pathlib import Path
@@ -134,18 +133,15 @@ def _python_paths() -> list[str]:
 class ZigBuildExt(build_ext):
     def finalize_options(self) -> None:
         super().finalize_options()
-        if sys.platform != "darwin":
-            return
-        clang = shutil.which("clang")
-        if not clang:
-            return
-        linker_flag = "-Wl,-no_warn_version_mismatches"
-        if not self._supports_linker_flag(clang, linker_flag):
+        linker_args = self._darwin_linker_args()
+        if not linker_args[1:]:
             return
         for ext in self.extensions:
             extra_link_args = list(ext.extra_link_args or [])
-            if linker_flag not in extra_link_args:
-                ext.extra_link_args = [*extra_link_args, linker_flag]
+            for arg in linker_args[1:]:
+                if arg not in extra_link_args:
+                    extra_link_args.append(arg)
+            ext.extra_link_args = extra_link_args
 
     def build_extensions(self) -> None:
         zig = self._find_zig()
@@ -213,8 +209,7 @@ class ZigBuildExt(build_ext):
         self.spawn(command)
         self._cleanup_windows_link_artifacts(ext_path)
 
-    @staticmethod
-    def _find_zig() -> str | None:
+    def _find_zig(self) -> str | None:
         return shutil.which("python-zig") or shutil.which("zig")
 
     def _windows_target(self) -> str | None:
@@ -238,40 +233,22 @@ class ZigBuildExt(build_ext):
             return "x86_64-macos"
         return None
 
-    @staticmethod
-    def _supports_linker_flag(clang: str, flag: str) -> bool:
-        result = subprocess.run(
-            [
-                clang,
-                flag,
-                "-shared",
-                "-o",
-                os.devnull,
-                "-x",
-                "c",
-                "-",
-            ],
-            check=False,
-            input="",
-            capture_output=True,
-            text=True,
-        )
-        return result.returncode == 0 or "unknown option" not in result.stderr
-
     def _configure_darwin_linker(self) -> None:
-        clang = shutil.which("clang")
-        if not clang:
+        linker_args = self._darwin_linker_args()
+        if not linker_args:
             return
-        linker_flag = "-Wl,-no_warn_version_mismatches"
-        supports_flag = self._supports_linker_flag(clang, linker_flag)
-        linker_args = [clang]
-        if supports_flag:
-            linker_args.append(linker_flag)
         _set_compiler(self.compiler, "linker_so", linker_args)
         _set_compiler(self.compiler, "linker_exe", linker_args)
 
-    @staticmethod
-    def _windows_arch_macro(target: str | None) -> list[str]:
+    def _darwin_linker_args(self) -> list[str]:
+        if sys.platform != "darwin":
+            return []
+        clang = shutil.which("clang")
+        if not clang:
+            return []
+        return [clang, "-Wl,-no_warn_version_mismatches"]
+
+    def _windows_arch_macro(self, target: str | None) -> list[str]:
         if target is None:
             return []
         macro = {
@@ -281,8 +258,7 @@ class ZigBuildExt(build_ext):
         }.get(target)
         return [macro] if macro else []
 
-    @staticmethod
-    def _zig_cc_prefix(zig: str, target: str | None) -> list[str]:
+    def _zig_cc_prefix(self, zig: str, target: str | None) -> list[str]:
         if target is not None:
             return [zig, "cc", "-target", target]
         return [zig, "cc"]
@@ -290,16 +266,14 @@ class ZigBuildExt(build_ext):
     def _optimization_flags(self) -> list[str]:
         return ["-O0", "-g"] if self.debug else ["-O3", "-DNDEBUG", "-s"]
 
-    @staticmethod
-    def _macro_flags(ext: Extension) -> list[str]:
+    def _macro_flags(self, ext: Extension) -> list[str]:
         flags = []
         for name, value in ext.define_macros or []:
             flags.append(f"-D{name}" if value is None else f"-D{name}={value}")
         flags.extend(f"-U{name}" for name in ext.undef_macros or [])
         return flags
 
-    @staticmethod
-    def _include_dirs(ext: Extension) -> list[str | Path | None]:
+    def _include_dirs(self, ext: Extension) -> list[str | Path | None]:
         return [
             *(ext.include_dirs or []),
             sysconfig.get_path("include"),
@@ -307,15 +281,13 @@ class ZigBuildExt(build_ext):
             sysconfig.get_config_var("INCLUDEPY"),
         ]
 
-    @staticmethod
-    def _libraries(ext: Extension) -> list[str]:
+    def _libraries(self, ext: Extension) -> list[str]:
         libraries = list(ext.libraries or [])
         if any(Path(s).name == "windows.c" for s in ext.sources):
             libraries.extend(("advapi32", "Mincore"))
         return libraries
 
-    @staticmethod
-    def _cleanup_windows_link_artifacts(ext_path: Path) -> None:
+    def _cleanup_windows_link_artifacts(self, ext_path: Path) -> None:
         for name in (
             "lib.lib",
             "lib.exp",
