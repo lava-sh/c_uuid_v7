@@ -145,7 +145,8 @@ class ZigBuildExt(build_ext):
                 prefix,
                 ["-Wno-empty-translation-unit", "-Wno-visibility"],
             )
-            _set_compiler(self.compiler, "linker_so", prefix)
+            linker_suffix = ["-s"] if not self.debug else []
+            _set_compiler(self.compiler, "linker_so", [*prefix, *linker_suffix])
             _set_compiler(self.compiler, "linker_exe", prefix)
         super().build_extensions()
 
