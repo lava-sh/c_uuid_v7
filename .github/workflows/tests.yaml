@@ -4,7 +4,7 @@ on:
   workflow_call:
 
 jobs:
-  run:
+  tests:
     name: "${{ matrix.os }} / python ${{ matrix.python }}"
     runs-on: ${{ matrix.os }}
     strategy:

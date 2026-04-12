@@ -4,7 +4,7 @@ on:
   workflow_call:
 
 jobs:
-  run:
+  zizmor:
     name: "zizmor"
     runs-on: ubuntu-latest
     steps:
