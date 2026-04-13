@@ -321,6 +321,10 @@ def test_uuid7_fixed_timestamp() -> None:
     assert all((u.int >> 76) & 0xF == 0x7 for u in uuids)
 
 
+@pytest.mark.skipif(
+    sys.implementation.name == "pypy",
+    reason="sys.getsizeof() always raises TypeError on PyPy",
+)
 def test_uuid7_mem_size() -> None:
     uuid_ = c_uuid_v7.uuid7()
     assert sys.getsizeof(uuid_) < 200
