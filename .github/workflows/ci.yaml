@@ -150,6 +150,7 @@ jobs:
       - uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
         with:
           extras: uv
+          config-file: "cibuildwheel.toml"
         env:
           CIBW_ARCHS_LINUX: "x86_64 i686"
 
@@ -174,6 +175,7 @@ jobs:
       - uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
         with:
           extras: uv
+          config-file: "cibuildwheel.toml"
         env:
           CIBW_ARCHS_LINUX: "aarch64"
 
@@ -198,6 +200,7 @@ jobs:
       - uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
         with:
           extras: uv
+          config-file: "cibuildwheel.toml"
         env:
           CIBW_ARCHS_WINDOWS: "AMD64 x86"
 
@@ -222,6 +225,7 @@ jobs:
       - uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
         with:
           extras: uv
+          config-file: "cibuildwheel.toml"
         env:
           CIBW_ARCHS_WINDOWS: "ARM64"
 
@@ -246,6 +250,7 @@ jobs:
       - uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
         with:
           extras: uv
+          config-file: "cibuildwheel.toml"
         env:
           CIBW_ARCHS_MACOS: "x86_64 arm64 universal2"
 
@@ -274,6 +279,7 @@ jobs:
       - uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
         with:
           extras: uv
+          config-file: "cibuildwheel.toml"
         env:
           CIBW_ARCHS_LINUX: "armv7l"
 
@@ -302,6 +308,7 @@ jobs:
       - uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
         with:
           extras: uv
+          config-file: "cibuildwheel.toml"
         env:
           CIBW_ARCHS_LINUX: "ppc64le"
 
@@ -330,6 +337,7 @@ jobs:
       - uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
         with:
           extras: uv
+          config-file: "cibuildwheel.toml"
         env:
           CIBW_ARCHS_LINUX: "s390x"
 
@@ -358,6 +366,7 @@ jobs:
       - uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
         with:
           extras: uv
+          config-file: "cibuildwheel.toml"
         env:
           CIBW_ARCHS_LINUX: "riscv64"
 
