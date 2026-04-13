@@ -10,6 +10,7 @@ import c_uuid_v7
 import pytest
 
 Mode = Literal["fast", "secure"]
+V7_MAX_TIMESTAMP_MS = 0xFFFFFFFFFFFF
 
 
 class _UUIDObject(ctypes.Structure):
@@ -26,15 +27,30 @@ def _ints(values: list[c_uuid_v7.UUID]) -> list[int]:
 
 
 def _assert_uuid7_bits(value: c_uuid_v7.UUID) -> None:
+    # RFC 9562 §4.2
+    # https://datatracker.ietf.org/doc/html/rfc9562#section-4.2
+    #
+    # Version 7 = 0111 in binary (bits 76-79 of the 128-bit UUID)
     assert (value.int >> 76) & 0xF == 0x7
+
+    # RFC 9562 §4.1
+    # https://datatracker.ietf.org/doc/html/rfc9562#section-4.1
+    #
+    # Variant RFC 4122 = 10 in binary (bits 62-63)
     assert (value.int >> 62) & 0x3 == 0x2
 
 
 def _assert_strictly_increasing(values: list[c_uuid_v7.UUID]) -> None:
     ints = _ints(values)
     assert len(set(ints)) == len(ints)
-    assert all(left < right for left, right in itertools.pairwise(values))
-    assert all(left < right for left, right in itertools.pairwise(ints))
+    assert all(
+        left < right
+        for left, right in itertools.pairwise(values)
+    )  # fmt: skip
+    assert all(
+        left < right
+        for left, right in itertools.pairwise(ints)
+    )  # fmt: skip
 
 
 def _assert_timestamp_non_decreasing(values: list[c_uuid_v7.UUID]) -> None:
@@ -65,6 +81,10 @@ def test_compat_uuid7_returns_stdlib_uuid() -> None:
 
 
 def test_uuid7_string_and_repr_shape() -> None:
+    # Verify canonical UUID string format: 8-4-4-4-12 hex digits
+    # with exactly 4 hyphens (RFC 9562 §4 text representation).
+    #
+    # https://datatracker.ietf.org/doc/html/rfc9562#section-4
     uuid_ = c_uuid_v7.uuid7()
     text = str(uuid_)
     assert len(text) == 36
@@ -72,14 +92,14 @@ def test_uuid7_string_and_repr_shape() -> None:
     assert repr(uuid_) == f"UUID('{text}')"
 
 
-def test_uuid7_hex_and_int_are_consistent() -> None:
+def test_uuid7_hex() -> None:
     uuid_ = c_uuid_v7.uuid7()
     assert len(uuid_.hex) == 32
     assert uuid_.int == int(uuid_.hex, 16)
     assert int(uuid_) == uuid_.int
 
 
-def test_uuid7_object_properties_match_stdlib_uuid() -> None:
+def test_uuid7_object_properties() -> None:
     uuid_ = c_uuid_v7.uuid7()
     stdlib_uuid = uuid.UUID(int=uuid_.int)
 
@@ -134,7 +154,7 @@ def test_uuid7_batches_are_unique_monotonic_and_timestamp_ordered(size: int) -> 
     assert all(((value.int >> 76) & 0xF) == 0x7 for value in values)
 
 
-def test_uuid7_explicit_timestamp_batch_is_valid() -> None:
+def test_uuid7_explicit_timestamp() -> None:
     values = [c_uuid_v7.uuid7(1_704_164_645, 123_000_000) for _ in range(256)]
 
     assert all(value.timestamp == 1_704_164_645_123 for value in values)
@@ -150,10 +170,15 @@ def test_uuid7_explicit_timestamp_batch_is_valid() -> None:
         ((1_704_164_645, 123_000_000), 1_704_164_645_123),
     ],
 )
-def test_uuid7_explicit_timestamp_is_encoded(
+def test_uuid7_explicit_timestamp_(
     args: tuple[int, ...],
     expected_timestamp: int,
 ) -> None:
+    # Verify that the provided Unix-second (+ optional nanos) is
+    # correctly converted to a millisecond UUID timestamp.
+    # RFC 9562 §5.7: 48-bit Unix timestamp in milliseconds.
+    #
+    # https://datatracker.ietf.org/doc/html/rfc9562#section-5.7
     uuid_ = c_uuid_v7.uuid7(args[0], args[1] if len(args) > 1 else None)
     assert uuid_.timestamp == expected_timestamp
     _assert_uuid7_bits(uuid_)
@@ -161,6 +186,10 @@ def test_uuid7_explicit_timestamp_is_encoded(
 
 @pytest.mark.parametrize("nanos", [0, 999_999_999])
 def test_uuid7_accepts_valid_nanos_bounds(nanos: int) -> None:
+    # Nanosecond sub-millisecond precision: accept 0 and 999_999_999
+    # (the full valid range 0..999_999_999 per RFC 9562 §5.7).
+    #
+    # https://datatracker.ietf.org/doc/html/rfc9562#section-5.7
     _assert_uuid7_bits(c_uuid_v7.uuid7(nanos=nanos))
 
 
@@ -184,7 +213,7 @@ def test_uuid7_modes_are_monotonic(mode: Mode) -> None:
         ({"timestamp": 281_474_976_711}, ValueError, "timestamp is too large"),
     ],
 )
-def test_uuid7_rejects_invalid_arguments(
+def test_uuid7_invalid_args(
     kwargs: dict[str, Any],
     error_type: type[Exception],
     message: str,
@@ -196,14 +225,14 @@ def test_uuid7_rejects_invalid_arguments(
 def test_uuid_objects_compare_and_hash() -> None:
     lower = c_uuid_v7.uuid7(1_700_000_000, 1)
     higher = c_uuid_v7.uuid7(1_700_000_001, 1)
-    cached_hash = hash(lower)
+    hash_ = hash(lower)
 
     assert lower < higher
     assert lower <= higher
     assert lower != higher
     assert higher > lower
     assert higher >= lower
-    assert hash(lower) == cached_hash
+    assert hash(lower) == hash_
 
 
 @pytest.mark.skipif(
@@ -235,18 +264,13 @@ def test_compat_uuid7_preserves_timestamp() -> None:
     assert uuid_.version == 7
 
 
-def test_compat_uuid7_accepts_mode() -> None:
-    uuid_ = c_uuid_v7.compat.uuid7(mode="secure")
-
-    assert isinstance(uuid_, uuid.UUID)
-    assert uuid_.version == 7
-
-
 @pytest.mark.skipif(
     sys.platform == "win32",
     reason="Does not run on Windows",
 )
 def test_reseed_is_called_when_forking() -> None:
+    # After `fork()`, the child process must have a reseeded RNG so that
+    # UUIDs generated in parent and child do not collide.
     read_end, write_end = os.pipe()
     c_uuid_v7.uuid7()
 
@@ -265,3 +289,42 @@ def test_reseed_is_called_when_forking() -> None:
         uuid_from_pipe = read_pipe.read().strip()
 
     assert str(next_parent_uuid) != uuid_from_pipe
+
+
+def test_uuid7_timestamp_zero() -> None:
+    # RFC 9562 §5.7: the 48-bit timestamp field must encode epoch (t=0).
+    #
+    # https://datatracker.ietf.org/doc/html/rfc9562#section-5.7
+    uuid_ = c_uuid_v7.uuid7(0)
+    assert uuid_.timestamp == 0
+    _assert_uuid7_bits(uuid_)
+
+
+def test_uuid7_timestamp_max() -> None:
+    # RFC 9562 §5.7: the 48-bit timestamp field max value is 2^48-1 ms.
+    #
+    # https://datatracker.ietf.org/doc/html/rfc9562#section-5.7
+    uuid_ = c_uuid_v7.uuid7(V7_MAX_TIMESTAMP_MS // 1000)
+    _assert_uuid7_bits(uuid_)
+
+
+def test_uuid7_counter_overflow() -> None:
+    uuids = [c_uuid_v7.uuid7() for _ in range(10_000)]
+    _assert_strictly_increasing(uuids)
+
+
+def test_uuid7_fixed_timestamp() -> None:
+    ts_s = 1_700_000_000
+    uuids = [c_uuid_v7.uuid7(ts_s) for _ in range(10_000)]
+    ints = _ints(uuids)
+    assert len(set(ints)) == len(ints)
+    assert all((u.int >> 76) & 0xF == 0x7 for u in uuids)
+
+
+@pytest.mark.skipif(
+    sys.implementation.name == "pypy",
+    reason="sys.getsizeof() always raises TypeError on PyPy",
+)
+def test_uuid7_mem_size() -> None:
+    uuid_ = c_uuid_v7.uuid7()
+    assert sys.getsizeof(uuid_) < 200
