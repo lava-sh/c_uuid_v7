@@ -201,6 +201,7 @@ class ZigBuildExt(build_ext):
 
 setup(
     cmdclass={"build_ext": ZigBuildExt},
+    package_dir={"": "py-src"},
     packages=find_packages(where="py-src"),
     ext_modules=[
         Extension(
