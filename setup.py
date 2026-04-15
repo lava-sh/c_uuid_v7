@@ -1,6 +1,7 @@
 import os
 import shlex
 import shutil
+import subprocess
 import sys
 import sysconfig
 from pathlib import Path
@@ -161,8 +162,33 @@ class ZigBuildExt(build_ext):
         cmd.extend(str(a) for a in ext.extra_link_args or [])
         cmd.extend(["-o", str(ext_path)])
 
-        self.spawn(cmd)
+        self._run_windows_build(cmd, target)
         self._cleanup_artifacts(ext_path)
+
+    def _run_windows_build(self, cmd: list[str], target: str | None) -> None:
+        completed = subprocess.run(
+            cmd,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if completed.returncode == 0:
+            if completed.stdout:
+                sys.stdout.write(completed.stdout)
+            if completed.stderr:
+                sys.stderr.write(completed.stderr)
+            return
+
+        lines = [
+            f"zig cc failed for target {target or '<default>'}",
+            f"command: {shlex.join(cmd)}",
+            f"exit code: {completed.returncode}",
+        ]
+        if completed.stdout:
+            lines.extend(["stdout:", completed.stdout.rstrip()])
+        if completed.stderr:
+            lines.extend(["stderr:", completed.stderr.rstrip()])
+        raise RuntimeError("\n".join(lines))
 
     def _find_zig(self) -> str | None:
         return shutil.which("python-zig") or shutil.which("zig")
