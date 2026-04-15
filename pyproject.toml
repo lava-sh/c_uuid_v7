@@ -1,6 +1,6 @@
 [build-system]
 requires = [
-    "ziglang == 0.16.0",
+    "ziglang == 0.15.2",
     "setuptools == 82.0.1",
     "setuptools-scm == 10.0.5",
 ]
@@ -62,21 +62,6 @@ bench = [
     "py-cpuinfo == 9.0.0",
     "vl-convert-python == 1.9.0.post1",
 ]
-
-[tool.setuptools]
-package-dir = { "" = "py-src" }
-ext-modules = [
-    { name = "c_uuid_v7._core", sources = [
-        "src/lib.c",
-        "src/hexpairs.c",
-        "src/posix.c",
-        "src/random.c",
-        "src/windows.c",
-    ] },
-]
-
-[tool.setuptools.packages.find]
-where = ["py-src"]
 
 [tool.setuptools_scm]
 fallback_version = "0.0.0"

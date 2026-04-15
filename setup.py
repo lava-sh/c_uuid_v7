@@ -1,14 +1,30 @@
+import glob
 import os
 import shlex
 import shutil
 import subprocess
 import sys
 import sysconfig
+from dataclasses import dataclass
 from pathlib import Path
 
-from setuptools import setup
+from setuptools import find_packages, setup
 from setuptools.command.build_ext import build_ext
 from setuptools.extension import Extension
+
+
+@dataclass(frozen=True)
+class PlatformSpec:
+    target: str | None = None
+    arch_macro: str | None = None
+    extra_libs: tuple[str, ...] = ("advapi32", "Mincore")
+
+
+WINDOWS_PLATFORMS = {
+    "win32": PlatformSpec("x86-windows-msvc", "-D_X86_"),
+    "win-amd64": PlatformSpec("x86_64-windows-msvc", "-D_AMD64_"),
+    "win-arm64": PlatformSpec("aarch64-windows-msvc", "-D_ARM64_"),
+}
 
 
 def _split_flags(value: str | None) -> list[str]:
@@ -22,61 +38,57 @@ def _unique_paths(
 ) -> list[str]:
     seen = set()
     result = []
-    for p in paths:
-        if not p:
+    for raw in paths:
+        if not raw:
             continue
-        resolved = Path(p)
-        if existing_only and not resolved.is_dir():
+        path = Path(raw)
+        if existing_only and not path.is_dir():
             continue
-        s = str(resolved)
-        if s not in seen:
-            seen.add(s)
-            result.append(s)
+        value = str(path)
+        if value not in seen:
+            seen.add(value)
+            result.append(value)
     return result
 
 
-def _add_include(command: list[str], ext: Extension) -> None:
-    for p in _unique_paths([
+def _macro_flags(ext: Extension) -> list[str]:
+    flags = [
+        f"-D{name}" if value is None else f"-D{name}={value}"
+        for name, value in ext.define_macros or []
+    ]
+    flags.extend(f"-U{name}" for name in ext.undef_macros or [])
+    return flags
+
+
+def _include_dirs(ext: Extension) -> list[str]:
+    return _unique_paths([
         *(ext.include_dirs or []),
         sysconfig.get_path("include"),
         sysconfig.get_path("platinclude"),
         sysconfig.get_config_var("INCLUDEPY"),
-    ]):
-        command.extend(["-I", p])
+    ])
 
 
-def _add_library_dirs(command: list[str], ext: Extension) -> None:
-    seen = set()
-    roots = _unique_paths([
-        sys.prefix,
-        sys.base_prefix,
-        sys.exec_prefix,
-        sys.base_exec_prefix,
-    ], existing_only=True)
-    for p in [*roots, *(ext.library_dirs or [])]:
-        for sub in ("libs", "Libs"):
-            lib_dir = f"{p}/{sub}"
-            if lib_dir not in seen and Path(lib_dir).is_dir():
-                seen.add(lib_dir)
-                command.extend(["-L", lib_dir])
+def _library_dirs(ext: Extension) -> list[str]:
+    roots = _unique_paths(
+        [
+            sys.prefix,
+            sys.base_prefix,
+            sys.exec_prefix,
+            sys.base_exec_prefix,
+        ],
+        existing_only=True,
+    )
+    bases = [*roots, *(ext.library_dirs or [])]
+    return _unique_paths(
+        [*(f"{root}/{sub}" for root in bases for sub in ("libs", "Libs"))],
+        existing_only=True,
+    )
 
 
-def _add_libraries(command: list[str], ext: Extension) -> None:
-    seen = set()
-    for lib in ext.libraries or []:
-        if lib not in seen:
-            seen.add(lib)
-            command.append(f"-l{lib}")
-    if os.name == "nt" and any(Path(s).name == "windows.c" for s in ext.sources):
-        for lib in ("advapi32", "Mincore"):
-            if lib not in seen:
-                seen.add(lib)
-                command.append(f"-l{lib}")
-
-
-def _find_python_lib(zig: str, target: str | None) -> str | None:
+def _python_lib() -> str | None:
     version = sysconfig.get_python_version().replace(".", "")
-    search_dirs = _unique_paths(
+    roots = _unique_paths(
         [
             sys.prefix,
             sys.base_prefix,
@@ -86,9 +98,9 @@ def _find_python_lib(zig: str, target: str | None) -> str | None:
         ],
         existing_only=True,
     )
-    for d in search_dirs:
+    for root in roots:
         for sub in ("libs", "Libs", ""):
-            base = f"{d}/{sub}" if sub else d
+            base = f"{root}/{sub}" if sub else root
             for stem in (f"python{version}", "python3"):
                 candidate = Path(f"{base}/{stem}.lib")
                 if candidate.is_file():
@@ -96,91 +108,56 @@ def _find_python_lib(zig: str, target: str | None) -> str | None:
     return None
 
 
-class ZigBuildExt(build_ext):
-    def build_extensions(self) -> None:
-        zig = self._find_zig()
-        if zig is None:
-            super().build_extensions()
-            return
+def _extra_libs(ext: Extension, platform: PlatformSpec) -> list[str]:
+    libs = list(ext.libraries or [])
+    if any(Path(source).name == "windows.c" for source in ext.sources):
+        libs.extend(platform.extra_libs)
+    return list(dict.fromkeys(libs))
 
-        if os.name != "nt" or sys.platform == "darwin":
-            super().build_extensions()
-            return
 
-        is_unix = os.name != "nt" and self.compiler.compiler_type == "unix"
+@dataclass(frozen=True)
+class BuildSpec:
+    zig: str
+    ext: Extension
+    ext_path: Path
+    platform: PlatformSpec
+    debug: bool
 
-        if is_unix:
-            prefix = [zig, "cc"]
-            cflags = [
-                "-Wno-empty-translation-unit",
-                "-Wno-visibility",
-                "-fvisibility=hidden",
-                "-fPIC",
-                "-O3",
-            ]
-            self.compiler.compiler = [*prefix]
-            self.compiler.compiler_so = [*prefix, *cflags]
-            self.compiler.linker_so = [*prefix, "-shared", "-s"]
-            self.compiler.linker_exe = [*prefix]
-
-        super().build_extensions()
-
-    def build_extension(self, ext: Extension) -> None:
-        zig = self._find_zig()
-        if zig is None:
-            super().build_extension(ext)
-            return
-
-        if os.name == "nt":
-            self._build_windows(ext, zig)
-            return
-
-        super().build_extension(ext)
-
-    def _build_windows(self, ext: Extension, zig: str) -> None:
-        ext_path = Path(self.get_ext_fullpath(ext.name))
-        ext_path.parent.mkdir(parents=True, exist_ok=True)
-
-        target = self._windows_target()
-        cmd = [zig, "cc"]
-        if target:
-            cmd.extend(["-target", target])
-        cmd.extend(self._opt_flags())
-        cmd.extend(self._win_arch_macro(target))
+    def command(self) -> list[str]:
+        cmd = [self.zig, "cc"]
+        if self.platform.target:
+            cmd.extend(["-target", self.platform.target])
+        cmd.extend(["-O0", "-g"] if self.debug else ["-O3", "-DNDEBUG", "-s"])
+        if self.platform.arch_macro:
+            cmd.append(self.platform.arch_macro)
         cmd.extend(["-Wno-empty-translation-unit", "-shared"])
-        cmd.extend(self._macro_flags(ext))
-        _add_include(cmd, ext)
+        cmd.extend(_macro_flags(self.ext))
+        for path in _include_dirs(self.ext):
+            cmd.extend(["-I", path])
         cmd.extend(_split_flags(os.environ.get("CFLAGS")))
-        cmd.extend(str(Path(s)) for s in ext.sources)
-        _add_library_dirs(cmd, ext)
-        pylib = _find_python_lib(zig, target)
-        if pylib:
-            cmd.append(pylib)
-        _add_libraries(cmd, ext)
+        cmd.extend(str(Path(source)) for source in self.ext.sources)
+        for path in _library_dirs(self.ext):
+            cmd.extend(["-L", path])
+        if python_lib := _python_lib():
+            cmd.append(python_lib)
+        cmd.extend(f"-l{lib}" for lib in _extra_libs(self.ext, self.platform))
         cmd.extend(_split_flags(os.environ.get("LDFLAGS")))
-        cmd.extend(str(a) for a in ext.extra_compile_args or [])
-        cmd.extend(str(a) for a in ext.extra_link_args or [])
-        cmd.extend(["-o", str(ext_path)])
+        cmd.extend(str(arg) for arg in self.ext.extra_compile_args or [])
+        cmd.extend(str(arg) for arg in self.ext.extra_link_args or [])
+        cmd.extend(["-o", str(self.ext_path)])
+        return cmd
 
-        self._run_windows_build(cmd, target)
-        self._cleanup_artifacts(ext_path)
-
-    def _run_windows_build(self, cmd: list[str], target: str | None) -> None:
-        completed = subprocess.run(
-            cmd,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
+    def run(self) -> None:
+        cmd = self.command()
+        completed = subprocess.run(cmd, text=True, capture_output=True, check=False)
         if completed.returncode == 0:
             if completed.stdout:
                 sys.stdout.write(completed.stdout)
             if completed.stderr:
                 sys.stderr.write(completed.stderr)
             return
-
         lines = [
-            f"zig cc failed for target {target or '<default>'}",
+            f"zig cc failed for target {self.platform.target or '<default>'}",
             f"command: {shlex.join(cmd)}",
             f"exit code: {completed.returncode}",
         ]
@@ -190,47 +167,45 @@ class ZigBuildExt(build_ext):
             lines.extend(["stderr:", completed.stderr.rstrip()])
         raise RuntimeError("\n".join(lines))
 
-    def _find_zig(self) -> str | None:
-        return shutil.which("python-zig") or shutil.which("zig")
-
-    def _windows_target(self) -> str | None:
-        plat = self.plat_name or getattr(self, "get_platform")()
-        return {
-            "win32": "x86-windows-msvc",
-            "win-amd64": "x86_64-windows-msvc",
-            "win-arm64": "aarch64-windows-msvc",
-        }.get(plat)
-
-    def _win_arch_macro(self, target: str | None) -> list[str]:
-        if target is None:
-            return []
-        macro = {
-            "x86-windows-msvc": "-D_X86_",
-            "x86_64-windows-msvc": "-D_AMD64_",
-            "aarch64-windows-msvc": "-D_ARM64_",
-        }.get(target)
-        return [macro] if macro else []
-
-    def _opt_flags(self) -> list[str]:
-        return ["-O0", "-g"] if self.debug else ["-O3", "-DNDEBUG", "-s"]
-
-    def _macro_flags(self, ext: Extension) -> list[str]:
-        flags = []
-        for name, value in ext.define_macros or []:
-            flags.append(f"-D{name}" if value is None else f"-D{name}={value}")
-        flags.extend(f"-U{name}" for name in ext.undef_macros or [])
-        return flags
-
-    def _cleanup_artifacts(self, ext_path: Path) -> None:
+    def cleanup(self) -> None:
         for name in (
             "lib.lib",
             "lib.exp",
-            f"{ext_path.stem}.lib",
-            f"{ext_path.stem}.exp",
+            f"{self.ext_path.stem}.lib",
+            f"{self.ext_path.stem}.exp",
         ):
-            artifact = ext_path.parent / name
+            artifact = self.ext_path.parent / name
             if artifact.exists():
                 artifact.unlink()
 
 
-setup(cmdclass={"build_ext": ZigBuildExt})
+class ZigBuildExt(build_ext):
+    def build_extension(self, ext: Extension) -> None:
+        zig = shutil.which("python-zig") or shutil.which("zig")
+        if zig is None or os.name != "nt" or sys.platform == "darwin":
+            super().build_extension(ext)
+            return
+        ext_path = Path(self.get_ext_fullpath(ext.name))
+        ext_path.parent.mkdir(parents=True, exist_ok=True)
+        plat_name = self.plat_name or getattr(self, "get_platform")()
+        build = BuildSpec(
+            zig=zig,
+            ext=ext,
+            ext_path=ext_path,
+            platform=WINDOWS_PLATFORMS.get(plat_name, PlatformSpec()),
+            debug=self.debug,
+        )
+        build.run()
+        build.cleanup()
+
+
+setup(
+    cmdclass={"build_ext": ZigBuildExt},
+    packages=find_packages(where="py-src"),
+    ext_modules=[
+        Extension(
+            name="c_uuid_v7._core",
+            sources=glob.glob("src/*.c"),
+        ),
+    ],
+)
