@@ -51,70 +51,6 @@ def _unique_paths(
     return result
 
 
-def _macro_flags(ext: Extension) -> list[str]:
-    flags = [
-        f"-D{name}" if value is None else f"-D{name}={value}"
-        for name, value in ext.define_macros or []
-    ]
-    flags.extend(f"-U{name}" for name in ext.undef_macros or [])
-    return flags
-
-
-def _include_dirs(ext: Extension) -> list[str]:
-    return _unique_paths([
-        *(ext.include_dirs or []),
-        sysconfig.get_path("include"),
-        sysconfig.get_path("platinclude"),
-        sysconfig.get_config_var("INCLUDEPY"),
-    ])
-
-
-def _library_dirs(ext: Extension) -> list[str]:
-    roots = _unique_paths(
-        [
-            sys.prefix,
-            sys.base_prefix,
-            sys.exec_prefix,
-            sys.base_exec_prefix,
-        ],
-        existing_only=True,
-    )
-    bases = [*roots, *(ext.library_dirs or [])]
-    return _unique_paths(
-        [*(f"{root}/{sub}" for root in bases for sub in ("libs", "Libs"))],
-        existing_only=True,
-    )
-
-
-def _python_lib() -> str | None:
-    version = sysconfig.get_python_version().replace(".", "")
-    roots = _unique_paths(
-        [
-            sys.prefix,
-            sys.base_prefix,
-            sys.exec_prefix,
-            sys.base_exec_prefix,
-            Path(sys.executable).resolve().parent.parent,
-        ],
-        existing_only=True,
-    )
-    for root in roots:
-        for sub in ("libs", "Libs", ""):
-            base = f"{root}/{sub}" if sub else root
-            for stem in (f"python{version}", "python3"):
-                candidate = Path(f"{base}/{stem}.lib")
-                if candidate.is_file():
-                    return str(candidate)
-    return None
-
-
-def _extra_libs(ext: Extension, platform: PlatformSpec) -> list[str]:
-    libs = list(ext.libraries or [])
-    if any(Path(source).name == "windows.c" for source in ext.sources):
-        libs.extend(platform.extra_libs)
-    return list(dict.fromkeys(libs))
-
-
 @dataclass(frozen=True)
 class BuildSpec:
     zig: str
@@ -122,6 +58,65 @@ class BuildSpec:
     ext_path: Path
     platform: PlatformSpec
     debug: bool
+
+    def macro_flags(self) -> list[str]:
+        flags = [
+            f"-D{name}" if value is None else f"-D{name}={value}"
+            for name, value in self.ext.define_macros or []
+        ]
+        flags.extend(f"-U{name}" for name in self.ext.undef_macros or [])
+        return flags
+
+    def include_dirs(self) -> list[str]:
+        return _unique_paths([
+            *(self.ext.include_dirs or []),
+            sysconfig.get_path("include"),
+            sysconfig.get_path("platinclude"),
+            sysconfig.get_config_var("INCLUDEPY"),
+        ])
+
+    def library_dirs(self) -> list[str]:
+        roots = _unique_paths(
+            [
+                sys.prefix,
+                sys.base_prefix,
+                sys.exec_prefix,
+                sys.base_exec_prefix,
+            ],
+            existing_only=True,
+        )
+        bases = [*roots, *(self.ext.library_dirs or [])]
+        return _unique_paths(
+            [*(f"{root}/{sub}" for root in bases for sub in ("libs", "Libs"))],
+            existing_only=True,
+        )
+
+    def python_lib(self) -> str | None:
+        version = sysconfig.get_python_version().replace(".", "")
+        roots = _unique_paths(
+            [
+                sys.prefix,
+                sys.base_prefix,
+                sys.exec_prefix,
+                sys.base_exec_prefix,
+                Path(sys.executable).resolve().parent.parent,
+            ],
+            existing_only=True,
+        )
+        for root in roots:
+            for sub in ("libs", "Libs", ""):
+                base = f"{root}/{sub}" if sub else root
+                for stem in (f"python{version}", "python3"):
+                    candidate = Path(f"{base}/{stem}.lib")
+                    if candidate.is_file():
+                        return str(candidate)
+        return None
+
+    def libraries(self) -> list[str]:
+        libs = list(self.ext.libraries or [])
+        if any(Path(source).name == "windows.c" for source in self.ext.sources):
+            libs.extend(self.platform.extra_libs)
+        return list(dict.fromkeys(libs))
 
     def command(self) -> list[str]:
         cmd = [self.zig, "cc"]
@@ -131,16 +126,16 @@ class BuildSpec:
         if self.platform.arch_macro:
             cmd.append(self.platform.arch_macro)
         cmd.extend(["-Wno-empty-translation-unit", "-shared"])
-        cmd.extend(_macro_flags(self.ext))
-        for path in _include_dirs(self.ext):
+        cmd.extend(self.macro_flags())
+        for path in self.include_dirs():
             cmd.extend(["-I", path])
         cmd.extend(_split_flags(os.environ.get("CFLAGS")))
         cmd.extend(str(Path(source)) for source in self.ext.sources)
-        for path in _library_dirs(self.ext):
+        for path in self.library_dirs():
             cmd.extend(["-L", path])
-        if python_lib := _python_lib():
+        if python_lib := self.python_lib():
             cmd.append(python_lib)
-        cmd.extend(f"-l{lib}" for lib in _extra_libs(self.ext, self.platform))
+        cmd.extend(f"-l{lib}" for lib in self.libraries())
         cmd.extend(_split_flags(os.environ.get("LDFLAGS")))
         cmd.extend(str(arg) for arg in self.ext.extra_compile_args or [])
         cmd.extend(str(arg) for arg in self.ext.extra_link_args or [])
