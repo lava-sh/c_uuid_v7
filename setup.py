@@ -142,7 +142,7 @@ class ZigBuildExt(build_ext):
         ext_path.parent.mkdir(parents=True, exist_ok=True)
 
         target = self._windows_target()
-        cmd: list[str] = [zig, "cc"]
+        cmd = [zig, "cc"]
         if target:
             cmd.extend(["-target", target])
         cmd.extend(self._opt_flags())
