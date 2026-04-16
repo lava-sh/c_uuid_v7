@@ -1,3 +1,9 @@
+__all__ = (
+    "MAX",
+    "NIL",
+    "uuid7",
+)
+
 import sys
 from typing import Literal
 from uuid import UUID
@@ -5,12 +11,16 @@ from uuid import UUID
 from c_uuid_v7._core import _uuid7
 
 if sys.version_info >= (3, 14):
+    from uuid import MAX, NIL
 
     def from_int(value: int) -> UUID:
         return UUID._from_int(value)  # noqa: SLF001
 
 else:
     from uuid import SafeUUID
+
+    MAX = UUID("ffffffff-ffff-ffff-ffff-ffffffffffff")
+    NIL = UUID("00000000-0000-0000-0000-000000000000")
 
     def from_int(value: int) -> UUID:
         obj = object.__new__(UUID)

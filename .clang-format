@@ -1,7 +1,7 @@
 Language: C
 BasedOnStyle: LLVM
 
-ColumnLimit: 100
+ColumnLimit: 140
 IndentWidth: 4
 ContinuationIndentWidth: 4
 

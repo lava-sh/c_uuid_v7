@@ -201,7 +201,7 @@ setup(
     ext_modules=[
         Extension(
             name="c_uuid_v7._core",
-            sources=glob.glob("src/*.c"),
+            sources=glob.glob("src/**/*.c", recursive=True),
         ),
     ],
 )
