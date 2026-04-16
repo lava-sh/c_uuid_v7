@@ -73,6 +73,6 @@ before-build = [
     "mkdir .zig-sdk",
     "curl.exe -fsSLo .zig-sdk/zig.zip https://ziglang.org/download/0.16.0/zig-x86_64-windows-0.16.0.zip",
     "tar -xf .zig-sdk/zig.zip -C .zig-sdk",
-    'cmd /c echo @echo off> %PYTHON%\\..\\python-zig.bat',
-    'cmd /c echo \"%CD%\\.zig-sdk\\zig-x86_64-windows-0.16.0\\zig.exe\" %%*>> %PYTHON%\\..\\python-zig.bat',
+    'cmd /c for %I in ("%PYTHON%") do @echo @echo off> "%~dpIpython-zig.bat"',
+    'cmd /c for %I in ("%PYTHON%") do @echo "%CD%\\.zig-sdk\\zig-x86_64-windows-0.16.0\\zig.exe" %%*>> "%~dpIpython-zig.bat"',
 ]
