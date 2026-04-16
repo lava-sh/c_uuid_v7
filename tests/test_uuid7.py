@@ -128,6 +128,11 @@ def test_uuid_constructor_accepts_int() -> None:
     assert str(uuid_) == "00112233-4455-6677-8899-aabbccddeeff"
 
 
+def test_uuid_constructor_rejects_int_overflow() -> None:
+    with pytest.raises(ValueError, match="int is out of range"):
+        c_uuid_v7.UUID(int=1 << 200)
+
+
 def test_uuid_constructor_returns_same_object_for_uuid_input() -> None:
     uuid_ = c_uuid_v7.uuid7()
     assert c_uuid_v7.UUID(uuid_) is uuid_

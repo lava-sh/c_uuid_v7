@@ -60,7 +60,7 @@ static int decode_hex_pair(const unsigned char hi, const unsigned char lo) {
     return hex_pair_to_byte[(unsigned int)hi << 8 | lo];
 }
 
-int starts_with_urn_uuid(const char *text, const size_t size) {
+static int starts_with_urn_uuid(const char *text, const size_t size) {
     static const unsigned char prefix[] = "urn:uuid:";
 
     if (size < 9) {
@@ -216,8 +216,19 @@ static int decode_16_hex_ssse3(const char *src, unsigned char *dst) {
     return 0;
 }
 
-static int parse_uuid_hex_ssse3(const char *text, size_t size, uint64_t *hi, uint64_t *lo) {
+static int parse_uuid_text_32_ssse3(const char *text, uint64_t *hi, uint64_t *lo) {
     unsigned char bytes[16];
+
+    if (decode_16_hex_ssse3(text, bytes) != 0 || decode_16_hex_ssse3(text + 16, bytes + 8) != 0) {
+        return -1;
+    }
+
+    bytes_to_words(bytes, hi, lo);
+    return 0;
+}
+#endif
+
+int parse_uuid_hex(const char *text, size_t size, uint64_t *hi, uint64_t *lo) {
     char flat[32];
 
     strip_uuid_text_decorations(&text, &size);
@@ -240,20 +251,13 @@ static int parse_uuid_hex_ssse3(const char *text, size_t size, uint64_t *hi, uin
         return -1;
     }
 
-    if (decode_16_hex_ssse3(text, bytes) != 0 || decode_16_hex_ssse3(text + 16, bytes + 8) != 0) {
-        return -1;
-    }
-
-    bytes_to_words(bytes, hi, lo);
-    return 0;
-}
-#endif
-
-int parse_uuid_hex(const char *text, size_t size, uint64_t *hi, uint64_t *lo) {
 #if HEXPARSE_USE_SSSE3
-    return parse_uuid_hex_ssse3(text, size, hi, lo);
+    return parse_uuid_text_32_ssse3(text, hi, lo);
 #else
-    return parse_uuid_hex_fixed(text, size, hi, lo);
+    if (text == flat) {
+        return parse_uuid_hex_fixed(text, size, hi, lo);
+    }
+    return parse_uuid_hex_fixed(text, 32, hi, lo);
 #endif
 }
 

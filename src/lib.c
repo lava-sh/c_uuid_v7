@@ -409,11 +409,16 @@ static int parse_uuid_int(PyObject *value, uint64_t *hi, uint64_t *lo) {
 
 #if PY_VERSION_HEX >= 0x030D0000
     unsigned char bytes[16];
+    const Py_ssize_t nbytes = PyLong_AsNativeBytes(value, bytes, 16, Py_ASNATIVEBYTES_BIG_ENDIAN | Py_ASNATIVEBYTES_UNSIGNED_BUFFER);
 
-    if (PyLong_AsNativeBytes(value, bytes, 16, Py_ASNATIVEBYTES_BIG_ENDIAN | Py_ASNATIVEBYTES_UNSIGNED_BUFFER) < 0) {
+    if (nbytes < 0) {
         if (PyErr_ExceptionMatches(PyExc_OverflowError)) {
             PyErr_SetString(PyExc_ValueError, "int is out of range (need a 128-bit value)");
         }
+        return -1;
+    }
+    if (nbytes > 16) {
+        PyErr_SetString(PyExc_ValueError, "int is out of range (need a 128-bit value)");
         return -1;
     }
 #else
