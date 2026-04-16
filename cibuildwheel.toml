@@ -17,6 +17,7 @@ test-command = "pytest {project}/tests"
 test-groups = ["pytest"] # uv pip install --group test
 
 [tool.cibuildwheel.linux]
+environment = { CC = "zig cc" }
 archs = [
     "x86_64",
     "i686",
