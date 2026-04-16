@@ -59,18 +59,10 @@ print(repr(uuid.uuid7()))
 
 ## Supported wheels
 
-| OS      | Arch         | manylinux        | musllinux       | CPython   | PyPy |
-|---------|--------------|------------------|-----------------|-----------|------|
-| Linux   | `x86_64`     | `manylinux_2_28` | `musllinux_1_2` | 3.10–3.14 | 3.11 |
-| Linux   | `i686`       | `manylinux_2_28` | `musllinux_1_2` | 3.10–3.14 | 3.11 |
-| Linux   | `aarch64`    | `manylinux_2_28` | `musllinux_1_2` | 3.10–3.14 | 3.11 |
-| Linux   | `armv7l`     | `manylinux_2_31` | `musllinux_1_2` | 3.10–3.14 | 3.11 |
-| Linux   | `ppc64le`    | `manylinux_2_28` | `musllinux_1_2` | 3.10–3.14 | 3.11 |
-| Linux   | `s390x`      | `manylinux_2_28` | `musllinux_1_2` | 3.10–3.14 | 3.11 |
-| Linux   | `riscv64`    | `manylinux_2_39` | `musllinux_1_2` | 3.10–3.14 | 3.11 |
-| Windows | `AMD64`      | —                | —               | 3.10–3.14 | 3.11 |
-| Windows | `x86`        | —                | —               | 3.10–3.14 | 3.11 |
-| Windows | `ARM64`      | —                | —               | 3.10–3.14 | 3.11 |
-| macOS   | `x86_64`     | —                | —               | 3.10–3.14 | 3.11 |
-| macOS   | `arm64`      | —                | —               | 3.10–3.14 | 3.11 |
-| macOS   | `universal2` | —                | —               | 3.10–3.14 | 3.11 |
+| OS      | Archs                                           | manylinux        | musllinux       | CPython     | PyPy |
+|---------|-------------------------------------------------|------------------|-----------------|-------------|------|
+| Linux   | `x86_64`, `i686`, `aarch64`, `ppc64le`, `s390x` | `manylinux_2_28` | `musllinux_1_2` | 3.10 – 3.14 | 3.11 |
+| Linux   | `armv7l`                                        | `manylinux_2_31` | `musllinux_1_2` | 3.10 – 3.14 | 3.11 |
+| Linux   | `riscv64`                                       | `manylinux_2_39` | `musllinux_1_2` | 3.10 – 3.14 | 3.11 |
+| Windows | `AMD64`, `x86`, `ARM64`                         | —                | —               | 3.10 – 3.14 | 3.11 |
+| macOS   | `x86_64`, `arm64`, `universal2`                 | —                | —               | 3.10 – 3.14 | 3.11 |
