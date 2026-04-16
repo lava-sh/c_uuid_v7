@@ -196,6 +196,18 @@ static void uuid_to_bytes(const uint64_t hi, const uint64_t lo, unsigned char by
     }
 }
 
+static void uuid_to_bytes_le(const unsigned char *bytes, unsigned char reordered[16]) {
+    reordered[0] = bytes[3];
+    reordered[1] = bytes[2];
+    reordered[2] = bytes[1];
+    reordered[3] = bytes[0];
+    reordered[4] = bytes[5];
+    reordered[5] = bytes[4];
+    reordered[6] = bytes[7];
+    reordered[7] = bytes[6];
+    memcpy(reordered + 8, bytes + 8, 8);
+}
+
 static void uuid_build_words(const uint64_t timestamp_ms, const uint16_t rand_a, const uint64_t tail62, uint64_t *hi, uint64_t *lo) {
     *hi = timestamp_ms << V7_TIMESTAMP_SHIFT | V7_VERSION_BITS | (uint64_t)rand_a;
     *lo = V7_VARIANT_BITS | tail62;
@@ -385,15 +397,7 @@ static int parse_uuid_bytes(PyObject *value, const int little_endian, uint64_t *
 
     const unsigned char *bytes = (const unsigned char *)buffer;
     if (little_endian) {
-        reordered[0] = bytes[3];
-        reordered[1] = bytes[2];
-        reordered[2] = bytes[1];
-        reordered[3] = bytes[0];
-        reordered[4] = bytes[5];
-        reordered[5] = bytes[4];
-        reordered[6] = bytes[7];
-        reordered[7] = bytes[6];
-        memcpy(reordered + 8, bytes + 8, 8);
+        uuid_to_bytes_le(bytes, reordered);
         bytes = reordered;
     }
 
@@ -615,12 +619,7 @@ static PyObject *uuid_type_new(PyTypeObject *type, PyObject *args, PyObject *kwa
         return type->tp_alloc(type, 0);
     }
 
-    if (PyTuple_GET_SIZE(args) > 1) {
-        PyErr_SetString(PyExc_TypeError, "UUID() takes at most 1 positional argument");
-        return NULL;
-    }
-
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OOOOO:UUID", kwlist, &hex, &bytes, &bytes_le, &fields, &int_value)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|O$OOOO:UUID", kwlist, &hex, &bytes, &bytes_le, &fields, &int_value)) {
         return NULL;
     }
 
@@ -733,15 +732,7 @@ static PyObject *uuid_bytes_le(PyObject *self_obj, void *Py_UNUSED(closure)) {
     const UUIDObject *self = UUID_CONST(self_obj);
 
     uuid_to_bytes(self->hi, self->lo, bytes);
-    reordered[0] = bytes[3];
-    reordered[1] = bytes[2];
-    reordered[2] = bytes[1];
-    reordered[3] = bytes[0];
-    reordered[4] = bytes[5];
-    reordered[5] = bytes[4];
-    reordered[6] = bytes[7];
-    reordered[7] = bytes[6];
-    memcpy(reordered + 8, bytes + 8, 8);
+    uuid_to_bytes_le(bytes, reordered);
     // ReSharper disable once CppRedundantCastExpression
     return PyBytes_FromStringAndSize((const char *)reordered, 16);
 }

@@ -1,4 +1,4 @@
-#include "hex_nibble.h"
+#include "hex_decode.h"
 
 static const signed char CHAR_TO_HEX[256] = {
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
@@ -11,24 +11,6 @@ static const signed char CHAR_TO_HEX[256] = {
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
 };
 
-static unsigned char lower_ascii(const unsigned char ch) {
-    const unsigned char is_upper = (unsigned char)(ch >= 'A' && ch <= 'Z');
-    return (unsigned char)(ch | is_upper << 5);
-}
-
-int hex_nibble_branchy(const unsigned char ch) {
-    if (ch >= '0' && ch <= '9') {
-        return ch - '0';
-    }
-
-    const unsigned char lower = lower_ascii(ch);
-    if (lower >= 'a' && lower <= 'f') {
-        return lower - 'a' + 10;
-    }
-
-    return -1;
-}
-
-int hex_nibble(const unsigned char ch) {
+int hex_decode(const unsigned char ch) {
     return CHAR_TO_HEX[ch];
 }

@@ -1,6 +1,6 @@
 #include "hexparse.h"
 #include "ascii.h"
-#include "hex_nibble.h"
+#include "hex_decode.h"
 #include "words.h"
 #include <string.h>
 
@@ -42,14 +42,14 @@ static void init_hex_pair_table(void) {
     }
 
     for (unsigned int hi = 0; hi < 256; ++hi) {
-        const int high = hex_nibble((unsigned char)hi);
+        const int high = hex_decode((unsigned char)hi);
 
         if (high < 0) {
             continue;
         }
 
         for (unsigned int lo = 0; lo < 256; ++lo) {
-            const int low = hex_nibble((unsigned char)lo);
+            const int low = hex_decode((unsigned char)lo);
 
             if (low < 0) {
                 continue;
@@ -67,7 +67,7 @@ static int decode_hex_pair(const unsigned char hi, const unsigned char lo) {
     return hex_pair_to_byte[(unsigned int)hi << 8 | lo];
 }
 
-static int starts_with_urn_uuid(const char *text, const size_t size) {
+static int has_urn_uuid_prefix(const char *text, const size_t size) {
     static const unsigned char prefix[] = "urn:uuid:";
 
     if (size < 9) {
@@ -84,7 +84,7 @@ static int starts_with_urn_uuid(const char *text, const size_t size) {
 }
 
 static void unwrap_uuid_text(const char **text, size_t *size) {
-    if (starts_with_urn_uuid(*text, *size)) {
+    if (has_urn_uuid_prefix(*text, *size)) {
         *text += 9;
         *size -= 9;
     }
@@ -93,52 +93,6 @@ static void unwrap_uuid_text(const char **text, size_t *size) {
         *text += 1;
         *size -= 2;
     }
-}
-
-static int parse_uuid_hex_stream(const char *text, size_t size, uint64_t *hi, uint64_t *lo, int (*hex_fn)(unsigned char)) {
-    uint64_t high = 0;
-    uint64_t low = 0;
-    int digits = 0;
-
-    unwrap_uuid_text(&text, &size);
-
-    for (size_t i = 0; i < size; ++i) {
-        const unsigned char ch = (unsigned char)text[i];
-        const int nibble = ch == '-' ? -2 : hex_fn(ch);
-
-        if (nibble == -2) {
-            continue;
-        }
-        if (nibble < 0) {
-            return -1;
-        }
-
-        if (digits < 16) {
-            high = high << 4 | (uint64_t)nibble;
-        } else if (digits < 32) {
-            low = low << 4 | (uint64_t)nibble;
-        } else {
-            return -1;
-        }
-
-        digits += 1;
-    }
-
-    if (digits != 32) {
-        return -1;
-    }
-
-    *hi = high;
-    *lo = low;
-    return 0;
-}
-
-int parse_uuid_hex_branchy(const char *text, const size_t size, uint64_t *hi, uint64_t *lo) {
-    return parse_uuid_hex_stream(text, size, hi, lo, hex_nibble_branchy);
-}
-
-int parse_uuid_hex_lut(const char *text, const size_t size, uint64_t *hi, uint64_t *lo) {
-    return parse_uuid_hex_stream(text, size, hi, lo, hex_nibble);
 }
 
 #define PARSE_BYTE(dst, src, idx)                                                                                                          \
