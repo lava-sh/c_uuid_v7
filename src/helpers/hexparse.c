@@ -30,10 +30,10 @@
 #endif
 
 static signed short hex_pair_to_byte[65536];
-static int hex_pair_to_byte_ready = 0;
+static int hex_pair_table_ready = 0;
 
 static void init_hex_pair_table(void) {
-    if (hex_pair_to_byte_ready) {
+    if (hex_pair_table_ready) {
         return;
     }
 
@@ -59,7 +59,7 @@ static void init_hex_pair_table(void) {
         }
     }
 
-    hex_pair_to_byte_ready = 1;
+    hex_pair_table_ready = 1;
 }
 
 static int decode_hex_pair(const unsigned char hi, const unsigned char lo) {
