@@ -49,9 +49,9 @@ _RELEASE_FLAGS = (
     # https://clang.llvm.org/docs/ClangCommandLineReference.html#cmdoption-clang-fomit-frame-pointer
     "-fomit-frame-pointer",
 
-    # --strip-all -> remove all symbols
+    # -s -> remove all symbols
     # https://sourceware.org/binutils/docs/ld/Options.html
-    "--strip-all",
+    "-s",
 )  # fmt: off
 
 if sys.platform == "win32":
