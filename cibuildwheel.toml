@@ -17,7 +17,6 @@ test-command = "pytest {project}/tests"
 test-groups = ["pytest"] # uv pip install --group test
 
 [tool.cibuildwheel.linux]
-environment = { CC = "python-zig cc" }
 archs = [
     "x86_64",
     "i686",
@@ -70,7 +69,7 @@ select = "*-musllinux_{ppc64le,s390x,riscv64}"
 [[tool.cibuildwheel.overrides]]
 # See: https://codeberg.org/ziglang/zig/issues/31865#issuecomment-13204506
 select = "*-win_arm64"
-environment = { ZIG_ENV = ".zig-sdk/zig-x86_64-windows-0.16.0/zig.exe" }
+environment = { CI_WIN_ARM_64_ZIG_ENV = ".zig-sdk/zig-x86_64-windows-0.16.0/zig.exe" }
 before-all = [
     "mkdir .zig-sdk",
     "curl.exe -fsSLo .zig-sdk/zig.zip https://ziglang.org/download/0.16.0/zig-x86_64-windows-0.16.0.zip",

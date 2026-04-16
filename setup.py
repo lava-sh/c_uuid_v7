@@ -1,4 +1,5 @@
 import glob
+import logging
 import os
 import shlex
 import shutil
@@ -11,6 +12,9 @@ from pathlib import Path
 from setuptools import find_packages, setup
 from setuptools.command.build_ext import build_ext
 from setuptools.extension import Extension
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -120,21 +124,28 @@ class BuildSpec:
 
     def command(self) -> list[str]:
         cmd = [self.zig, "cc"]
+
         if self.platform.target:
             cmd.extend(["-target", self.platform.target])
         cmd.extend(["-O0", "-g"] if self.debug else ["-O3", "-DNDEBUG", "-s"])
+
         if self.platform.arch_macro:
             cmd.append(self.platform.arch_macro)
         cmd.extend(["-Wno-empty-translation-unit", "-shared"])
         cmd.extend(self.macro_flags())
+
         for path in self.include_dirs():
             cmd.extend(["-I", path])
+
         cmd.extend(_split_flags(os.environ.get("CFLAGS")))
         cmd.extend(str(Path(source)) for source in self.ext.sources)
+
         for path in self.library_dirs():
             cmd.extend(["-L", path])
+
         if python_lib := self.python_lib():
             cmd.append(python_lib)
+
         cmd.extend(f"-l{lib}" for lib in self.libraries())
         cmd.extend(_split_flags(os.environ.get("LDFLAGS")))
         cmd.extend(str(arg) for arg in self.ext.extra_compile_args or [])
@@ -176,10 +187,24 @@ class BuildSpec:
 
 class ZigBuildExt(build_ext):
     def build_extension(self, ext: Extension) -> None:
-        zig = os.environ.get("ZIG_ENV") or shutil.which("python-zig")
-        if zig is None or os.name != "nt" or sys.platform == "darwin":
+        # Fix for Windows ARM64
+        # See: https://codeberg.org/ziglang/zig/issues/31865#issuecomment-13204506
+        ci_zig = os.environ.get("CI_WIN_ARM_64_ZIG_ENV")
+
+        # `python-zig` is Zig from PyPi (https://pypi.org/project/ziglang)
+        zig = ci_zig or shutil.which("python-zig")
+        logger.info("⚡ Using Zig: %s", zig)
+
+        if zig is None:
+            logger.info("⚠️ Zig not found, fallback to setuptools (GCC / Clang)")
             super().build_extension(ext)
             return
+
+        if sys.platform == "darwin":
+            logger.info("🍎 macOS detected: using Clang toolchain")
+            super().build_extension(ext)
+            return
+
         ext_path = Path(self.get_ext_fullpath(ext.name))
         ext_path.parent.mkdir(parents=True, exist_ok=True)
         plat_name = self.plat_name or getattr(self, "get_platform")()
