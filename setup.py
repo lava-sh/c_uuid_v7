@@ -45,19 +45,16 @@ PLATFORMS = {
     "win32": PlatformSpec(
         "x86-windows-msvc",
         "-D_X86_",
-        debug_flags=("-O0", "-g", "-D_DEBUG"),
         release_flags=_WIN_R_FLAGS,
     ),
     "win-amd64": PlatformSpec(
         "x86_64-windows-msvc",
         "-D_AMD64_",
-        debug_flags=("-O0", "-g", "-D_DEBUG"),
         release_flags=(*_WIN_R_FLAGS, "-flto"),
     ),
     "win-arm64": PlatformSpec(
         "aarch64-windows-msvc",
         "-D_ARM64_",
-        debug_flags=("-O0", "-g", "-D_DEBUG"),
         release_flags=_WIN_R_FLAGS,
     ),
 }
