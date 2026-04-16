@@ -48,6 +48,10 @@ _RELEASE_FLAGS = (
     # Omit frame pointer
     # https://clang.llvm.org/docs/ClangCommandLineReference.html#cmdoption-clang-fomit-frame-pointer
     "-fomit-frame-pointer",
+
+    # --strip-all   -> remove all symbols
+    # https://sourceware.org/binutils/docs/ld/Options.html
+    "--strip-all",
 )  # fmt: off
 
 if sys.platform == "win32":
@@ -62,10 +66,9 @@ else:
 
         # Linker flags:
         # --gc-sections -> remove unused sections
-        # --strip-all   -> remove all symbols
         # --as-needed   -> link only required libraries
         # https://sourceware.org/binutils/docs/ld/Options.html
-        "-Wl,--gc-sections,--strip-all,--as-needed",
+        "-Wl,--gc-sections,--as-needed",
     )  # fmt: off
 
 
