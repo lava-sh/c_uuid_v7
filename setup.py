@@ -239,13 +239,13 @@ class ZigBuildExt(build_ext):
         zig = ci_zig or shutil.which("python-zig")
         logger.info("⚡ Using Zig: %s", zig)
 
-        if zig is None:
-            logger.info("⚠️ Zig not found, fallback to setuptools (GCC / Clang)")
+        if sys.platform == "darwin":
+            logger.info("🍎 macOS detected: using Clang toolchain")
             super().build_extension(ext)
             return
 
-        if sys.platform == "darwin":
-            logger.info("🍎 macOS detected: using Clang toolchain")
+        if zig is None:
+            logger.info("⚠️ Zig not found, fallback to setuptools (GCC / Clang)")
             super().build_extension(ext)
             return
 
