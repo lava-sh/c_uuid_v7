@@ -16,6 +16,8 @@ skip = [
 test-command = "pytest {project}/tests"
 test-groups = ["pytest"] # uv pip install --group test
 
+environment = { SETUPTOOLS_SCM_PRETEND_VERSION = "0.0.0" }
+
 [tool.cibuildwheel.linux]
 archs = [
     "x86_64",
