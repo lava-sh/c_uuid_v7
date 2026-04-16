@@ -176,7 +176,7 @@ class BuildSpec:
 
 class ZigBuildExt(build_ext):
     def build_extension(self, ext: Extension) -> None:
-        zig = shutil.which("python-zig") or shutil.which("zig")
+        zig = os.environ.get("ZIG_ENV") or shutil.which("python-zig")
         if zig is None or os.name != "nt" or sys.platform == "darwin":
             super().build_extension(ext)
             return
