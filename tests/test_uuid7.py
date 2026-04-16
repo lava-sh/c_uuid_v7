@@ -29,7 +29,15 @@ def _uuid_ints(values: list[c_uuid_v7.UUID]) -> list[int]:
 
 
 def _assert_v7(value: c_uuid_v7.UUID) -> None:
+    # RFC 9562 §4.2
+    # https://datatracker.ietf.org/doc/html/rfc9562#section-4.2
+    #
+    # Version 7 = 0111 in binary (bits 76-79 of the 128-bit UUID)
     assert (value.int >> 76) & 0xF == 0x7
+    # RFC 9562 §4.1
+    # https://datatracker.ietf.org/doc/html/rfc9562#section-4.1
+    #
+    # Variant RFC 4122 = 10 in binary (bits 62-63)
     assert (value.int >> 62) & 0x3 == 0x2
 
 
@@ -155,6 +163,10 @@ def test_compat_uuid7_returns_stdlib_uuid() -> None:
 
 
 def test_uuid7_string_and_repr_shape() -> None:
+    # Verify canonical UUID string format: 8-4-4-4-12 hex digits
+    # with exactly 4 hyphens (RFC 9562 §4 text representation).
+    #
+    # https://datatracker.ietf.org/doc/html/rfc9562#section-4
     uuid_ = c_uuid_v7.uuid7()
     text = str(uuid_)
     assert len(text) == 36
@@ -258,6 +270,11 @@ def test_uuid7_timestamp_args(
     args: tuple[int, ...],
     expected_timestamp: int,
 ) -> None:
+    # Verify that the provided Unix-second (+ optional nanos) is
+    # correctly converted to a millisecond UUID timestamp.
+    # RFC 9562 §5.7: 48-bit Unix timestamp in milliseconds.
+    #
+    # https://datatracker.ietf.org/doc/html/rfc9562#section-5.7
     uuid_ = c_uuid_v7.uuid7(args[0], args[1] if len(args) > 1 else None)
     assert uuid_.timestamp == expected_timestamp
     _assert_v7(uuid_)
@@ -265,6 +282,10 @@ def test_uuid7_timestamp_args(
 
 @pytest.mark.parametrize("nanos", [0, 999_999_999])
 def test_uuid7_accepts_valid_nanos_bounds(nanos: int) -> None:
+    # Nanosecond sub-millisecond precision: accept 0 and 999_999_999
+    # (the full valid range 0..999_999_999 per RFC 9562 §5.7).
+    #
+    # https://datatracker.ietf.org/doc/html/rfc9562#section-5.7
     _assert_v7(c_uuid_v7.uuid7(nanos=nanos))
 
 
@@ -337,6 +358,8 @@ def test_compat_uuid7_preserves_timestamp() -> None:
     reason="Does not run on Windows",
 )
 def test_reseed_is_called_when_forking() -> None:
+    # After `fork()`, the child process must have a reseeded RNG so that
+    # UUIDs generated in parent and child do not collide.
     read_end, write_end = os.pipe()
     c_uuid_v7.uuid7()
 
@@ -365,6 +388,10 @@ def test_reseed_is_called_when_forking() -> None:
     ],
 )
 def test_uuid7_timestamp_bounds(timestamp: int, expected: int | None) -> None:
+    # RFC 9562 §5.7: the 48-bit timestamp field must encode epoch (t=0)
+    # and accept its maximum value 2^48-1 ms.
+    #
+    # https://datatracker.ietf.org/doc/html/rfc9562#section-5.7
     uuid_ = c_uuid_v7.uuid7(timestamp)
     if expected is not None:
         assert uuid_.timestamp == expected
