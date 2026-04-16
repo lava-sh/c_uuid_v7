@@ -67,8 +67,9 @@ else:
         # Linker flags:
         # --gc-sections -> remove unused sections
         # --as-needed   -> link only required libraries
+        # --strip-all   -> remove all symbols
         # https://sourceware.org/binutils/docs/ld/Options.html
-        "-Wl,--gc-sections,--as-needed",
+        "-Wl,--gc-sections,--as-needed,--strip-all",
     )  # fmt: off
 
 
