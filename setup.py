@@ -121,8 +121,12 @@ class BuildSpec:
 
     def libraries(self) -> list[str]:
         libs = list(self.ext.libraries or [])
-        if any(Path(source).name == "windows.c" for source in self.ext.sources):
+
+        if sys.platform == "win32" and any(
+            Path(source).name == "windows.c" for source in self.ext.sources
+        ):
             libs.extend(self.platform.extra_libs)
+
         return list(dict.fromkeys(libs))
 
     def command(self) -> list[str]:
