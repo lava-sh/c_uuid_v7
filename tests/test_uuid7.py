@@ -5,6 +5,7 @@ import itertools
 import os
 import sys
 import uuid
+from collections.abc import Callable
 from typing import Any, Literal, cast
 
 import c_uuid_v7
@@ -23,26 +24,17 @@ class _UUIDObject(ctypes.Structure):
     ]
 
 
-def _ints(values: list[c_uuid_v7.UUID]) -> list[int]:
+def _uuid_ints(values: list[c_uuid_v7.UUID]) -> list[int]:
     return [value.int for value in values]
 
 
-def _assert_uuid7_bits(value: c_uuid_v7.UUID) -> None:
-    # RFC 9562 §4.2
-    # https://datatracker.ietf.org/doc/html/rfc9562#section-4.2
-    #
-    # Version 7 = 0111 in binary (bits 76-79 of the 128-bit UUID)
+def _assert_v7(value: c_uuid_v7.UUID) -> None:
     assert (value.int >> 76) & 0xF == 0x7
-
-    # RFC 9562 §4.1
-    # https://datatracker.ietf.org/doc/html/rfc9562#section-4.1
-    #
-    # Variant RFC 4122 = 10 in binary (bits 62-63)
     assert (value.int >> 62) & 0x3 == 0x2
 
 
-def _assert_strictly_increasing(values: list[c_uuid_v7.UUID]) -> None:
-    ints = _ints(values)
+def _assert_inc(values: list[c_uuid_v7.UUID]) -> None:
+    ints = _uuid_ints(values)
     assert len(set(ints)) == len(ints)
     assert all(
         left < right
@@ -62,10 +54,11 @@ def _assert_timestamp_non_decreasing(values: list[c_uuid_v7.UUID]) -> None:
     )  # fmt: skip
 
 
-def test_uuid7_returns_fast_uuid() -> None:
-    uuid_ = c_uuid_v7.uuid7()
+@pytest.mark.parametrize("mode", [None, "fast", "secure"])
+def test_uuid7_returns_uuid(mode: Mode | None) -> None:
+    uuid_ = c_uuid_v7.uuid7() if mode is None else c_uuid_v7.uuid7(mode=mode)
     assert isinstance(uuid_, c_uuid_v7.UUID)
-    _assert_uuid7_bits(uuid_)
+    _assert_v7(uuid_)
 
 
 @pytest.mark.parametrize(
@@ -102,29 +95,23 @@ def test_uuid7_reuses_cached_object() -> None:
     assert id(second) == first_id
 
 
-def test_uuid_constructor_accepts_bytes() -> None:
-    uuid_ = c_uuid_v7.UUID(
-        bytes=b"\x00\x11\x22\x33\x44\x55\x66\x77\x88\x99\xaa\xbb\xcc\xdd\xee\xff",
-    )
-    assert str(uuid_) == "00112233-4455-6677-8899-aabbccddeeff"
-
-
-def test_uuid_constructor_accepts_bytes_le() -> None:
-    uuid_ = c_uuid_v7.UUID(
-        bytes_le=b"\x33\x22\x11\x00\x55\x44\x77\x66\x88\x99\xaa\xbb\xcc\xdd\xee\xff",
-    )
-    assert str(uuid_) == "00112233-4455-6677-8899-aabbccddeeff"
-
-
-def test_uuid_constructor_accepts_fields() -> None:
-    uuid_ = c_uuid_v7.UUID(
-        fields=(0x00112233, 0x4455, 0x6677, 0x88, 0x99, 0xAABBCCDDEEFF),
-    )
-    assert str(uuid_) == "00112233-4455-6677-8899-aabbccddeeff"
-
-
-def test_uuid_constructor_accepts_int() -> None:
-    uuid_ = c_uuid_v7.UUID(int=0x00112233445566778899AABBCCDDEEFF)
+@pytest.mark.parametrize(
+    "make",
+    [
+        lambda: c_uuid_v7.UUID(
+            bytes=b"\x00\x11\x22\x33\x44\x55\x66\x77\x88\x99\xaa\xbb\xcc\xdd\xee\xff",
+        ),
+        lambda: c_uuid_v7.UUID(
+            bytes_le=b"\x33\x22\x11\x00\x55\x44\x77\x66\x88\x99\xaa\xbb\xcc\xdd\xee\xff",
+        ),
+        lambda: c_uuid_v7.UUID(
+            fields=(0x00112233, 0x4455, 0x6677, 0x88, 0x99, 0xAABBCCDDEEFF),
+        ),
+        lambda: c_uuid_v7.UUID(int=0x00112233445566778899AABBCCDDEEFF),
+    ],
+)
+def test_uuid_constructor_accepts_inputs(make: Callable[[], c_uuid_v7.UUID]) -> None:
+    uuid_ = make()
     assert str(uuid_) == "00112233-4455-6677-8899-aabbccddeeff"
 
 
@@ -161,13 +148,6 @@ def test_uuid_constructor_rejects_more_than_one_positional_arg() -> None:
         constructor("00000000-0000-0000-0000-000000000000", b"\x00" * 16)
 
 
-@pytest.mark.parametrize("mode", ["fast", "secure"])
-def test_uuid7_accepts_mode(mode: Mode) -> None:
-    uuid_ = c_uuid_v7.uuid7(mode=mode)
-    assert isinstance(uuid_, c_uuid_v7.UUID)
-    _assert_uuid7_bits(uuid_)
-
-
 def test_compat_uuid7_returns_stdlib_uuid() -> None:
     uuid_ = c_uuid_v7.compat.uuid7()
     assert isinstance(uuid_, uuid.UUID)
@@ -175,10 +155,6 @@ def test_compat_uuid7_returns_stdlib_uuid() -> None:
 
 
 def test_uuid7_string_and_repr_shape() -> None:
-    # Verify canonical UUID string format: 8-4-4-4-12 hex digits
-    # with exactly 4 hyphens (RFC 9562 §4 text representation).
-    #
-    # https://datatracker.ietf.org/doc/html/rfc9562#section-4
     uuid_ = c_uuid_v7.uuid7()
     text = str(uuid_)
     assert len(text) == 36
@@ -227,7 +203,7 @@ def test_uuid7_copy_and_deepcopy_return_same_object() -> None:
 
 def test_uuid7_sets_expected_version_and_variant_bits() -> None:
     for _ in range(128):
-        _assert_uuid7_bits(c_uuid_v7.uuid7())
+        _assert_v7(c_uuid_v7.uuid7())
 
 
 def test_uuid7_consecutive_values_change_more_than_the_last_bit() -> None:
@@ -239,21 +215,35 @@ def test_uuid7_consecutive_values_change_more_than_the_last_bit() -> None:
     assert (first.int ^ second.int) > 1
 
 
-@pytest.mark.parametrize("size", [1024, 10_000])
-def test_uuid7_batches_are_unique_monotonic_and_timestamp_ordered(size: int) -> None:
-    values = [c_uuid_v7.uuid7() for _ in range(size)]
+@pytest.mark.parametrize(
+    ("make", "size"),
+    [
+        (c_uuid_v7.uuid7, 1024),
+        (c_uuid_v7.uuid7, 10_000),
+        (lambda: c_uuid_v7.uuid7(mode="fast"), 2048),
+        (lambda: c_uuid_v7.uuid7(mode="secure"), 2048),
+    ],
+)
+def test_uuid7_batches(make: Callable[[], c_uuid_v7.UUID], size: int) -> None:
+    values = [make() for _ in range(size)]
 
-    _assert_strictly_increasing(values)
+    _assert_inc(values)
     _assert_timestamp_non_decreasing(values)
     assert all(((value.int >> 76) & 0xF) == 0x7 for value in values)
 
 
-def test_uuid7_explicit_timestamp() -> None:
+def test_uuid7_explicit_timestamp_batch() -> None:
     values = [c_uuid_v7.uuid7(1_704_164_645, 123_000_000) for _ in range(256)]
 
     assert all(value.timestamp == 1_704_164_645_123 for value in values)
     assert all(value.hex[:12] == values[0].hex[:12] for value in values)
-    assert len(set(_ints(values))) == len(values)
+    assert len(set(_uuid_ints(values))) == len(values)
+    assert all(((value.int >> 76) & 0xF) == 0x7 for value in values)
+
+
+def test_uuid7_fixed_timestamp_batch() -> None:
+    values = [c_uuid_v7.uuid7(1_700_000_000) for _ in range(10_000)]
+    assert len(set(_uuid_ints(values))) == len(values)
     assert all(((value.int >> 76) & 0xF) == 0x7 for value in values)
 
 
@@ -264,34 +254,18 @@ def test_uuid7_explicit_timestamp() -> None:
         ((1_704_164_645, 123_000_000), 1_704_164_645_123),
     ],
 )
-def test_uuid7_explicit_timestamp_(
+def test_uuid7_timestamp_args(
     args: tuple[int, ...],
     expected_timestamp: int,
 ) -> None:
-    # Verify that the provided Unix-second (+ optional nanos) is
-    # correctly converted to a millisecond UUID timestamp.
-    # RFC 9562 §5.7: 48-bit Unix timestamp in milliseconds.
-    #
-    # https://datatracker.ietf.org/doc/html/rfc9562#section-5.7
     uuid_ = c_uuid_v7.uuid7(args[0], args[1] if len(args) > 1 else None)
     assert uuid_.timestamp == expected_timestamp
-    _assert_uuid7_bits(uuid_)
+    _assert_v7(uuid_)
 
 
 @pytest.mark.parametrize("nanos", [0, 999_999_999])
 def test_uuid7_accepts_valid_nanos_bounds(nanos: int) -> None:
-    # Nanosecond sub-millisecond precision: accept 0 and 999_999_999
-    # (the full valid range 0..999_999_999 per RFC 9562 §5.7).
-    #
-    # https://datatracker.ietf.org/doc/html/rfc9562#section-5.7
-    _assert_uuid7_bits(c_uuid_v7.uuid7(nanos=nanos))
-
-
-@pytest.mark.parametrize("mode", ["fast", "secure"])
-def test_uuid7_modes_are_monotonic(mode: Mode) -> None:
-    values = [c_uuid_v7.uuid7(mode=mode) for _ in range(2048)]
-    _assert_strictly_increasing(values)
-    _assert_timestamp_non_decreasing(values)
+    _assert_v7(c_uuid_v7.uuid7(nanos=nanos))
 
 
 @pytest.mark.parametrize(
@@ -363,8 +337,6 @@ def test_compat_uuid7_preserves_timestamp() -> None:
     reason="Does not run on Windows",
 )
 def test_reseed_is_called_when_forking() -> None:
-    # After `fork()`, the child process must have a reseeded RNG so that
-    # UUIDs generated in parent and child do not collide.
     read_end, write_end = os.pipe()
     c_uuid_v7.uuid7()
 
@@ -385,34 +357,18 @@ def test_reseed_is_called_when_forking() -> None:
     assert str(next_parent_uuid) != uuid_from_pipe
 
 
-def test_uuid7_timestamp_zero() -> None:
-    # RFC 9562 §5.7: the 48-bit timestamp field must encode epoch (t=0).
-    #
-    # https://datatracker.ietf.org/doc/html/rfc9562#section-5.7
-    uuid_ = c_uuid_v7.uuid7(0)
-    assert uuid_.timestamp == 0
-    _assert_uuid7_bits(uuid_)
-
-
-def test_uuid7_timestamp_max() -> None:
-    # RFC 9562 §5.7: the 48-bit timestamp field max value is 2^48-1 ms.
-    #
-    # https://datatracker.ietf.org/doc/html/rfc9562#section-5.7
-    uuid_ = c_uuid_v7.uuid7(V7_MAX_TIMESTAMP_MS // 1000)
-    _assert_uuid7_bits(uuid_)
-
-
-def test_uuid7_counter_overflow() -> None:
-    uuids = [c_uuid_v7.uuid7() for _ in range(10_000)]
-    _assert_strictly_increasing(uuids)
-
-
-def test_uuid7_fixed_timestamp() -> None:
-    ts_s = 1_700_000_000
-    uuids = [c_uuid_v7.uuid7(ts_s) for _ in range(10_000)]
-    ints = _ints(uuids)
-    assert len(set(ints)) == len(ints)
-    assert all((u.int >> 76) & 0xF == 0x7 for u in uuids)
+@pytest.mark.parametrize(
+    ("timestamp", "expected"),
+    [
+        (0, 0),
+        (V7_MAX_TIMESTAMP_MS // 1000, None),
+    ],
+)
+def test_uuid7_timestamp_bounds(timestamp: int, expected: int | None) -> None:
+    uuid_ = c_uuid_v7.uuid7(timestamp)
+    if expected is not None:
+        assert uuid_.timestamp == expected
+    _assert_v7(uuid_)
 
 
 @pytest.mark.skipif(
