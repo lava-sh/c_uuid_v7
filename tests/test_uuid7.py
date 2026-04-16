@@ -154,6 +154,13 @@ def test_uuid_constructor_requires_exactly_one_input_form() -> None:
         constructor("00000000-0000-0000-0000-000000000000", int=0)
 
 
+def test_uuid_constructor_rejects_more_than_one_positional_arg() -> None:
+    constructor = cast(Any, c_uuid_v7.UUID)
+
+    with pytest.raises(TypeError, match=r"UUID\(\) takes at most 1 positional argument"):
+        constructor("00000000-0000-0000-0000-000000000000", b"\x00" * 16)
+
+
 @pytest.mark.parametrize("mode", ["fast", "secure"])
 def test_uuid7_accepts_mode(mode: Mode) -> None:
     uuid_ = c_uuid_v7.uuid7(mode=mode)

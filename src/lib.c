@@ -135,8 +135,8 @@ static int parse_args(PyObject *timestamp_obj, PyObject *nanos_obj, UUID7Args *p
 static void advance_monotonic(const uint64_t observed_ms, uint64_t *timestamp_ms, uint16_t *rand_a, uint64_t *tail62) {
     uint64_t counter = counter42;
     uint64_t current_ms = last_timestamp_ms;
-    uint64_t increment;
-    uint32_t low32;
+    uint64_t increment = 0;
+    uint32_t low32 = 0;
 
     random_next_low32_and_increment(&low32, &increment);
 
@@ -160,8 +160,8 @@ static void advance_monotonic(const uint64_t observed_ms, uint64_t *timestamp_ms
 static int advance_monotonic_secure(const uint64_t observed_ms, uint64_t *timestamp_ms, uint16_t *rand_a, uint64_t *tail62) {
     uint64_t counter = counter42;
     uint64_t current_ms = last_timestamp_ms;
-    uint64_t increment;
-    uint32_t low32;
+    uint64_t increment = 0;
+    uint32_t low32 = 0;
 
     if (random_next_low32_and_increment_secure(&low32, &increment) != 0) {
         return -1;
@@ -608,11 +608,16 @@ static PyObject *uuid_type_new(PyTypeObject *type, PyObject *args, PyObject *kwa
     PyObject *bytes_le = Py_None;
     PyObject *fields = Py_None;
     PyObject *int_value = Py_None;
-    uint64_t hi;
-    uint64_t lo;
+    uint64_t hi = 0;
+    uint64_t lo = 0;
 
     if (type != &UUIDType) {
         return type->tp_alloc(type, 0);
+    }
+
+    if (PyTuple_GET_SIZE(args) > 1) {
+        PyErr_SetString(PyExc_TypeError, "UUID() takes at most 1 positional argument");
+        return NULL;
     }
 
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OOOOO:UUID", kwlist, &hex, &bytes, &bytes_le, &fields, &int_value)) {
@@ -841,7 +846,7 @@ static PyObject *uuid_copy(PyObject *self_obj, PyObject *Py_UNUSED(args)) {
 }
 
 static PyObject *uuid_deepcopy(PyObject *self_obj, PyObject *args) {
-    PyObject *memo;
+    PyObject *memo = NULL;
 
     if (!PyArg_ParseTuple(args, "O:__deepcopy__", &memo)) {
         return NULL;
@@ -953,8 +958,8 @@ static PyObject *py_uuid7(PyObject *Py_UNUSED(self), PyObject *const *args, cons
     PyObject *nanos_obj = Py_None;
     PyObject *mode_obj = Py_None;
     const Py_ssize_t nkw = kwnames == NULL ? 0 : PyTuple_GET_SIZE(kwnames);
-    uint64_t hi;
-    uint64_t lo;
+    uint64_t hi = 0;
+    uint64_t lo = 0;
     int mode = MODE_FAST;
 
     if (nargs == 0 && nkw == 0) {

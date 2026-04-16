@@ -1,16 +1,7 @@
 ---
 Checks: >
   -*,
-  bugprone-easily-swappable-parameters,
   bugprone-init-variables,
   bugprone-macro-parentheses,
-  cppcoreguidelines-avoid-magic-numbers,
-  cppcoreguidelines-init-variables,
-  readability-identifier-length,
   readability-use-concise-preprocessor-directives
 HeaderFilterRegex: 'src/.*'
-CheckOptions:
-  - key: readability-identifier-length.MinimumVariableNameLength
-    value: 1
-  - key: readability-identifier-length.MinimumParameterNameLength
-    value: 1
