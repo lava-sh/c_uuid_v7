@@ -1,6 +1,6 @@
 [build-system]
 requires = [
-    # use Clang fallback on macOS
+    # use Clang on macOS
     "ziglang == 0.16.0; platform_system != 'Darwin'",
     "setuptools == 82.0.1",
     "setuptools-scm == 10.0.5",
