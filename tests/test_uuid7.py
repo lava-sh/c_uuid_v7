@@ -1,5 +1,6 @@
 import copy
 import ctypes
+import gc
 import itertools
 import os
 import sys
@@ -84,6 +85,21 @@ def test_uuid_constructor_accepts_canonical_text(text: str, expected: int) -> No
 def test_uuid_constants_match_text_constructors() -> None:
     assert c_uuid_v7.UUID("00000000-0000-0000-0000-000000000000") == c_uuid_v7.NIL
     assert c_uuid_v7.UUID("ffffffff-ffff-ffff-ffff-ffffffffffff") == c_uuid_v7.MAX
+
+
+@pytest.mark.skipif(
+    sys.implementation.name != "cpython",
+    reason="CPython object-identity specific",
+)
+def test_uuid7_reuses_cached_object() -> None:
+    first = c_uuid_v7.uuid7()
+    first_id = id(first)
+
+    del first
+    gc.collect()
+
+    second = c_uuid_v7.uuid7()
+    assert id(second) == first_id
 
 
 def test_uuid_constructor_accepts_bytes() -> None:

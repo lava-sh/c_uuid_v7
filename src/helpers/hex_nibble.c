@@ -13,7 +13,7 @@ static const signed char CHAR_TO_HEX[256] = {
 
 static unsigned char lower_ascii(const unsigned char ch) {
     const unsigned char is_upper = (unsigned char)(ch >= 'A' && ch <= 'Z');
-    return (unsigned char)(ch | (unsigned char)(is_upper << 5));
+    return (unsigned char)(ch | is_upper << 5);
 }
 
 int hex_nibble_branchy(const unsigned char ch) {

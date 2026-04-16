@@ -25,7 +25,7 @@
 static signed short hex_pair_to_byte[65536];
 static int hex_pair_to_byte_ready = 0;
 
-static void init_hex_pair_to_byte(void) {
+static void init_hex_pair_table(void) {
     if (hex_pair_to_byte_ready) {
         return;
     }
@@ -55,8 +55,8 @@ static void init_hex_pair_to_byte(void) {
     hex_pair_to_byte_ready = 1;
 }
 
-static int hex_byte(const unsigned char hi, const unsigned char lo) {
-    init_hex_pair_to_byte();
+static int decode_hex_pair(const unsigned char hi, const unsigned char lo) {
+    init_hex_pair_table();
     return hex_pair_to_byte[(unsigned int)hi << 8 | lo];
 }
 
@@ -76,7 +76,7 @@ int starts_with_urn_uuid(const char *text, const size_t size) {
     return 1;
 }
 
-static void trim_uuid_text(const char **text, size_t *size) {
+static void strip_uuid_text_decorations(const char **text, size_t *size) {
     if (starts_with_urn_uuid(*text, *size)) {
         *text += 9;
         *size -= 9;
@@ -88,12 +88,12 @@ static void trim_uuid_text(const char **text, size_t *size) {
     }
 }
 
-static int parse_uuid_hex_common(const char *text, size_t size, uint64_t *hi, uint64_t *lo, int (*hex_fn)(unsigned char)) {
+static int parse_uuid_hex_stream(const char *text, size_t size, uint64_t *hi, uint64_t *lo, int (*hex_fn)(unsigned char)) {
     uint64_t high = 0;
     uint64_t low = 0;
     int digits = 0;
 
-    trim_uuid_text(&text, &size);
+    strip_uuid_text_decorations(&text, &size);
 
     for (size_t i = 0; i < size; ++i) {
         const unsigned char ch = (unsigned char)text[i];
@@ -127,26 +127,26 @@ static int parse_uuid_hex_common(const char *text, size_t size, uint64_t *hi, ui
 }
 
 int parse_uuid_hex_branchy(const char *text, const size_t size, uint64_t *hi, uint64_t *lo) {
-    return parse_uuid_hex_common(text, size, hi, lo, hex_nibble_branchy);
+    return parse_uuid_hex_stream(text, size, hi, lo, hex_nibble_branchy);
 }
 
 int parse_uuid_hex_lut(const char *text, const size_t size, uint64_t *hi, uint64_t *lo) {
-    return parse_uuid_hex_common(text, size, hi, lo, hex_nibble);
+    return parse_uuid_hex_stream(text, size, hi, lo, hex_nibble);
 }
 
 #define PARSE_BYTE(dst, src, idx)                                                                                                          \
     do {                                                                                                                                   \
-        const int byte_ = hex_byte((unsigned char)src[idx], (unsigned char)src[(idx) + 1]);                                                \
+        const int byte_ = decode_hex_pair((unsigned char)((src)[(idx)]), (unsigned char)((src)[(idx) + 1]));                               \
         if (byte_ < 0) {                                                                                                                   \
             return -1;                                                                                                                     \
         }                                                                                                                                  \
         (dst) = (unsigned char)byte_;                                                                                                      \
     } while (0)
 
-static int parse_uuid_hex_scalar(const char *text, size_t size, uint64_t *hi, uint64_t *lo) {
+static int parse_uuid_hex_fixed(const char *text, size_t size, uint64_t *hi, uint64_t *lo) {
     unsigned char bytes[16];
 
-    trim_uuid_text(&text, &size);
+    strip_uuid_text_decorations(&text, &size);
 
     if (size == 32) {
         PARSE_BYTE(bytes[0], text, 0);
@@ -195,7 +195,7 @@ static int parse_uuid_hex_scalar(const char *text, size_t size, uint64_t *hi, ui
 }
 
 #if HEXPARSE_USE_SSSE3
-static int decode_16_hex(const char *src, unsigned char *dst) {
+static int decode_16_hex_ssse3(const char *src, unsigned char *dst) {
     const __m128i input = _mm_loadu_si128((const __m128i *)src);
     const __m128i lower = _mm_or_si128(input, _mm_set1_epi8(0x20));
     const __m128i digit_mask = _mm_and_si128(_mm_cmpgt_epi8(input, _mm_set1_epi8('/')), _mm_cmpgt_epi8(_mm_set1_epi8(':'), input));
@@ -216,11 +216,11 @@ static int decode_16_hex(const char *src, unsigned char *dst) {
     return 0;
 }
 
-static int parse_uuid_hex_simd(const char *text, size_t size, uint64_t *hi, uint64_t *lo) {
+static int parse_uuid_hex_ssse3(const char *text, size_t size, uint64_t *hi, uint64_t *lo) {
     unsigned char bytes[16];
     char flat[32];
 
-    trim_uuid_text(&text, &size);
+    strip_uuid_text_decorations(&text, &size);
 
     if (size == 36) {
         if (text[8] != '-' || text[13] != '-' || text[18] != '-' || text[23] != '-') {
@@ -240,7 +240,7 @@ static int parse_uuid_hex_simd(const char *text, size_t size, uint64_t *hi, uint
         return -1;
     }
 
-    if (decode_16_hex(text, bytes) != 0 || decode_16_hex(text + 16, bytes + 8) != 0) {
+    if (decode_16_hex_ssse3(text, bytes) != 0 || decode_16_hex_ssse3(text + 16, bytes + 8) != 0) {
         return -1;
     }
 
@@ -251,9 +251,9 @@ static int parse_uuid_hex_simd(const char *text, size_t size, uint64_t *hi, uint
 
 int parse_uuid_hex(const char *text, size_t size, uint64_t *hi, uint64_t *lo) {
 #if HEXPARSE_USE_SSSE3
-    return parse_uuid_hex_simd(text, size, hi, lo);
+    return parse_uuid_hex_ssse3(text, size, hi, lo);
 #else
-    return parse_uuid_hex_scalar(text, size, hi, lo);
+    return parse_uuid_hex_fixed(text, size, hi, lo);
 #endif
 }
 

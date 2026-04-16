@@ -15,27 +15,26 @@ static w1rand_t w1rand_global = {0};
 static int w1rand_seeded = 0;
 
 static uint64_t unpack_u64_be(const unsigned char bytes[8]) {
-    return (uint64_t)bytes[0] << 56 | (uint64_t)bytes[1] << 48 | (uint64_t)bytes[2] << 40 |
-           (uint64_t)bytes[3] << 32 | (uint64_t)bytes[4] << 24 | (uint64_t)bytes[5] << 16 |
-           (uint64_t)bytes[6] << 8 | (uint64_t)bytes[7];
+    return (uint64_t)bytes[0] << 56 | (uint64_t)bytes[1] << 48 | (uint64_t)bytes[2] << 40 | (uint64_t)bytes[3] << 32 |
+           (uint64_t)bytes[4] << 24 | (uint64_t)bytes[5] << 16 | (uint64_t)bytes[6] << 8 | (uint64_t)bytes[7];
 }
 
 #if defined(__SIZEOF_INT128__)
-static inline uint64_t w1_mix(uint64_t a, uint64_t b) {
+static inline uint64_t w1_mix(const uint64_t a, const uint64_t b) {
     __uint128_t r = (__uint128_t)a * b;
     return (uint64_t)(r >> 64) ^ (uint64_t)r;
 }
 #elif defined(_MSC_VER) && defined(_M_X64)
     #include <intrin.h>
     #pragma intrinsic(_umul128)
-static inline uint64_t w1_mix(uint64_t a, uint64_t b) {
+static inline uint64_t w1_mix(const uint64_t a, const uint64_t b) {
     uint64_t hi;
     _umul128(a, b, &hi);
-    return hi ^ (a * b);
+    return hi ^ a * b;
 }
 #else
-static inline uint64_t _wyrot(uint64_t x) {
-    return (x >> 32) | (x << 32);
+static inline uint64_t _wyrot(const uint64_t x) {
+    return x >> 32 | x << 32;
 }
 
 static inline void _wymum(uint64_t *A, uint64_t *B) {
@@ -113,10 +112,7 @@ int random_counter42_secure(uint64_t *counter) {
     return 0;
 }
 
-void random_split_counter42(const uint64_t counter,
-                            const uint32_t low32,
-                            uint16_t *rand_a,
-                            uint64_t *tail62) {
+void random_split_counter42(const uint64_t counter, const uint32_t low32, uint16_t *rand_a, uint64_t *tail62) {
     *rand_a = (uint16_t)(counter >> 30);
     *tail62 = (counter & LOW30_MASK) << 32 | (uint64_t)low32;
 }
