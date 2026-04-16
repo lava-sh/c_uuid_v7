@@ -411,6 +411,7 @@ static int parse_uuid_int(PyObject *value, uint64_t *hi, uint64_t *lo) {
         return -1;
     }
 
+// >= Python 3.13
 #if PY_VERSION_HEX >= 0x030D0000
     unsigned char bytes[16];
     const Py_ssize_t nbytes = PyLong_AsNativeBytes(value, bytes, 16, Py_ASNATIVEBYTES_BIG_ENDIAN | Py_ASNATIVEBYTES_UNSIGNED_BUFFER);
@@ -515,6 +516,7 @@ static int parse_uuid_int(PyObject *value, uint64_t *hi, uint64_t *lo) {
     return 0;
 #endif
 
+// >= Python 3.13
 #if PY_VERSION_HEX >= 0x030D0000
     bytes_to_words(bytes, hi, lo);
 #endif
@@ -569,7 +571,7 @@ static int parse_uuid_fields(PyObject *value, uint64_t *hi, uint64_t *lo) {
     return 0;
 }
 
-static UUIDObject *uuid_new_permanent(const uint64_t hi, const uint64_t lo) {
+static UUIDObject *uuid_new_uncached(const uint64_t hi, const uint64_t lo) {
     UUIDObject *obj = PyObject_New(UUIDObject, &UUIDType);
 
     if (obj == NULL) {
@@ -743,6 +745,7 @@ UUID_INT64_GETTER(uuid_timestamp, hi >> V7_TIMESTAMP_SHIFT)
 static PyObject *uuid_int(PyObject *self_obj, void *Py_UNUSED(closure)) {
     const UUIDObject *self = UUID_CONST(self_obj);
 
+// >= Python 3.13
 #if PY_VERSION_HEX >= 0x030D0000
     unsigned char bytes[16];
 
@@ -1011,7 +1014,7 @@ static PyObject *py_reseed_rng(PyObject *Py_UNUSED(self), PyObject *Py_UNUSED(ar
 }
 
 static int add_module_uuid(PyObject *module, const char *name, const uint64_t hi, const uint64_t lo) {
-    UUIDObject *value = uuid_new_permanent(hi, lo);
+    UUIDObject *value = uuid_new_uncached(hi, lo);
 
     if (value == NULL) {
         return -1;
