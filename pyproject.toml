@@ -34,12 +34,12 @@ classifiers = [
 dependencies = []
 
 [dependency-groups]
-typos = ["typos == 1.45.0"]
-zizmor = ["zizmor == 1.24.0"]
-rumdl = ["rumdl == 0.1.71"]
+typos = ["typos == 1.45.1"]
+zizmor = ["zizmor == 1.24.1"]
+rumdl = ["rumdl == 0.1.72"]
 pytest = ["pytest == 9.0.3"]
 ci = [
-    "ty == 0.0.29",
+    "ty == 0.0.30",
     "ruff == 0.15.10",
     { include-group = "pytest" },
 ]
@@ -62,21 +62,6 @@ bench = [
     "py-cpuinfo == 9.0.0",
     "vl-convert-python == 1.9.0.post1",
 ]
-
-[tool.setuptools]
-package-dir = { "" = "py-src" }
-ext-modules = [
-    { name = "c_uuid_v7._core", sources = [
-        "src/lib.c",
-        "src/hexpairs.c",
-        "src/posix.c",
-        "src/random.c",
-        "src/windows.c",
-    ] },
-]
-
-[tool.setuptools.packages.find]
-where = ["py-src"]
 
 [tool.setuptools_scm]
 fallback_version = "0.0.0"
