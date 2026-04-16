@@ -49,7 +49,7 @@ _RELEASE_FLAGS = (
     # https://clang.llvm.org/docs/ClangCommandLineReference.html#cmdoption-clang-fomit-frame-pointer
     "-fomit-frame-pointer",
 
-    # --strip-all   -> remove all symbols
+    # --strip-all -> remove all symbols
     # https://sourceware.org/binutils/docs/ld/Options.html
     "--strip-all",
 )  # fmt: off
