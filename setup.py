@@ -194,6 +194,11 @@ class BuildSpec:
         cmd = self.command()
 
         logger.info("⚙️ Running: %s", shlex.join(cmd))
+        logger.info(
+            "📄 Sources (%d): %s",
+            len(list(self.ext.sources)),
+            list(self.ext.sources),
+        )
 
         completed = subprocess.run(
             cmd,
