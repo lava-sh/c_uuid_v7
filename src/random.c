@@ -19,7 +19,7 @@ static uint64_t unpack_u64_be(const unsigned char bytes[8]) {
            (uint64_t)bytes[4] << 24 | (uint64_t)bytes[5] << 16 | (uint64_t)bytes[6] << 8 | (uint64_t)bytes[7];
 }
 
-#if defined(__SIZEOF_INT128__)
+#ifdef __SIZEOF_INT128__
 static inline uint64_t w1_mix(const uint64_t a, const uint64_t b) {
     __uint128_t r = (__uint128_t)a * b;
     return (uint64_t)(r >> 64) ^ (uint64_t)r;
