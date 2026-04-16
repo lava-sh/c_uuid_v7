@@ -26,13 +26,14 @@ class PlatformSpec:
     arch_macro: str | None = None
     extra_libs: tuple[str, ...] = ("advapi32", "Mincore")
     debug_flags: tuple[str, ...] = ("-O0", "-g")
-    release_flags: tuple[str, ...] = ("-O3", "-DNDEBUG", "-s")
+    release_flags: tuple[str, ...] = ("-O3", "-DNDEBUG", "-s", "-Wno-system-headers")
 
 
 _WIN_R_FLAGS = (
     "-O3",
     "-DNDEBUG",
     "-Wl,--gc-sections,--strip-all,--as-needed",
+    "-Wno-system-headers",
     "-fomit-frame-pointer",
     "-ffunction-sections",
     "-fdata-sections",
