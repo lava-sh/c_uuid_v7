@@ -170,8 +170,8 @@ class BuildSpec:
             text=True,
             capture_output=True,
             check=False,
+        )
 
-)
         if completed.returncode == 0:
             if completed.stdout:
                 sys.stdout.write(completed.stdout)
