@@ -25,12 +25,38 @@ class PlatformSpec:
     target: str | None = None
     arch_macro: str | None = None
     extra_libs: tuple[str, ...] = ("advapi32", "Mincore")
+    debug_flags: tuple[str, ...] = ("-O0", "-g")
+    release_flags: tuple[str, ...] = ("-O3", "-DNDEBUG", "-s")
 
 
-WINDOWS_PLATFORMS = {
-    "win32": PlatformSpec("x86-windows-msvc", "-D_X86_"),
-    "win-amd64": PlatformSpec("x86_64-windows-msvc", "-D_AMD64_"),
-    "win-arm64": PlatformSpec("aarch64-windows-msvc", "-D_ARM64_"),
+_WIN_R_FLAGS = (
+    "-O3",
+    "-DNDEBUG",
+    "-Wl,--gc-sections,--strip-all,--as-needed",
+    "-fomit-frame-pointer",
+    "-ffunction-sections",
+    "-fdata-sections",
+)
+
+PLATFORMS = {
+    "win32": PlatformSpec(
+        "x86-windows-msvc",
+        "-D_X86_",
+        debug_flags=("-O0", "-g", "-D_DEBUG"),
+        release_flags=_WIN_R_FLAGS,
+    ),
+    "win-amd64": PlatformSpec(
+        "x86_64-windows-msvc",
+        "-D_AMD64_",
+        debug_flags=("-O0", "-g", "-D_DEBUG"),
+        release_flags=(*_WIN_R_FLAGS, "-flto"),
+    ),
+    "win-arm64": PlatformSpec(
+        "aarch64-windows-msvc",
+        "-D_ARM64_",
+        debug_flags=("-O0", "-g", "-D_DEBUG"),
+        release_flags=_WIN_R_FLAGS,
+    ),
 }
 
 
@@ -134,7 +160,11 @@ class BuildSpec:
 
         if self.platform.target:
             cmd.extend(["-target", self.platform.target])
-        cmd.extend(["-O0", "-g"] if self.debug else ["-O3", "-DNDEBUG", "-s"])
+
+        if self.debug:
+            cmd.extend(self.platform.debug_flags)
+        else:
+            cmd.extend(self.platform.release_flags)
 
         if self.platform.arch_macro:
             cmd.append(self.platform.arch_macro)
@@ -233,7 +263,7 @@ class ZigBuildExt(build_ext):
             zig=zig,
             ext=ext,
             ext_path=ext_path,
-            platform=WINDOWS_PLATFORMS.get(plat_name, PlatformSpec()),
+            platform=PLATFORMS.get(plat_name, PlatformSpec()),
             debug=self.debug,
         )
         build.run()
