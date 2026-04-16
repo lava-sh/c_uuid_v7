@@ -13,7 +13,10 @@ from setuptools import find_packages, setup
 from setuptools.command.build_ext import build_ext
 from setuptools.extension import Extension
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(message)s",
+)
 logger = logging.getLogger(__name__)
 
 
