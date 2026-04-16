@@ -48,14 +48,17 @@ _RELEASE_FLAGS = (
     # Omit frame pointer
     # https://clang.llvm.org/docs/ClangCommandLineReference.html#cmdoption-clang-fomit-frame-pointer
     "-fomit-frame-pointer",
-
-    # -s -> remove all symbols
-    # https://sourceware.org/binutils/docs/ld/Options.html
-    "-s",
 )  # fmt: off
 
 if sys.platform == "win32":
-    RELEASE_FLAGS = _RELEASE_FLAGS
+    RELEASE_FLAGS = (
+        *_RELEASE_FLAGS,
+
+        # -s -> remove all symbols
+        # https://sourceware.org/binutils/docs/ld/Options.html
+        "-s",
+    )  # fmt: off
+
 else:
     RELEASE_FLAGS = (
         *_RELEASE_FLAGS,
