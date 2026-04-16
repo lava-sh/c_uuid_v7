@@ -4,7 +4,7 @@
 
 #define W1RAND_C 0xd07ebc63274654c7ULL
 #define RAND_MASK62 0x3FFFFFFFFFFFFFFFULL
-#define COUNTER42_MASK ((1ULL << 41) - 1ULL)
+#define COUNTER42_MASK ((1ULL << 42) - 1ULL)
 #define LOW30_MASK ((1ULL << 30) - 1ULL)
 
 typedef struct {
