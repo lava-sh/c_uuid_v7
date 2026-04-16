@@ -125,6 +125,9 @@ class BuildSpec:
         )
 
     def python_lib(self) -> str | None:
+        if sys.platform != "win32":
+            return None
+
         version = sysconfig.get_python_version().replace(".", "")
         roots = _unique_paths(
             [
