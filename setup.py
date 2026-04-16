@@ -31,7 +31,7 @@ class PlatformSpec:
         "-flto=full",
         "-DNDEBUG",
         "-Wl,--gc-sections,--strip-all,--as-needed",
-        "-Wno-system-headers",
+        "-Wno-visibility",
         "-fomit-frame-pointer",
         "-ffunction-sections",
         "-fdata-sections",
@@ -156,6 +156,7 @@ class BuildSpec:
 
         if self.platform.arch_macro:
             cmd.append(self.platform.arch_macro)
+
         cmd.extend(["-Wno-empty-translation-unit", "-shared"])
         cmd.extend(self.macro_flags())
 
