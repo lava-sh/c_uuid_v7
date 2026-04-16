@@ -162,22 +162,36 @@ class BuildSpec:
 
     def run(self) -> None:
         cmd = self.command()
-        completed = subprocess.run(cmd, text=True, capture_output=True, check=False)
+
+        logger.info("⚙️ Running: %s", shlex.join(cmd))
+
+        completed = subprocess.run(
+            cmd,
+            text=True,
+            capture_output=True,
+            check=False,
+
+)
         if completed.returncode == 0:
             if completed.stdout:
                 sys.stdout.write(completed.stdout)
             if completed.stderr:
                 sys.stderr.write(completed.stderr)
+            logger.info("✅ Build succeeded")
             return
+
         lines = [
-            f"zig cc failed for target {self.platform.target or '<default>'}",
+            f"❌ zig cc failed for target {self.platform.target or '<default>'}",
             f"command: {shlex.join(cmd)}",
             f"exit code: {completed.returncode}",
         ]
+
         if completed.stdout:
-            lines.extend(["stdout:", completed.stdout.rstrip()])
+            lines.extend(["\n📤 stdout:", completed.stdout.rstrip()])
+
         if completed.stderr:
-            lines.extend(["stderr:", completed.stderr.rstrip()])
+            lines.extend(["\n📥 stderr:", completed.stderr.rstrip()])
+
         raise RuntimeError("\n".join(lines))
 
     def cleanup(self) -> None:
