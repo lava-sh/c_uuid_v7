@@ -1,61 +1,58 @@
 import builtins
-from typing import Any, Literal
+from typing import Any, Literal, TypeAlias
+
+from typing_extensions import Self, overload
+
+_FieldsType: TypeAlias = tuple[
+    builtins.int,
+    builtins.int,
+    builtins.int,
+    builtins.int,
+    builtins.int,
+    builtins.int,
+]
 
 class _UUID:
+    @overload
+    def __new__(cls, hex: str | _UUID, /) -> Self: ...
+    @overload
+    def __new__(cls, *, bytes: builtins.bytes) -> Self: ...
+    @overload
+    def __new__(cls, *, bytes_le: builtins.bytes) -> Self: ...
+    @overload
+    def __new__(cls, *, fields: _FieldsType) -> Self: ...
+    @overload
+    def __new__(cls, *, int: builtins.int) -> Self: ...
     @property
     def bytes(self) -> builtins.bytes: ...
-
     @property
     def bytes_le(self) -> builtins.bytes: ...
-
     @property
     def clock_seq(self) -> builtins.int: ...
-
     @property
     def clock_seq_hi_variant(self) -> builtins.int: ...
-
     @property
     def clock_seq_low(self) -> builtins.int: ...
-
     @property
-    def fields(
-        self,
-    ) -> tuple[
-        builtins.int,
-        builtins.int,
-        builtins.int,
-        builtins.int,
-        builtins.int,
-        builtins.int,
-    ]: ...
-
+    def fields(self) -> _FieldsType: ...
     @property
     def hex(self) -> str: ...
-
     @property
     def int(self) -> builtins.int: ...
-
     @property
     def node(self) -> builtins.int: ...
-
     @property
     def time(self) -> builtins.int: ...
-
     @property
     def time_hi_version(self) -> builtins.int: ...
-
     @property
     def time_low(self) -> builtins.int: ...
-
     @property
     def time_mid(self) -> builtins.int: ...
-
     @property
     def timestamp(self) -> builtins.int: ...
-
     @property
     def urn(self) -> str: ...
-
     def __copy__(self) -> _UUID: ...
     def __deepcopy__(self, memo: dict[Any, Any], /) -> _UUID: ...
     def __hash__(self) -> builtins.int: ...
@@ -66,6 +63,9 @@ class _UUID:
     def __ne__(self, other: Any, /) -> bool: ...
     def __gt__(self, other: Any, /) -> bool: ...
     def __ge__(self, other: Any, /) -> bool: ...
+
+_NIL: _UUID
+_MAX: _UUID
 
 # https://www.rfc-editor.org/rfc/rfc9562#section-5.7
 #

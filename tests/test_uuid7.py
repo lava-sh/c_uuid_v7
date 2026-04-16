@@ -1,10 +1,11 @@
 import copy
 import ctypes
+import gc
 import itertools
 import os
 import sys
 import uuid
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import c_uuid_v7
 import pytest
@@ -65,6 +66,99 @@ def test_uuid7_returns_fast_uuid() -> None:
     uuid_ = c_uuid_v7.uuid7()
     assert isinstance(uuid_, c_uuid_v7.UUID)
     _assert_uuid7_bits(uuid_)
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("00000000-0000-0000-0000-000000000000", 0),
+        ("ffffffff-ffff-ffff-ffff-ffffffffffff", (1 << 128) - 1),
+    ],
+)
+def test_uuid_constructor_accepts_canonical_text(text: str, expected: int) -> None:
+    uuid_ = c_uuid_v7.UUID(text)
+    assert isinstance(uuid_, c_uuid_v7.UUID)
+    assert str(uuid_) == text
+    assert uuid_.int == expected
+
+
+def test_uuid_constants_match_text_constructors() -> None:
+    assert c_uuid_v7.UUID("00000000-0000-0000-0000-000000000000") == c_uuid_v7.NIL
+    assert c_uuid_v7.UUID("ffffffff-ffff-ffff-ffff-ffffffffffff") == c_uuid_v7.MAX
+
+
+@pytest.mark.skipif(
+    sys.implementation.name != "cpython",
+    reason="CPython object-identity specific",
+)
+def test_uuid7_reuses_cached_object() -> None:
+    first = c_uuid_v7.uuid7()
+    first_id = id(first)
+
+    del first
+    gc.collect()
+
+    second = c_uuid_v7.uuid7()
+    assert id(second) == first_id
+
+
+def test_uuid_constructor_accepts_bytes() -> None:
+    uuid_ = c_uuid_v7.UUID(
+        bytes=b"\x00\x11\x22\x33\x44\x55\x66\x77\x88\x99\xaa\xbb\xcc\xdd\xee\xff",
+    )
+    assert str(uuid_) == "00112233-4455-6677-8899-aabbccddeeff"
+
+
+def test_uuid_constructor_accepts_bytes_le() -> None:
+    uuid_ = c_uuid_v7.UUID(
+        bytes_le=b"\x33\x22\x11\x00\x55\x44\x77\x66\x88\x99\xaa\xbb\xcc\xdd\xee\xff",
+    )
+    assert str(uuid_) == "00112233-4455-6677-8899-aabbccddeeff"
+
+
+def test_uuid_constructor_accepts_fields() -> None:
+    uuid_ = c_uuid_v7.UUID(
+        fields=(0x00112233, 0x4455, 0x6677, 0x88, 0x99, 0xAABBCCDDEEFF),
+    )
+    assert str(uuid_) == "00112233-4455-6677-8899-aabbccddeeff"
+
+
+def test_uuid_constructor_accepts_int() -> None:
+    uuid_ = c_uuid_v7.UUID(int=0x00112233445566778899AABBCCDDEEFF)
+    assert str(uuid_) == "00112233-4455-6677-8899-aabbccddeeff"
+
+
+def test_uuid_constructor_rejects_int_overflow() -> None:
+    with pytest.raises(ValueError, match="int is out of range"):
+        c_uuid_v7.UUID(int=1 << 200)
+
+
+def test_uuid_constructor_returns_same_object_for_uuid_input() -> None:
+    uuid_ = c_uuid_v7.uuid7()
+    assert c_uuid_v7.UUID(uuid_) is uuid_
+
+
+def test_uuid_constructor_requires_exactly_one_input_form() -> None:
+    constructor = cast(Any, c_uuid_v7.UUID)
+
+    with pytest.raises(
+        TypeError,
+        match="one of the hex, bytes, bytes_le, fields, or int",
+    ):
+        constructor()
+
+    with pytest.raises(
+        TypeError,
+        match="one of the hex, bytes, bytes_le, fields, or int",
+    ):
+        constructor("00000000-0000-0000-0000-000000000000", int=0)
+
+
+def test_uuid_constructor_rejects_more_than_one_positional_arg() -> None:
+    constructor = cast(Any, c_uuid_v7.UUID)
+
+    with pytest.raises(TypeError, match=r"UUID\(\) takes at most 1 positional argument"):
+        constructor("00000000-0000-0000-0000-000000000000", b"\x00" * 16)
 
 
 @pytest.mark.parametrize("mode", ["fast", "secure"])

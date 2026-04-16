@@ -1,5 +1,5 @@
-#ifndef HEX_PAIRS_H
-#define HEX_PAIRS_H
+#ifndef HEXPAIRS_H
+#define HEXPAIRS_H
 
 #include <stdint.h>
 #include <string.h>
