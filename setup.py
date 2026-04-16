@@ -27,36 +27,21 @@ class PlatformSpec:
     extra_libs: tuple[str, ...] = ("advapi32", "Mincore")
     debug_flags: tuple[str, ...] = ("-O0", "-g")
     release_flags: tuple[str, ...] = (
-        "-O3", "-DNDEBUG", "-s", "-Wno-system-headers",
+        "-O3",
+        "-flto=full",
+        "-DNDEBUG",
+        "-Wl,--gc-sections,--strip-all,--as-needed",
+        "-Wno-system-headers",
+        "-fomit-frame-pointer",
+        "-ffunction-sections",
+        "-fdata-sections",
     )
 
 
-_WIN_R_FLAGS = (
-    "-O3",
-    "-DNDEBUG",
-    "-Wl,--gc-sections,--strip-all,--as-needed",
-    "-Wno-system-headers",
-    "-fomit-frame-pointer",
-    "-ffunction-sections",
-    "-fdata-sections",
-)
-
 PLATFORMS = {
-    "win32": PlatformSpec(
-        "x86-windows-msvc",
-        "-D_X86_",
-        release_flags=_WIN_R_FLAGS,
-    ),
-    "win-amd64": PlatformSpec(
-        "x86_64-windows-msvc",
-        "-D_AMD64_",
-        release_flags=(*_WIN_R_FLAGS, "-flto"),
-    ),
-    "win-arm64": PlatformSpec(
-        "aarch64-windows-msvc",
-        "-D_ARM64_",
-        release_flags=_WIN_R_FLAGS,
-    ),
+    "win32": PlatformSpec("x86-windows-msvc", "-D_X86_"),
+    "win-amd64": PlatformSpec("x86_64-windows-msvc", "-D_AMD64_"),
+    "win-arm64": PlatformSpec("aarch64-windows-msvc", "-D_ARM64_"),
 }
 
 
