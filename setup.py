@@ -20,53 +20,62 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+_RELEASE_FLAGS = (
+    # Optimization level
+    # https://clang.llvm.org/docs/CommandGuide/clang.html#cmdoption-O0
+    "-O3",
+
+    # Link Time Optimization
+    # https://clang.llvm.org/docs/CommandGuide/clang.html#cmdoption-flto
+    "-flto=full",
+
+    # Disables asserts and other debug-only code
+    # https://en.cppreference.com/w/c/error/assert
+    "-DNDEBUG",
+
+    # Place each global variable in its own section
+    # https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html#index-fdata-sections
+    "-fdata-sections",
+
+    # Suppress visibility-related warnings
+    # https://clang.llvm.org/docs/DiagnosticsReference.html
+    "-Wno-visibility",
+
+    # Place each function in its own section
+    # https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html#index-ffunction-sections
+    "-ffunction-sections",
+
+    # Omit frame pointer
+    # https://clang.llvm.org/docs/ClangCommandLineReference.html#cmdoption-clang-fomit-frame-pointer
+    "-fomit-frame-pointer",
+)  # fmt: off
+
+if sys.platform == "win32":
+    RELEASE_FLAGS = _RELEASE_FLAGS
+else:
+    RELEASE_FLAGS = (
+        *_RELEASE_FLAGS,
+        # Disable semantic interposition:
+        # allows inlining and direct calls instead of PLT indirection
+        # https://clang.llvm.org/docs/ClangCommandLineReference.html#cmdoption-fsemantic-interposition
+        "-fno-semantic-interposition",
+
+        # Linker flags:
+        # --gc-sections -> remove unused sections
+        # --strip-all   -> remove all symbols
+        # --as-needed   -> link only required libraries
+        # https://sourceware.org/binutils/docs/ld/Options.html
+        "-Wl,--gc-sections,--strip-all,--as-needed",
+    )  # fmt: off
+
+
 @dataclass(frozen=True)
 class PlatformSpec:
     target: str | None = None
     arch_macro: str | None = None
     extra_libs: tuple[str, ...] = ("advapi32", "Mincore")
     debug_flags: tuple[str, ...] = ("-O0", "-g")
-    release_flags: tuple[str, ...] = (
-        # Optimization level
-        # https://clang.llvm.org/docs/CommandGuide/clang.html#cmdoption-O0
-        "-O3",
-
-        # Link Time Optimization
-        # https://clang.llvm.org/docs/CommandGuide/clang.html#cmdoption-flto
-        "-flto=full",
-
-        # Disables asserts and other debug-only code
-        # https://en.cppreference.com/w/c/error/assert
-        "-DNDEBUG",
-
-        # Place each global variable in its own section
-        # https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html#index-fdata-sections
-        "-fdata-sections",
-
-        # Suppress visibility-related warnings
-        # https://clang.llvm.org/docs/DiagnosticsReference.html
-        "-Wno-visibility",
-
-        # Place each function in its own section
-        # https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html#index-ffunction-sections
-        "-ffunction-sections",
-
-        # Omit frame pointer
-        # https://clang.llvm.org/docs/ClangCommandLineReference.html#cmdoption-clang-fomit-frame-pointer
-        "-fomit-frame-pointer",
-
-        # Disable semantic interposition:
-        # allows inlining and direct calls instead of PLT indirection
-        # https://maskray.me/blog/2021-05-09-fno-semantic-interposition
-        "-fno-semantic-interposition",
-
-        # Linker flags:
-        # --gc-sections -> remove unused sections
-        # --strip-all   -> remove all symbols (smaller binary)
-        # --as-needed   -> link only required libraries
-        # https://sourceware.org/binutils/docs/ld/Options.html
-        "-Wl,--gc-sections,--strip-all,--as-needed",
-    )  # fmt: off
+    release_flags: tuple[str, ...] = RELEASE_FLAGS
 
 
 PLATFORMS = {
