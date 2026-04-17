@@ -1,4 +1,5 @@
 import glob
+import logging
 import os
 import shlex
 import shutil
@@ -12,15 +13,79 @@ from setuptools import find_packages, setup
 from setuptools.command.build_ext import build_ext
 from setuptools.extension import Extension
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(message)s",
+)
+logger = logging.getLogger(__name__)
+
+
+_RELEASE_FLAGS = (
+    # Optimization level
+    # https://clang.llvm.org/docs/CommandGuide/clang.html#cmdoption-O0
+    "-O3",
+
+    # Link Time Optimization
+    # https://clang.llvm.org/docs/CommandGuide/clang.html#cmdoption-flto
+    "-flto=full",
+
+    # Disables asserts and other debug-only code
+    # https://en.cppreference.com/w/c/error/assert
+    "-DNDEBUG",
+
+    # Place each global variable in its own section
+    # https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html#index-fdata-sections
+    "-fdata-sections",
+
+    # Suppress visibility-related warnings
+    # https://clang.llvm.org/docs/DiagnosticsReference.html
+    "-Wno-visibility",
+
+    # Place each function in its own section
+    # https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html#index-ffunction-sections
+    "-ffunction-sections",
+
+    # Omit frame pointer
+    # https://clang.llvm.org/docs/ClangCommandLineReference.html#cmdoption-clang-fomit-frame-pointer
+    "-fomit-frame-pointer",
+)  # fmt: off
+
+if sys.platform == "win32":
+    RELEASE_FLAGS = (
+        *_RELEASE_FLAGS,
+
+        # -s -> remove all symbols
+        # https://sourceware.org/binutils/docs/ld/Options.html
+        "-s",
+    )  # fmt: off
+
+else:
+    RELEASE_FLAGS = (
+        *_RELEASE_FLAGS,
+        # Disable semantic interposition:
+        # allows inlining and direct calls instead of PLT indirection
+        # https://clang.llvm.org/docs/ClangCommandLineReference.html#cmdoption-fsemantic-interposition
+        "-fno-semantic-interposition",
+
+        # Linker flags:
+        # --gc-sections -> remove unused sections
+        # --as-needed   -> link only required libraries
+        # --strip-all   -> remove all symbols
+        # https://sourceware.org/binutils/docs/ld/Options.html
+        "-Wl,--gc-sections,--as-needed,--strip-all",
+    )  # fmt: off
+
 
 @dataclass(frozen=True)
 class PlatformSpec:
     target: str | None = None
     arch_macro: str | None = None
     extra_libs: tuple[str, ...] = ("advapi32", "Mincore")
+    debug_flags: tuple[str, ...] = ("-O0", "-g")
+    release_flags: tuple[str, ...] = RELEASE_FLAGS
 
 
-WINDOWS_PLATFORMS = {
+PLATFORMS = {
     "win32": PlatformSpec("x86-windows-msvc", "-D_X86_"),
     "win-amd64": PlatformSpec("x86_64-windows-msvc", "-D_AMD64_"),
     "win-arm64": PlatformSpec("aarch64-windows-msvc", "-D_ARM64_"),
@@ -92,6 +157,9 @@ class BuildSpec:
         )
 
     def python_lib(self) -> str | None:
+        if sys.platform != "win32":
+            return None
+
         version = sysconfig.get_python_version().replace(".", "")
         roots = _unique_paths(
             [
@@ -114,27 +182,43 @@ class BuildSpec:
 
     def libraries(self) -> list[str]:
         libs = list(self.ext.libraries or [])
-        if any(Path(source).name == "windows.c" for source in self.ext.sources):
+
+        if sys.platform == "win32" and any(
+            Path(source).name == "windows.c" for source in self.ext.sources
+        ):
             libs.extend(self.platform.extra_libs)
+
         return list(dict.fromkeys(libs))
 
     def command(self) -> list[str]:
         cmd = [self.zig, "cc"]
+
         if self.platform.target:
             cmd.extend(["-target", self.platform.target])
-        cmd.extend(["-O0", "-g"] if self.debug else ["-O3", "-DNDEBUG", "-s"])
+
+        if self.debug:
+            cmd.extend(self.platform.debug_flags)
+        else:
+            cmd.extend(self.platform.release_flags)
+
         if self.platform.arch_macro:
             cmd.append(self.platform.arch_macro)
+
         cmd.extend(["-Wno-empty-translation-unit", "-shared"])
         cmd.extend(self.macro_flags())
+
         for path in self.include_dirs():
             cmd.extend(["-I", path])
+
         cmd.extend(_split_flags(os.environ.get("CFLAGS")))
         cmd.extend(str(Path(source)) for source in self.ext.sources)
+
         for path in self.library_dirs():
             cmd.extend(["-L", path])
+
         if python_lib := self.python_lib():
             cmd.append(python_lib)
+
         cmd.extend(f"-l{lib}" for lib in self.libraries())
         cmd.extend(_split_flags(os.environ.get("LDFLAGS")))
         cmd.extend(str(arg) for arg in self.ext.extra_compile_args or [])
@@ -144,22 +228,41 @@ class BuildSpec:
 
     def run(self) -> None:
         cmd = self.command()
-        completed = subprocess.run(cmd, text=True, capture_output=True, check=False)
+
+        logger.info("⚙️ Running: %s", shlex.join(cmd))
+        logger.info(
+            "📄 Sources (%d): %s",
+            len(list(self.ext.sources)),
+            list(self.ext.sources),
+        )
+
+        completed = subprocess.run(
+            cmd,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
         if completed.returncode == 0:
             if completed.stdout:
                 sys.stdout.write(completed.stdout)
             if completed.stderr:
                 sys.stderr.write(completed.stderr)
+            logger.info("✅ Build succeeded")
             return
+
         lines = [
-            f"zig cc failed for target {self.platform.target or '<default>'}",
+            f"❌ zig cc failed for target {self.platform.target or '<default>'}",
             f"command: {shlex.join(cmd)}",
             f"exit code: {completed.returncode}",
         ]
+
         if completed.stdout:
-            lines.extend(["stdout:", completed.stdout.rstrip()])
+            lines.extend(["\n📤 stdout:", completed.stdout.rstrip()])
+
         if completed.stderr:
-            lines.extend(["stderr:", completed.stderr.rstrip()])
+            lines.extend(["\n📥 stderr:", completed.stderr.rstrip()])
+
         raise RuntimeError("\n".join(lines))
 
     def cleanup(self) -> None:
@@ -176,10 +279,24 @@ class BuildSpec:
 
 class ZigBuildExt(build_ext):
     def build_extension(self, ext: Extension) -> None:
-        zig = os.environ.get("ZIG_ENV") or shutil.which("python-zig")
-        if zig is None or os.name != "nt" or sys.platform == "darwin":
+        # Fix for Windows ARM64
+        # See: https://codeberg.org/ziglang/zig/issues/31865#issuecomment-13204506
+        ci_zig = os.environ.get("CI_WIN_ARM_64_ZIG_ENV")
+
+        # `python-zig` is Zig from PyPi (https://pypi.org/project/ziglang)
+        zig = ci_zig or shutil.which("python-zig")
+        logger.info("⚡ Using Zig: %s", zig)
+
+        if sys.platform == "darwin":
+            logger.info("🍎 macOS detected: using Clang toolchain")
             super().build_extension(ext)
             return
+
+        if zig is None:
+            logger.info("⚠️ Zig not found, fallback to setuptools (GCC / Clang)")
+            super().build_extension(ext)
+            return
+
         ext_path = Path(self.get_ext_fullpath(ext.name))
         ext_path.parent.mkdir(parents=True, exist_ok=True)
         plat_name = self.plat_name or getattr(self, "get_platform")()
@@ -187,7 +304,7 @@ class ZigBuildExt(build_ext):
             zig=zig,
             ext=ext,
             ext_path=ext_path,
-            platform=WINDOWS_PLATFORMS.get(plat_name, PlatformSpec()),
+            platform=PLATFORMS.get(plat_name, PlatformSpec()),
             debug=self.debug,
         )
         build.run()

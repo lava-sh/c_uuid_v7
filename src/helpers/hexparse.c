@@ -4,28 +4,28 @@
 #include "words.h"
 #include <string.h>
 
-#ifdef HEXPARSE_USE_SIMD
+#ifdef USE_SIMD
 #elif defined(_MSC_VER)
-    #define HEXPARSE_USE_SIMD 0
+    #define USE_SIMD 0
 #else
-    #define HEXPARSE_USE_SIMD 1
+    #define USE_SIMD 1
 #endif
 
-#ifdef HEXPARSE_USE_SSSE3
+#ifdef USE_SSSE3
 #elif defined(__SSSE3__)
-    #define HEXPARSE_USE_SSSE3 HEXPARSE_USE_SIMD
+    #define USE_SSSE3 USE_SIMD
 #else
-    #define HEXPARSE_USE_SSSE3 0
+    #define USE_SSSE3 0
 #endif
 
-#ifdef HEXPARSE_USE_AVX2
+#ifdef USE_AVX2
 #elif defined(__AVX2__)
-    #define HEXPARSE_USE_AVX2 HEXPARSE_USE_SIMD
+    #define USE_AVX2 USE_SIMD
 #else
-    #define HEXPARSE_USE_AVX2 0
+    #define USE_AVX2 0
 #endif
 
-#if HEXPARSE_USE_SSSE3 || HEXPARSE_USE_AVX2
+#if USE_SSSE3 || USE_AVX2
     #include <immintrin.h>
 #endif
 
@@ -104,6 +104,7 @@ static void unwrap_uuid_text(const char **text, size_t *size) {
         (dst) = (unsigned char)byte_;                                                                                                      \
     } while (0)
 
+#if !USE_SSSE3 && !USE_AVX2
 static int parse_uuid_text_32(const char *text, uint64_t *hi, uint64_t *lo) {
     unsigned char bytes[16];
 
@@ -127,8 +128,9 @@ static int parse_uuid_text_32(const char *text, uint64_t *hi, uint64_t *lo) {
     bytes_to_words(bytes, hi, lo);
     return 0;
 }
+#endif
 
-#if HEXPARSE_USE_SSSE3
+#if USE_SSSE3
 static int decode_16_hex_ssse3(const char *src, unsigned char *dst) {
     const __m128i input = _mm_loadu_si128((const __m128i *)src);
     const __m128i lower = _mm_or_si128(input, _mm_set1_epi8(0x20));
@@ -162,7 +164,7 @@ static int parse_uuid_text_32_ssse3(const char *text, uint64_t *hi, uint64_t *lo
 }
 #endif
 
-#if HEXPARSE_USE_AVX2
+#if USE_AVX2
 static int parse_uuid_text_32_avx2(const char *text, uint64_t *hi, uint64_t *lo) {
     const __m256i input = _mm256_loadu_si256((const __m256i *)text);
     const __m256i lower = _mm256_or_si256(input, _mm256_set1_epi8(0x20));
@@ -217,9 +219,9 @@ int parse_uuid_hex(const char *text, size_t size, uint64_t *hi, uint64_t *lo) {
         return -1;
     }
 
-#if HEXPARSE_USE_AVX2
+#if USE_AVX2
     return parse_uuid_text_32_avx2(text, hi, lo);
-#elif HEXPARSE_USE_SSSE3
+#elif USE_SSSE3
     return parse_uuid_text_32_ssse3(text, hi, lo);
 #else
     return parse_uuid_text_32(text, hi, lo);
