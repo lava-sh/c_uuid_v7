@@ -106,7 +106,7 @@ def _unique_paths(
     return list(dict.fromkeys(
         str(path)
         for p in paths
-        if p is not None
+        if p
         for path in (Path(p),)
         if not (existing_only and not path.is_dir())
     ))  # fmt: off
