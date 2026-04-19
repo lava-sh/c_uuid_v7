@@ -288,7 +288,7 @@ class ZigBuildExt(build_ext):
         zig = ci_zig or shutil.which("python-zig")
 
         if IS_MACOS:
-            logger.info("🍏 macOS detected: using Clang toolchain")
+            logger.info("🍎 MACOS detected: using Clang toolchain")
             logger.info(
                 "🍏 MACOSX_DEPLOYMENT_TARGET=%s",
                 os.environ.get("MACOSX_DEPLOYMENT_TARGET"),
