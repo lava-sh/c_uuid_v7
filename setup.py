@@ -181,10 +181,7 @@ class BuildSpec:
     def libraries(self) -> list[str]:
         libs = list(self.ext.libraries or [])
 
-        if IS_WINDOWS and any(
-            Path(source).name == "windows.c"
-            for source in self.ext.sources
-        ):  # fmt: off
+        if IS_WINDOWS:
             libs.extend(self.platform.extra_libs)
 
         return list(dict.fromkeys(libs))
@@ -317,14 +314,18 @@ class ZigBuildExt(build_ext):
         build.cleanup()
 
 
-src = [*sorted(
-    f for f in glob.glob("src/**/*.c", recursive=True)
-    if not f.endswith(("windows.c", "posix.c"))
-)]  # fmt: off
+_sources = [
+    *sorted(
+        source
+        for source in glob.glob("src/**/*.c", recursive=True)
+        if not source.endswith(("windows.c", "posix.c"))
+    ),
+    "src/windows.c" if IS_WINDOWS else "src/posix.c",
+]
 
 setup(
     cmdclass={"build_ext": ZigBuildExt},
     package_dir={"": "py-src"},
     packages=find_packages(where="py-src"),
-    ext_modules=[Extension(name="c_uuid_v7._core", sources=src)],
+    ext_modules=[Extension(name="c_uuid_v7._core", sources=_sources)],
 )
