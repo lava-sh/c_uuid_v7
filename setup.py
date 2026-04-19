@@ -19,8 +19,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+IS_WINDOWS = sys.platform == "win32"
+IS_MACOS = sys.platform == "darwin"
 
-_RELEASE_FLAGS = (
+_RELEASE_FLAGS: tuple[str, ...] = (
     # Optimization level
     # https://clang.llvm.org/docs/CommandGuide/clang.html#cmdoption-O0
     "-O3",
@@ -50,7 +52,7 @@ _RELEASE_FLAGS = (
     "-fomit-frame-pointer",
 )  # fmt: off
 
-if sys.platform == "win32":
+if IS_WINDOWS:
     RELEASE_FLAGS = (
         *_RELEASE_FLAGS,
 
@@ -101,19 +103,13 @@ def _unique_paths(
     *,
     existing_only: bool = False,
 ) -> list[str]:
-    seen = set()
-    result = []
-    for raw in paths:
-        if not raw:
-            continue
-        path = Path(raw)
-        if existing_only and not path.is_dir():
-            continue
-        value = str(path)
-        if value not in seen:
-            seen.add(value)
-            result.append(value)
-    return result
+    return list(dict.fromkeys(
+        str(path)
+        for p in paths
+        if p
+        for path in (Path(p),)
+        if not (existing_only and not path.is_dir())
+    ))  # fmt: off
 
 
 @dataclass(frozen=True)
@@ -126,9 +122,11 @@ class BuildSpec:
 
     def macro_flags(self) -> list[str]:
         flags = [
-            f"-D{name}" if value is None else f"-D{name}={value}"
+            f"-D{name}"
+            if value is None
+            else f"-D{name}={value}"
             for name, value in self.ext.define_macros or []
-        ]
+        ]  # fmt: off
         flags.extend(f"-U{name}" for name in self.ext.undef_macros or [])
         return flags
 
@@ -157,7 +155,7 @@ class BuildSpec:
         )
 
     def python_lib(self) -> str | None:
-        if sys.platform != "win32":
+        if not IS_WINDOWS:
             return None
 
         version = sysconfig.get_python_version().replace(".", "")
@@ -183,9 +181,7 @@ class BuildSpec:
     def libraries(self) -> list[str]:
         libs = list(self.ext.libraries or [])
 
-        if sys.platform == "win32" and any(
-            Path(source).name == "windows.c" for source in self.ext.sources
-        ):
+        if IS_WINDOWS:
             libs.extend(self.platform.extra_libs)
 
         return list(dict.fromkeys(libs))
@@ -229,10 +225,12 @@ class BuildSpec:
     def run(self) -> None:
         cmd = self.command()
 
+        logger.info("📂 Include dirs: %s", self.include_dirs())
+        logger.info("📂 Library dirs: %s", self.library_dirs())
         logger.info("⚙️ Running: %s", shlex.join(cmd))
         logger.info(
             "📄 Sources (%d): %s",
-            len(list(self.ext.sources)),
+            len(self.ext.sources),
             list(self.ext.sources),
         )
 
@@ -285,10 +283,13 @@ class ZigBuildExt(build_ext):
 
         # `python-zig` is Zig from PyPi (https://pypi.org/project/ziglang)
         zig = ci_zig or shutil.which("python-zig")
-        logger.info("⚡ Using Zig: %s", zig)
 
-        if sys.platform == "darwin":
-            logger.info("🍎 macOS detected: using Clang toolchain")
+        if IS_MACOS:
+            logger.info("🍎 MACOS detected: using Clang / GCC")
+            logger.info(
+                "🍏 MACOSX_DEPLOYMENT_TARGET=%s",
+                os.environ.get("MACOSX_DEPLOYMENT_TARGET"),
+            )
             super().build_extension(ext)
             return
 
@@ -296,6 +297,8 @@ class ZigBuildExt(build_ext):
             logger.info("⚠️ Zig not found, fallback to setuptools (GCC / Clang)")
             super().build_extension(ext)
             return
+
+        logger.info("⚡ Using Zig: %s", zig)
 
         ext_path = Path(self.get_ext_fullpath(ext.name))
         ext_path.parent.mkdir(parents=True, exist_ok=True)
@@ -311,14 +314,18 @@ class ZigBuildExt(build_ext):
         build.cleanup()
 
 
+_sources = [
+    *sorted(
+        source
+        for source in glob.glob("src/**/*.c", recursive=True)
+        if not source.endswith(("windows.c", "posix.c"))
+    ),
+    "src/windows.c" if IS_WINDOWS else "src/posix.c",
+]
+
 setup(
     cmdclass={"build_ext": ZigBuildExt},
     package_dir={"": "py-src"},
     packages=find_packages(where="py-src"),
-    ext_modules=[
-        Extension(
-            name="c_uuid_v7._core",
-            sources=glob.glob("src/**/*.c", recursive=True),
-        ),
-    ],
+    ext_modules=[Extension(name="c_uuid_v7._core", sources=_sources)],
 )
