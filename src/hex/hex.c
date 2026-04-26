@@ -31,10 +31,14 @@ void uuid_to_bytes(const uint64_t hi, const uint64_t lo, unsigned char bytes[16]
 }
 
 void uuid_to_bytes_le(const unsigned char *bytes, unsigned char reordered[16]) {
-    static constexpr unsigned char order[8] = {3, 2, 1, 0, 5, 4, 7, 6};
-    for (int i = 0; i < 8; ++i) {
-        reordered[i] = bytes[order[i]];
-    }
+    reordered[0] = bytes[3];
+    reordered[1] = bytes[2];
+    reordered[2] = bytes[1];
+    reordered[3] = bytes[0];
+    reordered[4] = bytes[5];
+    reordered[5] = bytes[4];
+    reordered[6] = bytes[7];
+    reordered[7] = bytes[6];
     memcpy(reordered + 8, bytes + 8, 8);
 }
 
@@ -51,29 +55,33 @@ void fmt_hex32(const uint64_t hi, const uint64_t lo, char *out) {
 }
 
 void fmt_dashed(const uint64_t hi, const uint64_t lo, char *out) {
-    static constexpr int parts[] = {0, 8, 9, 4, 14, 4, 19, 4, 24, 12};
-
 #if USE_SSSE3
     char tmp[32];
     simd_encode_16_hex(UUID_HTOBE64(hi), UUID_HTOBE64(lo), tmp, tmp + 16);
-    int src = 0;
-    for (int i = 0; i < 5; ++i) {
-        const int dst = parts[i * 2];
-        const int len = parts[i * 2 + 1];
-        memcpy(out + dst, tmp + src, (size_t)len);
-        src += len;
-    }
+    memcpy(out + 0, tmp + 0, 8);
+    memcpy(out + 9, tmp + 8, 4);
+    memcpy(out + 14, tmp + 12, 4);
+    memcpy(out + 19, tmp + 16, 4);
+    memcpy(out + 24, tmp + 20, 12);
 #else
     unsigned char bytes[16];
     uuid_to_bytes(hi, lo, bytes);
-    int src = 0;
-    for (int i = 0; i < 5; ++i) {
-        const int dst = parts[i * 2];
-        const int len = parts[i * 2 + 1];
-        for (int j = 0; j < len; j += 2) {
-            hex_pair(out + dst + j, bytes[src++]);
-        }
-    }
+    hex_pair(out + 0, bytes[0]);
+    hex_pair(out + 2, bytes[1]);
+    hex_pair(out + 4, bytes[2]);
+    hex_pair(out + 6, bytes[3]);
+    hex_pair(out + 9, bytes[4]);
+    hex_pair(out + 11, bytes[5]);
+    hex_pair(out + 14, bytes[6]);
+    hex_pair(out + 16, bytes[7]);
+    hex_pair(out + 19, bytes[8]);
+    hex_pair(out + 21, bytes[9]);
+    hex_pair(out + 24, bytes[10]);
+    hex_pair(out + 26, bytes[11]);
+    hex_pair(out + 28, bytes[12]);
+    hex_pair(out + 30, bytes[13]);
+    hex_pair(out + 32, bytes[14]);
+    hex_pair(out + 34, bytes[15]);
 #endif
     out[8] = '-';
     out[13] = '-';

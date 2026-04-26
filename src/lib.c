@@ -355,8 +355,8 @@ static int parse_uuid_int(PyObject *value, uint64_t *hi, uint64_t *lo) {
     }
 
 #if PY_VERSION_HEX >= PY_3_13
-    uint64_t words[2];
-    const Py_ssize_t nbytes = PyLong_AsNativeBytes(value, words, 16, Py_ASNATIVEBYTES_NATIVE_ENDIAN | Py_ASNATIVEBYTES_UNSIGNED_BUFFER);
+    unsigned char bytes[16];
+    const Py_ssize_t nbytes = PyLong_AsNativeBytes(value, bytes, 16, Py_ASNATIVEBYTES_BIG_ENDIAN | Py_ASNATIVEBYTES_UNSIGNED_BUFFER);
     if (nbytes < 0) {
         if (PyErr_ExceptionMatches(PyExc_OverflowError)) {
             PyErr_SetString(PyExc_ValueError, "int is out of range (need a 128-bit value)");
@@ -367,13 +367,7 @@ static int parse_uuid_int(PyObject *value, uint64_t *hi, uint64_t *lo) {
         PyErr_SetString(PyExc_ValueError, "int is out of range (need a 128-bit value)");
         return -1;
     }
-    #if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-    *lo = words[0];
-    *hi = words[1];
-    #else
-    *hi = words[0];
-    *lo = words[1];
-    #endif
+    bytes_to_words(bytes, hi, lo);
     return 0;
 #else
     PyObject *mask = PyLong_FromUnsignedLongLong(0xFFFF'FFFF'FFFF'FFFFULL);
@@ -632,12 +626,9 @@ UUID_INT64_GETTER(uuid_timestamp, hi >> V7_TIMESTAMP_SHIFT)
 
 static PyObject *uuid_int_from_parts(const uint64_t hi, const uint64_t lo) {
 #if PY_VERSION_HEX >= PY_3_13
-    #if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-    const uint64_t words[2] = {lo, hi};
-    #else
-    const uint64_t words[2] = {hi, lo};
-    #endif
-    return PyLong_FromUnsignedNativeBytes(words, 16, Py_ASNATIVEBYTES_NATIVE_ENDIAN | Py_ASNATIVEBYTES_UNSIGNED_BUFFER);
+    unsigned char bytes[16];
+    uuid_to_bytes(hi, lo, bytes);
+    return PyLong_FromUnsignedNativeBytes(bytes, 16, Py_ASNATIVEBYTES_BIG_ENDIAN | Py_ASNATIVEBYTES_UNSIGNED_BUFFER);
 #else
     PyObject *high = PyLong_FromUnsignedLongLong(hi);
     if (high == nullptr) {
