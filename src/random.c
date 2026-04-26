@@ -2,8 +2,6 @@
 
 #include "platform.h"
 
-#include <string.h>
-
 constexpr uint64_t W1RAND_C = 0xd07e'bc63'2746'54c7ULL;
 constexpr uint64_t RAND_MASK62 = 0x3FFF'FFFF'FFFF'FFFFULL;
 constexpr uint64_t COUNTER42_MASK = (1ULL << 42) - 1ULL;
@@ -15,11 +13,6 @@ typedef struct {
 
 static w1rand_t w1rand_global = {0};
 static bool w1rand_seeded = false;
-
-static uint64_t unpack_u64_be(const unsigned char bytes[8]) {
-    return (uint64_t)bytes[0] << 56 | (uint64_t)bytes[1] << 48 | (uint64_t)bytes[2] << 40 | (uint64_t)bytes[3] << 32 |
-           (uint64_t)bytes[4] << 24 | (uint64_t)bytes[5] << 16 | (uint64_t)bytes[6] << 8 | (uint64_t)bytes[7];
-}
 
 #ifdef __SIZEOF_INT128__
 static inline uint64_t w1_mix(const uint64_t a, const uint64_t b) {
@@ -60,14 +53,10 @@ static uint64_t w1_next(void) {
 }
 
 static int rnd_u64_secure(uint64_t *out) {
-    unsigned char bytes[8];
-
-    if (fill_random(bytes, sizeof(bytes)) != 0) {
+    if (fill_random((unsigned char *)out, sizeof(*out)) != 0) {
         PyErr_SetString(PyExc_OSError, "unable to generate random bytes");
         return -1;
     }
-
-    *out = unpack_u64_be(bytes);
     return 0;
 }
 
@@ -76,21 +65,13 @@ int random_ensure_seeded(void) {
         return 0;
     }
 
-    unsigned char seed[16];
-    uint64_t left = 0;
-    uint64_t right = 0;
-
-    if (fill_random(seed, sizeof(seed)) != 0) {
+    uint64_t seed[2] = {0, 0};
+    if (fill_random((unsigned char *)seed, sizeof(seed)) != 0) {
         PyErr_SetString(PyExc_OSError, "unable to seed UUIDv7 generator");
         return -1;
     }
 
-    memcpy(&left, seed, sizeof(left));
-    memcpy(&right, seed + sizeof(left), sizeof(right));
-    w1rand_global.state = left ^ w1_mix(right, right ^ W1RAND_C);
-#ifdef _WIN32
-    platform_seeded();
-#endif
+    w1rand_global.state = seed[0] ^ w1_mix(seed[1], seed[1] ^ W1RAND_C);
     w1rand_seeded = true;
     return 0;
 }

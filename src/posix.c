@@ -3,7 +3,6 @@
     #include "platform.h"
 
     #include <fcntl.h>
-    #include <sys/time.h>
     #include <time.h>
     #include <unistd.h>
 
@@ -11,19 +10,10 @@
         #include <sys/random.h>
     #endif
 
-uint64_t system_ms(void) {
-    #if defined(CLOCK_REALTIME)
-    struct timespec ts;
-
-    if (clock_gettime(CLOCK_REALTIME, &ts) == 0) {
-        return ((uint64_t)ts.tv_sec * 1000ULL) + ((uint64_t)ts.tv_nsec / 1000000ULL);
-    }
-    #endif
-
-    struct timeval tv;
-
-    gettimeofday(&tv, NULL);
-    return ((uint64_t)tv.tv_sec * 1000ULL) + ((uint64_t)tv.tv_usec / 1000ULL);
+uint64_t now_ms(void) {
+    struct timespec ts = {.tv_sec = 0, .tv_nsec = 0};
+    clock_gettime(CLOCK_REALTIME, &ts);
+    return (uint64_t)ts.tv_sec * 1'000ULL + (uint64_t)ts.tv_nsec / 1'000'000ULL;
 }
 
 int fill_random(unsigned char *buf, const Py_ssize_t len) {
@@ -43,12 +33,11 @@ int fill_random(unsigned char *buf, const Py_ssize_t len) {
     #endif
 
     const int fd = open("/dev/urandom", O_RDONLY);
-    offset = 0;
-
     if (fd < 0) {
         return -1;
     }
 
+    offset = 0;
     while (offset < len) {
         const ssize_t rc = read(fd, buf + offset, (size_t)(len - offset));
         if (rc <= 0) {
