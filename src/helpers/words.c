@@ -1,5 +1,14 @@
 #include "words.h"
 
+#include <string.h>
+
+#if defined(_MSC_VER)
+    #include <stdlib.h>
+    #define BSWAP64(x) _byteswap_uint64(x)
+#else
+    #define BSWAP64(x) __builtin_bswap64(x)
+#endif
+
 void bytes_to_words_loop(const unsigned char *bytes, uint64_t *hi, uint64_t *lo) {
     *hi = 0;
     *lo = 0;
@@ -10,8 +19,8 @@ void bytes_to_words_loop(const unsigned char *bytes, uint64_t *hi, uint64_t *lo)
 }
 
 void bytes_to_words(const unsigned char *bytes, uint64_t *hi, uint64_t *lo) {
-    *hi = (uint64_t)bytes[0] << 56 | (uint64_t)bytes[1] << 48 | (uint64_t)bytes[2] << 40 | (uint64_t)bytes[3] << 32 |
-          (uint64_t)bytes[4] << 24 | (uint64_t)bytes[5] << 16 | (uint64_t)bytes[6] << 8 | (uint64_t)bytes[7];
-    *lo = (uint64_t)bytes[8] << 56 | (uint64_t)bytes[9] << 48 | (uint64_t)bytes[10] << 40 | (uint64_t)bytes[11] << 32 |
-          (uint64_t)bytes[12] << 24 | (uint64_t)bytes[13] << 16 | (uint64_t)bytes[14] << 8 | (uint64_t)bytes[15];
+    memcpy(hi, bytes, 8);
+    memcpy(lo, bytes + 8, 8);
+    *hi = BSWAP64(*hi);
+    *lo = BSWAP64(*lo);
 }
