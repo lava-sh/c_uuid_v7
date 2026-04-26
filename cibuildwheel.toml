@@ -52,7 +52,7 @@ archs = [
 before-all = [
     "brew install llvm",
 ]
-environment = { CC = "$(brew --prefix llvm)/bin/clang", CXX = "$(brew --prefix llvm)/bin/clang++" }
+environment = { CC = "$(brew --prefix llvm)/bin/clang", CXX = "$(brew --prefix llvm)/bin/clang++", CFLAGS = "-std=c23" }
 
 [tool.cibuildwheel.windows]
 archs = [
