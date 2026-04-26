@@ -1,9 +1,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
-#include "helpers/hexpairs.h"
-#include "helpers/hexparse.h"
-#include "helpers/words.h"
+#include "hex/hex.h"
 #include "platform.h"
 #include "random.h"
 
@@ -19,17 +17,6 @@
 #else
     #define UUID_PyLong_FromU32(x) PyLong_FromUnsignedLong((unsigned long)(x))
     #define UUID_PyLong_FromU64(x) PyLong_FromUnsignedLongLong((unsigned long long)(x))
-#endif
-
-#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-    #if defined(_MSC_VER)
-        #include <stdlib.h>
-        #define UUID_HTOBE64(x) _byteswap_uint64(x)
-    #else
-        #define UUID_HTOBE64(x) __builtin_bswap64(x)
-    #endif
-#else
-    #define UUID_HTOBE64(x) (x)
 #endif
 
 #ifdef __GNUC__
@@ -210,25 +197,6 @@ advance_monotonic_impl(const uint64_t observed_ms, uint64_t *timestamp_ms, uint1
     return 0;
 }
 
-static void uuid_to_bytes(const uint64_t hi, const uint64_t lo, unsigned char bytes[16]) {
-    const uint64_t hi_be = UUID_HTOBE64(hi);
-    const uint64_t lo_be = UUID_HTOBE64(lo);
-    memcpy(bytes, &hi_be, 8);
-    memcpy(bytes + 8, &lo_be, 8);
-}
-
-static void uuid_to_bytes_le(const unsigned char *bytes, unsigned char reordered[16]) {
-    reordered[0] = bytes[3];
-    reordered[1] = bytes[2];
-    reordered[2] = bytes[1];
-    reordered[3] = bytes[0];
-    reordered[4] = bytes[5];
-    reordered[5] = bytes[4];
-    reordered[6] = bytes[7];
-    reordered[7] = bytes[6];
-    memcpy(reordered + 8, bytes + 8, 8);
-}
-
 static void uuid_build_words(const uint64_t timestamp_ms, const uint16_t rand_a, const uint64_t tail62, uint64_t *hi, uint64_t *lo) {
     *hi = timestamp_ms << V7_TIMESTAMP_SHIFT | V7_VERSION_BITS | (uint64_t)rand_a;
     *lo = V7_VARIANT_BITS | tail62;
@@ -347,7 +315,7 @@ static int parse_uuid_text(PyObject *value, uint64_t *hi, uint64_t *lo) {
         return -1;
     }
 
-    if (parse_uuid_hex(text, (size_t)size, hi, lo) != 0) {
+    if (parse_uuid_hex_str(text, (size_t)size, hi, lo) != 0) {
         PyErr_SetString(PyExc_ValueError, "badly formed hexadecimal UUID string");
         return -1;
     }
@@ -387,8 +355,8 @@ static int parse_uuid_int(PyObject *value, uint64_t *hi, uint64_t *lo) {
     }
 
 #if PY_VERSION_HEX >= PY_3_13
-    unsigned char bytes[16];
-    const Py_ssize_t nbytes = PyLong_AsNativeBytes(value, bytes, 16, Py_ASNATIVEBYTES_BIG_ENDIAN | Py_ASNATIVEBYTES_UNSIGNED_BUFFER);
+    uint64_t words[2];
+    const Py_ssize_t nbytes = PyLong_AsNativeBytes(value, words, 16, Py_ASNATIVEBYTES_NATIVE_ENDIAN | Py_ASNATIVEBYTES_UNSIGNED_BUFFER);
     if (nbytes < 0) {
         if (PyErr_ExceptionMatches(PyExc_OverflowError)) {
             PyErr_SetString(PyExc_ValueError, "int is out of range (need a 128-bit value)");
@@ -399,7 +367,13 @@ static int parse_uuid_int(PyObject *value, uint64_t *hi, uint64_t *lo) {
         PyErr_SetString(PyExc_ValueError, "int is out of range (need a 128-bit value)");
         return -1;
     }
-    bytes_to_words(bytes, hi, lo);
+    #if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    *lo = words[0];
+    *hi = words[1];
+    #else
+    *hi = words[0];
+    *lo = words[1];
+    #endif
     return 0;
 #else
     PyObject *mask = PyLong_FromUnsignedLongLong(0xFFFF'FFFF'FFFF'FFFFULL);
@@ -603,41 +577,25 @@ static PyObject *uuid_type_new(PyTypeObject *type, PyObject *args, PyObject *kwa
     return (PyObject *)uuid_new(hi, lo);
 }
 
-static void uuid_format_dashed(const UUIDObject *self, char *out) {
-    int j = 0;
-    for (int shift = 56; shift >= 0; shift -= 8) {
-        if (j == 8 || j == 13) {
-            out[j++] = '-';
-        }
-        hex_pair(out + j, (unsigned char)(self->hi >> shift));
-        j += 2;
-    }
-    for (int shift = 56; shift >= 0; shift -= 8) {
-        if (j == 18 || j == 23) {
-            out[j++] = '-';
-        }
-        hex_pair(out + j, (unsigned char)(self->lo >> shift));
-        j += 2;
-    }
-}
-
-static PyObject *uuid_str(PyObject *self_obj) {
+static PyObject *__str__(PyObject *self_obj) {
     PyObject *str = PyUnicode_New(36, 127);
     if (str == nullptr) {
         return nullptr;
     }
-    uuid_format_dashed(UUID_CONST(self_obj), (char *)PyUnicode_1BYTE_DATA(str));
+    const UUIDObject *self = UUID_CONST(self_obj);
+    fmt_dashed(self->hi, self->lo, (char *)PyUnicode_1BYTE_DATA(str));
     return str;
 }
 
-static PyObject *uuid_repr(PyObject *self_obj) {
+static PyObject *__repr__(PyObject *self_obj) {
     PyObject *str = PyUnicode_New(44, 127);
     if (str == nullptr) {
         return nullptr;
     }
     char *out = (char *)PyUnicode_1BYTE_DATA(str);
+    const UUIDObject *self = UUID_CONST(self_obj);
     memcpy(out, "UUID('", 6);
-    uuid_format_dashed(UUID_CONST(self_obj), out + 6);
+    fmt_dashed(self->hi, self->lo, out + 6);
     memcpy(out + 42, "')", 2);
     return str;
 }
@@ -647,20 +605,8 @@ static PyObject *uuid_hex(PyObject *self_obj, void *Py_UNUSED(closure)) {
     if (str == nullptr) {
         return nullptr;
     }
-    char *out = (char *)PyUnicode_1BYTE_DATA(str);
     const UUIDObject *self = UUID_CONST(self_obj);
-    int j = 0;
-
-    for (int shift = 56; shift >= 0; shift -= 8) {
-        hex_pair(out + j, (unsigned char)(self->hi >> shift));
-        j += 2;
-    }
-
-    for (int shift = 56; shift >= 0; shift -= 8) {
-        hex_pair(out + j, (unsigned char)(self->lo >> shift));
-        j += 2;
-    }
-
+    fmt_hex32(self->hi, self->lo, (char *)PyUnicode_1BYTE_DATA(str));
     return str;
 }
 
@@ -686,9 +632,12 @@ UUID_INT64_GETTER(uuid_timestamp, hi >> V7_TIMESTAMP_SHIFT)
 
 static PyObject *uuid_int_from_parts(const uint64_t hi, const uint64_t lo) {
 #if PY_VERSION_HEX >= PY_3_13
-    unsigned char bytes[16];
-    uuid_to_bytes(hi, lo, bytes);
-    return PyLong_FromUnsignedNativeBytes(bytes, 16, Py_ASNATIVEBYTES_BIG_ENDIAN | Py_ASNATIVEBYTES_UNSIGNED_BUFFER);
+    #if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    const uint64_t words[2] = {lo, hi};
+    #else
+    const uint64_t words[2] = {hi, lo};
+    #endif
+    return PyLong_FromUnsignedNativeBytes(words, 16, Py_ASNATIVEBYTES_NATIVE_ENDIAN | Py_ASNATIVEBYTES_UNSIGNED_BUFFER);
 #else
     PyObject *high = PyLong_FromUnsignedLongLong(hi);
     if (high == nullptr) {
@@ -762,17 +711,18 @@ static PyObject *uuid_urn(PyObject *self_obj, void *Py_UNUSED(closure)) {
         return nullptr;
     }
     char *out = (char *)PyUnicode_1BYTE_DATA(str);
+    const UUIDObject *self = UUID_CONST(self_obj);
     memcpy(out, "urn:uuid:", 9);
-    uuid_format_dashed(UUID_CONST(self_obj), out + 9);
+    fmt_dashed(self->hi, self->lo, out + 9);
     return str;
 }
 
-static PyObject *uuid_copy(PyObject *self_obj, PyObject *Py_UNUSED(ignored)) {
+static PyObject *__copy__(PyObject *self_obj, PyObject *Py_UNUSED(ignored)) {
     Py_INCREF(self_obj);
     return self_obj;
 }
 
-static Py_hash_t uuid_hash(PyObject *self_obj) {
+static Py_hash_t __hash__(PyObject *self_obj) {
     const UUIDObject *self = UUID_CONST(self_obj);
     Py_hash_t hash = (Py_hash_t)(self->hi ^ self->hi >> 32 ^ self->lo ^ self->lo >> 32);
     if (hash == -1) {
@@ -791,7 +741,7 @@ static int uuid_compare(const UUIDObject *left, const UUIDObject *right) {
     return 0;
 }
 
-static PyObject *uuid_richcompare(PyObject *a, PyObject *b, const int op) {
+static PyObject *richcompare(PyObject *a, PyObject *b, const int op) {
     if (!PyObject_TypeCheck(a, &UUIDType) || !PyObject_TypeCheck(b, &UUIDType)) {
         Py_RETURN_NOTIMPLEMENTED;
     }
@@ -800,8 +750,8 @@ static PyObject *uuid_richcompare(PyObject *a, PyObject *b, const int op) {
 }
 
 static PyMethodDef uuid_methods[] = {
-    {"__copy__", (PyCFunction)uuid_copy, METH_NOARGS, "Return self for copy.copy()."},
-    {"__deepcopy__", (PyCFunction)uuid_copy, METH_O, "Return self for copy.deepcopy()."},
+    {"__copy__", (PyCFunction)__copy__, METH_NOARGS, "Return self for copy.copy()."},
+    {"__deepcopy__", (PyCFunction)__copy__, METH_O, "Return self for copy.deepcopy()."},
     {nullptr, nullptr, 0, nullptr},
 };
 
@@ -830,10 +780,10 @@ static PyTypeObject UUIDType = {
     .tp_itemsize = 0,
     .tp_flags = Py_TPFLAGS_DEFAULT,
     .tp_new = uuid_type_new,
-    .tp_repr = (reprfunc)uuid_repr,
-    .tp_str = (reprfunc)uuid_str,
-    .tp_hash = (hashfunc)uuid_hash,
-    .tp_richcompare = uuid_richcompare,
+    .tp_repr = (reprfunc)__repr__,
+    .tp_str = (reprfunc)__str__,
+    .tp_hash = (hashfunc)__hash__,
+    .tp_richcompare = richcompare,
     .tp_methods = uuid_methods,
     .tp_getset = uuid_getset,
     .tp_as_number = &uuid_as_number,
