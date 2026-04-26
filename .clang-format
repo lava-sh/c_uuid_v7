@@ -13,3 +13,4 @@ AllowAllParametersOfDeclarationOnNextLine: false
 PenaltyBreakBeforeFirstCallParameter: 1
 AllowShortBlocksOnASingleLine: Always
 IndentPPDirectives: BeforeHash
+BreakAfterAttributes: Always

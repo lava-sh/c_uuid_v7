@@ -8,24 +8,24 @@
 #if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
     #if defined(_MSC_VER)
         #include <stdlib.h>
-        #define UUID_HTOBE64(x) _byteswap_uint64(x)
+        #define HTOBE64(x) _byteswap_uint64(x)
     #else
-        #define UUID_HTOBE64(x) __builtin_bswap64(x)
+        #define HTOBE64(x) __builtin_bswap64(x)
     #endif
 #else
-    #define UUID_HTOBE64(x) (x)
+    #define HTOBE64(x) (x)
 #endif
 
 void bytes_to_words(const unsigned char *bytes, uint64_t *hi, uint64_t *lo) {
     memcpy(hi, bytes, 8);
     memcpy(lo, bytes + 8, 8);
-    *hi = UUID_HTOBE64(*hi);
-    *lo = UUID_HTOBE64(*lo);
+    *hi = HTOBE64(*hi);
+    *lo = HTOBE64(*lo);
 }
 
 void uuid_to_bytes(const uint64_t hi, const uint64_t lo, unsigned char bytes[16]) {
-    const uint64_t hi_be = UUID_HTOBE64(hi);
-    const uint64_t lo_be = UUID_HTOBE64(lo);
+    const uint64_t hi_be = HTOBE64(hi);
+    const uint64_t lo_be = HTOBE64(lo);
     memcpy(bytes, &hi_be, 8);
     memcpy(bytes + 8, &lo_be, 8);
 }
@@ -44,7 +44,7 @@ void uuid_to_bytes_le(const unsigned char *bytes, unsigned char reordered[16]) {
 
 void fmt_hex32(const uint64_t hi, const uint64_t lo, char *out) {
 #if USE_SSSE3
-    simd_encode_16_hex(UUID_HTOBE64(hi), UUID_HTOBE64(lo), out, out + 16);
+    simd_encode_16_hex(HTOBE64(hi), HTOBE64(lo), out, out + 16);
 #else
     unsigned char bytes[16];
     uuid_to_bytes(hi, lo, bytes);
@@ -57,7 +57,7 @@ void fmt_hex32(const uint64_t hi, const uint64_t lo, char *out) {
 void fmt_dashed(const uint64_t hi, const uint64_t lo, char *out) {
 #if USE_SSSE3
     char tmp[32];
-    simd_encode_16_hex(UUID_HTOBE64(hi), UUID_HTOBE64(lo), tmp, tmp + 16);
+    simd_encode_16_hex(HTOBE64(hi), HTOBE64(lo), tmp, tmp + 16);
     memcpy(out + 0, tmp + 0, 8);
     memcpy(out + 9, tmp + 8, 4);
     memcpy(out + 14, tmp + 12, 4);

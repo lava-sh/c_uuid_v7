@@ -1,5 +1,5 @@
-#ifndef UUID_HEX_HEX_H
-#define UUID_HEX_HEX_H
+#ifndef HEX_HEX_H
+#define HEX_HEX_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -22,7 +22,8 @@ static inline void hex_pair(char *out, const unsigned char byte) {
 void fmt_dashed(uint64_t hi, uint64_t lo, char *out);
 void fmt_hex32(uint64_t hi, uint64_t lo, char *out);
 
-[[nodiscard]] int parse_uuid_hex_str(const char *text, size_t size, uint64_t *hi, uint64_t *lo);
+[[nodiscard]]
+int parse_uuid_hex_str(const char *text, size_t size, uint64_t *hi, uint64_t *lo);
 
 void bytes_to_words(const unsigned char *bytes, uint64_t *hi, uint64_t *lo);
 void uuid_to_bytes(uint64_t hi, uint64_t lo, unsigned char bytes[16]);

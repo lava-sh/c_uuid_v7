@@ -16,7 +16,9 @@
     #endif
 #endif
 
-[[nodiscard]] uint64_t now_ms(void);
-[[nodiscard]] int fill_random(unsigned char *buf, Py_ssize_t len);
+[[nodiscard]]
+uint64_t now_ms(void);
+[[nodiscard]]
+int fill_random(unsigned char *buf, Py_ssize_t len);
 
 #endif

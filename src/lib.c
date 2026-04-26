@@ -12,11 +12,11 @@
 #define PY_3_14 0x030E0000
 
 #if PY_VERSION_HEX >= PY_3_14
-    #define UUID_PyLong_FromU32(x) PyLong_FromUInt32((uint32_t)(x))
-    #define UUID_PyLong_FromU64(x) PyLong_FromUInt64((uint64_t)(x))
+    #define PyLong_FromU32(x) PyLong_FromUInt32((uint32_t)(x))
+    #define PyLong_FromU64(x) PyLong_FromUInt64((uint64_t)(x))
 #else
-    #define UUID_PyLong_FromU32(x) PyLong_FromUnsignedLong((unsigned long)(x))
-    #define UUID_PyLong_FromU64(x) PyLong_FromUnsignedLongLong((unsigned long long)(x))
+    #define PyLong_FromU32(x) PyLong_FromUnsignedLong((unsigned long)(x))
+    #define PyLong_FromU64(x) PyLong_FromUnsignedLongLong((unsigned long long)(x))
 #endif
 
 #ifdef __GNUC__
@@ -57,16 +57,16 @@ static_assert(sizeof(uint64_t) == 8, "uint64_t must be 64-bit");
 static_assert(sizeof(uint32_t) == 4, "uint32_t must be 32-bit");
 static_assert(sizeof(uint16_t) == 2, "uint16_t must be 16-bit");
 
-#define UUID_CONST(obj) ((const UUIDObject *)(obj))
+#define as_uuid(obj) ((const UUIDObject *)(obj))
 
-#define UUID_INT32_GETTER(name, expr)                                                                                                      \
+#define INT32_GETTER(name, expr)                                                                                                           \
     static PyObject *name(PyObject *self_obj, void *Py_UNUSED(closure)) {                                                                  \
-        return UUID_PyLong_FromU32(UUID_CONST(self_obj)->expr);                                                                            \
+        return PyLong_FromU32(as_uuid(self_obj)->expr);                                                                                    \
     }
 
-#define UUID_INT64_GETTER(name, expr)                                                                                                      \
+#define INT64_GETTER(name, expr)                                                                                                           \
     static PyObject *name(PyObject *self_obj, void *Py_UNUSED(closure)) {                                                                  \
-        return UUID_PyLong_FromU64(UUID_CONST(self_obj)->expr);                                                                            \
+        return PyLong_FromU64(as_uuid(self_obj)->expr);                                                                                    \
     }
 
 static void reseed_generator_state(void) {
@@ -576,7 +576,7 @@ static PyObject *__str__(PyObject *self_obj) {
     if (str == nullptr) {
         return nullptr;
     }
-    const UUIDObject *self = UUID_CONST(self_obj);
+    const UUIDObject *self = as_uuid(self_obj);
     fmt_dashed(self->hi, self->lo, (char *)PyUnicode_1BYTE_DATA(str));
     return str;
 }
@@ -587,7 +587,7 @@ static PyObject *__repr__(PyObject *self_obj) {
         return nullptr;
     }
     char *out = (char *)PyUnicode_1BYTE_DATA(str);
-    const UUIDObject *self = UUID_CONST(self_obj);
+    const UUIDObject *self = as_uuid(self_obj);
     memcpy(out, "UUID('", 6);
     fmt_dashed(self->hi, self->lo, out + 6);
     memcpy(out + 42, "')", 2);
@@ -599,14 +599,14 @@ static PyObject *uuid_hex(PyObject *self_obj, void *Py_UNUSED(closure)) {
     if (str == nullptr) {
         return nullptr;
     }
-    const UUIDObject *self = UUID_CONST(self_obj);
+    const UUIDObject *self = as_uuid(self_obj);
     fmt_hex32(self->hi, self->lo, (char *)PyUnicode_1BYTE_DATA(str));
     return str;
 }
 
 static PyObject *uuid_bytes(PyObject *self_obj, void *Py_UNUSED(closure)) {
     unsigned char bytes[16];
-    const UUIDObject *self = UUID_CONST(self_obj);
+    const UUIDObject *self = as_uuid(self_obj);
 
     uuid_to_bytes(self->hi, self->lo, bytes);
     return PyBytes_FromStringAndSize((const char *)bytes, 16);
@@ -615,14 +615,14 @@ static PyObject *uuid_bytes(PyObject *self_obj, void *Py_UNUSED(closure)) {
 static PyObject *uuid_bytes_le(PyObject *self_obj, void *Py_UNUSED(closure)) {
     unsigned char bytes[16];
     unsigned char reordered[16];
-    const UUIDObject *self = UUID_CONST(self_obj);
+    const UUIDObject *self = as_uuid(self_obj);
 
     uuid_to_bytes(self->hi, self->lo, bytes);
     uuid_to_bytes_le(bytes, reordered);
     return PyBytes_FromStringAndSize((const char *)reordered, 16);
 }
 
-UUID_INT64_GETTER(uuid_timestamp, hi >> V7_TIMESTAMP_SHIFT)
+INT64_GETTER(uuid_timestamp, hi >> V7_TIMESTAMP_SHIFT)
 
 static PyObject *uuid_int_from_parts(const uint64_t hi, const uint64_t lo) {
 #if PY_VERSION_HEX >= PY_3_13
@@ -662,7 +662,7 @@ static PyObject *uuid_int_from_parts(const uint64_t hi, const uint64_t lo) {
 }
 
 static PyObject *uuid_int(PyObject *self_obj, void *Py_UNUSED(closure)) {
-    const UUIDObject *self = UUID_CONST(self_obj);
+    const UUIDObject *self = as_uuid(self_obj);
     return uuid_int_from_parts(self->hi, self->lo);
 }
 
@@ -670,23 +670,23 @@ static PyObject *uuid_nb_int(PyObject *self_obj) {
     return uuid_int(self_obj, nullptr);
 }
 
-UUID_INT32_GETTER(uuid_time_low, hi >> 32)
-UUID_INT32_GETTER(uuid_time_mid, hi >> 16 & 0xFFFFULL)
-UUID_INT32_GETTER(uuid_time_hi_version, hi & 0xFFFFULL)
-UUID_INT32_GETTER(uuid_clock_seq_hi_variant, lo >> 56)
-UUID_INT32_GETTER(uuid_clock_seq_low, lo >> 48 & 0xFFULL)
+INT32_GETTER(uuid_time_low, hi >> 32)
+INT32_GETTER(uuid_time_mid, hi >> 16 & 0xFFFFULL)
+INT32_GETTER(uuid_time_hi_version, hi & 0xFFFFULL)
+INT32_GETTER(uuid_clock_seq_hi_variant, lo >> 56)
+INT32_GETTER(uuid_clock_seq_low, lo >> 48 & 0xFFULL)
 
 static PyObject *uuid_clock_seq(PyObject *self_obj, void *Py_UNUSED(closure)) {
-    const UUIDObject *self = UUID_CONST(self_obj);
+    const UUIDObject *self = as_uuid(self_obj);
     const uint32_t high = (uint32_t)(self->lo >> 56 & 0x3FULL);
     const uint32_t low = (uint32_t)(self->lo >> 48 & 0xFFULL);
-    return UUID_PyLong_FromU32(high << 8 | low);
+    return PyLong_FromU32(high << 8 | low);
 }
 
-UUID_INT64_GETTER(uuid_node, lo & 0xFFFF'FFFF'FFFFULL)
+INT64_GETTER(uuid_node, lo & 0xFFFF'FFFF'FFFFULL)
 
 static PyObject *uuid_fields(PyObject *self_obj, void *Py_UNUSED(closure)) {
-    const UUIDObject *self = UUID_CONST(self_obj);
+    const UUIDObject *self = as_uuid(self_obj);
     return Py_BuildValue("(kkkkkK)",
                          (unsigned long)(self->hi >> 32),
                          (unsigned long)(self->hi >> 16 & 0xFFFFULL),
@@ -702,7 +702,7 @@ static PyObject *uuid_urn(PyObject *self_obj, void *Py_UNUSED(closure)) {
         return nullptr;
     }
     char *out = (char *)PyUnicode_1BYTE_DATA(str);
-    const UUIDObject *self = UUID_CONST(self_obj);
+    const UUIDObject *self = as_uuid(self_obj);
     memcpy(out, "urn:uuid:", 9);
     fmt_dashed(self->hi, self->lo, out + 9);
     return str;
@@ -714,7 +714,7 @@ static PyObject *__copy__(PyObject *self_obj, PyObject *Py_UNUSED(ignored)) {
 }
 
 static Py_hash_t __hash__(PyObject *self_obj) {
-    const UUIDObject *self = UUID_CONST(self_obj);
+    const UUIDObject *self = as_uuid(self_obj);
     Py_hash_t hash = (Py_hash_t)(self->hi ^ self->hi >> 32 ^ self->lo ^ self->lo >> 32);
     if (hash == -1) {
         hash = -2;
