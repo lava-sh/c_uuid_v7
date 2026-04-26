@@ -1,5 +1,5 @@
-#ifndef PLATFORM_H
-#define PLATFORM_H
+#ifndef GETRANDOM_H
+#define GETRANDOM_H
 
 #include <Python.h>
 

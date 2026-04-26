@@ -314,18 +314,12 @@ class ZigBuildExt(build_ext):
         build.cleanup()
 
 
-_sources = [
-    *sorted(
-        source
-        for source in glob.glob("src/**/*.c", recursive=True)
-        if not source.endswith(("windows.c", "posix.c"))
-    ),
-    "src/windows.c" if IS_WINDOWS else "src/posix.c",
-]
-
 setup(
     cmdclass={"build_ext": ZigBuildExt},
     package_dir={"": "py-src"},
     packages=find_packages(where="py-src"),
-    ext_modules=[Extension(name="c_uuid_v7._core", sources=_sources)],
+    ext_modules=[Extension(
+        name="c_uuid_v7._core",
+        sources=sorted(glob.glob("src/**/*.c", recursive=True)),
+    )],
 )

@@ -2,7 +2,7 @@
 #include <Python.h>
 
 #include "hex/hex.h"
-#include "platform.h"
+#include "getrandom.h"
 #include "random.h"
 
 #include <stdint.h>

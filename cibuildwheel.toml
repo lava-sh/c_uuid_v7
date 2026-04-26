@@ -49,6 +49,10 @@ archs = [
     "arm64",
     "universal2",
 ]
+before-all = [
+    "brew install llvm",
+]
+environment = { CC = "$(brew --prefix llvm)/bin/clang", CXX = "$(brew --prefix llvm)/bin/clang++" }
 
 [tool.cibuildwheel.windows]
 archs = [

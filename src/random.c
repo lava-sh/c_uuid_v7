@@ -1,6 +1,6 @@
 #include "random.h"
 
-#include "platform.h"
+#include "getrandom.h"
 
 constexpr uint64_t W1RAND_C = 0xd07e'bc63'2746'54c7ULL;
 constexpr uint64_t RAND_MASK62 = 0x3FFF'FFFF'FFFF'FFFFULL;
