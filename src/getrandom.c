@@ -2,13 +2,33 @@
 
 #ifdef _WIN32
 
-    #include <windows.h>
+    #if _WIN32_WINNT >= 0x0A00
 
-[[gnu::dllimport]] BOOL WINAPI ProcessPrng(PBYTE pbData, SIZE_T cbData);
+[[gnu::dllimport]]
+BOOL WINAPI ProcessPrng(PBYTE pbData, SIZE_T cbData);
 
 int fill_random(unsigned char *buf, const Py_ssize_t len) {
     return ProcessPrng((PBYTE)buf, (SIZE_T)len) ? 0 : -1;
 }
+
+    #else
+
+[[gnu::dllimport]]
+BOOLEAN WINAPI SystemFunction036(PVOID buf, ULONG len);
+
+int fill_random(unsigned char *buf, const Py_ssize_t len) {
+    Py_ssize_t offset = 0;
+    while (offset < len) {
+        const ULONG chunk = (len - offset) > 0x7FFFFFFF ? 0x7FFFFFFFUL : (ULONG)(len - offset);
+        if (!SystemFunction036(buf + offset, chunk)) {
+            return -1;
+        }
+        offset += (Py_ssize_t)chunk;
+    }
+    return 0;
+}
+
+    #endif
 
 #else
 
