@@ -17,6 +17,15 @@ int fill_random(unsigned char *buf, const Py_ssize_t len) {
     return 0;
 }
 
+#elif defined(__APPLE__)
+
+    #include <stdlib.h>
+
+int fill_random(unsigned char *buf, const Py_ssize_t len) {
+    arc4random_buf(buf, (size_t)len);
+    return 0;
+}
+
 #else
 
     #include <errno.h>
