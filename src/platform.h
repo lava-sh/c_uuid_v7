@@ -31,7 +31,7 @@ static inline uint64_t now_ms(void) {
     ULONGLONG interrupt_time = 0;
 
     QueryInterruptTime(&interrupt_time);
-    return epoch_base_ms + interrupt_time / 10000ULL - tick_base_ms;
+    return epoch_base_ms + interrupt_time / 10'000ULL - tick_base_ms;
 #else
     return system_ms();
 #endif

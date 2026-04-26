@@ -200,7 +200,7 @@ class BuildSpec:
         if self.platform.arch_macro:
             cmd.append(self.platform.arch_macro)
 
-        cmd.extend(["-Wno-empty-translation-unit", "-shared"])
+        cmd.extend(["-std=c23", "-Wno-empty-translation-unit", "-shared"])
         cmd.extend(self.macro_flags())
 
         for path in self.include_dirs():

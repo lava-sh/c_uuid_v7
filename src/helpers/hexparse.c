@@ -30,7 +30,7 @@
 #endif
 
 static signed short hex_pair_to_byte[65536];
-static int hex_pair_table_ready = 0;
+static bool hex_pair_table_ready = false;
 
 static void init_hex_pair_table(void) {
     if (hex_pair_table_ready) {
@@ -43,23 +43,19 @@ static void init_hex_pair_table(void) {
 
     for (unsigned int hi = 0; hi < 256; ++hi) {
         const int high = hex_decode((unsigned char)hi);
-
         if (high < 0) {
             continue;
         }
-
         for (unsigned int lo = 0; lo < 256; ++lo) {
             const int low = hex_decode((unsigned char)lo);
-
             if (low < 0) {
                 continue;
             }
-
             hex_pair_to_byte[hi << 8 | lo] = (signed short)(high << 4 | low);
         }
     }
 
-    hex_pair_table_ready = 1;
+    hex_pair_table_ready = true;
 }
 
 static int decode_hex_pair(const unsigned char hi, const unsigned char lo) {
@@ -67,20 +63,20 @@ static int decode_hex_pair(const unsigned char hi, const unsigned char lo) {
     return hex_pair_to_byte[(unsigned int)hi << 8 | lo];
 }
 
-static int has_urn_uuid_prefix(const char *text, const size_t size) {
-    static const unsigned char prefix[] = "urn:uuid:";
+static bool has_urn_uuid_prefix(const char *text, const size_t size) {
+    static constexpr unsigned char prefix[] = "urn:uuid:";
 
     if (size < 9) {
-        return 0;
+        return false;
     }
 
     for (size_t i = 0; i < 9; ++i) {
         if (ascii_lower((unsigned char)text[i]) != prefix[i]) {
-            return 0;
+            return false;
         }
     }
 
-    return 1;
+    return true;
 }
 
 static void unwrap_uuid_text(const char **text, size_t *size) {
@@ -179,16 +175,14 @@ static int parse_uuid_text_32_avx2(const char *text, uint64_t *hi, uint64_t *lo)
     const __m256i nibbles = _mm256_or_si256(_mm256_and_si256(digit_mask, digit_values), _mm256_andnot_si256(digit_mask, alpha_values));
     const __m256i merged = _mm256_maddubs_epi16(nibbles, _mm256_set1_epi16(0x0110));
     const __m256i packed = _mm256_packus_epi16(merged, _mm256_setzero_si256());
-    __m128i lo_bytes;
-    __m128i hi_bytes;
     unsigned char bytes[16];
 
     if (_mm256_movemask_epi8(invalid_mask) != 0) {
         return -1;
     }
 
-    lo_bytes = _mm256_castsi256_si128(packed);
-    hi_bytes = _mm256_extracti128_si256(packed, 1);
+    const __m128i lo_bytes = _mm256_castsi256_si128(packed);
+    const __m128i hi_bytes = _mm256_extracti128_si256(packed, 1);
     _mm_storel_epi64((__m128i *)bytes, lo_bytes);
     _mm_storel_epi64((__m128i *)(bytes + 8), hi_bytes);
     bytes_to_words(bytes, hi, lo);
