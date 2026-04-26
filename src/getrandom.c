@@ -2,17 +2,6 @@
 
 #ifdef _WIN32
 
-    #if _WIN32_WINNT >= 0x0A00
-
-[[gnu::dllimport]]
-BOOL WINAPI ProcessPrng(PBYTE pbData, SIZE_T cbData);
-
-int fill_random(unsigned char *buf, const Py_ssize_t len) {
-    return ProcessPrng((PBYTE)buf, (SIZE_T)len) ? 0 : -1;
-}
-
-    #else
-
 [[gnu::dllimport]]
 BOOLEAN WINAPI SystemFunction036(PVOID buf, ULONG len);
 
@@ -27,8 +16,6 @@ int fill_random(unsigned char *buf, const Py_ssize_t len) {
     }
     return 0;
 }
-
-    #endif
 
 #else
 

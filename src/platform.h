@@ -5,18 +5,8 @@
 
 #include <stdint.h>
 
-#define PY_3_11 0x030B0000
-
 #ifdef _WIN32
     #define WIN32_LEAN_AND_MEAN
-
-    #if !defined(_WIN32_WINNT)
-        #if PY_VERSION_HEX >= PY_3_11
-            #define _WIN32_WINNT 0x0A00
-        #else
-            #define _WIN32_WINNT 0x0603
-        #endif
-    #endif
 
     #include <windows.h>
 
