@@ -45,13 +45,13 @@ static PyNumberMethods uuid_as_number = {.nb_int = (unaryfunc)uuid_nb_int};
 static uint64_t last_timestamp_ms = 0;
 static uint64_t counter42 = 0;
 
-constexpr unsigned int V7_TIMESTAMP_SHIFT = 16;
-constexpr uint64_t V7_VERSION_BITS = 0x7000ULL;
-constexpr uint64_t V7_VARIANT_BITS = 0x8000'0000'0000'0000ULL;
-constexpr uint64_t V7_MAX_TIMESTAMP_MS = 0xFFFF'FFFF'FFFFULL;
-constexpr uint64_t V7_MAX_TIMESTAMP_S = V7_MAX_TIMESTAMP_MS / 1000ULL;
-constexpr uint64_t MAX_NANOS = 1'000'000'000ULL;
-constexpr uint64_t V7_MAX_COUNTER = (1ULL << 42) - 1ULL;
+static constexpr unsigned int V7_TIMESTAMP_SHIFT = 16;
+static constexpr uint64_t V7_VERSION_BITS = 0x7000ULL;
+static constexpr uint64_t V7_VARIANT_BITS = 0x8000'0000'0000'0000ULL;
+static constexpr uint64_t MAX_TIMESTAMP_MS = 0xFFFF'FFFF'FFFFULL;
+static constexpr uint64_t MAX_TIMESTAMP_S = MAX_TIMESTAMP_MS / 1000ULL;
+static constexpr uint64_t MAX_NANOS = 1'000'000'000ULL;
+static constexpr uint64_t MAX_COUNTER = (1ULL << 42) - 1ULL;
 
 static_assert(sizeof(uint64_t) == 8, "uint64_t must be 64-bit");
 static_assert(sizeof(uint32_t) == 4, "uint32_t must be 32-bit");
@@ -107,7 +107,7 @@ static int build_timestamp_ms(const uint64_t timestamp_s,
         return 0;
     }
 
-    if (timestamp_s > V7_MAX_TIMESTAMP_S) {
+    if (timestamp_s > MAX_TIMESTAMP_S) {
         PyErr_SetString(PyExc_ValueError, "timestamp is too large");
         return -1;
     }
@@ -117,7 +117,7 @@ static int build_timestamp_ms(const uint64_t timestamp_s,
         ms += nanos / 1'000'000ULL;
     }
 
-    if (ms > V7_MAX_TIMESTAMP_MS) {
+    if (ms > MAX_TIMESTAMP_MS) {
         PyErr_SetString(PyExc_ValueError, "timestamp is too large");
         return -1;
     }
@@ -165,7 +165,7 @@ static void advance_monotonic(const uint64_t observed_ms, uint64_t *timestamp_ms
         counter = random_counter42();
     } else {
         counter += increment;
-        if (UNLIKELY(counter > V7_MAX_COUNTER)) {
+        if (UNLIKELY(counter > MAX_COUNTER)) {
             current_ms += 1U;
             counter = random_counter42();
         }
@@ -194,7 +194,7 @@ static int advance_monotonic_secure(const uint64_t observed_ms, uint64_t *timest
         }
     } else {
         counter += increment;
-        if (UNLIKELY(counter > V7_MAX_COUNTER)) {
+        if (UNLIKELY(counter > MAX_COUNTER)) {
             current_ms += 1U;
             if (random_counter42_secure(&counter) != 0) {
                 return -1;

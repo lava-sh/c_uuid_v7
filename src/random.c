@@ -2,10 +2,10 @@
 
 #include "getrandom.h"
 
-constexpr uint64_t W1RAND_C = 0xd07e'bc63'2746'54c7ULL;
-constexpr uint64_t RAND_MASK62 = 0x3FFF'FFFF'FFFF'FFFFULL;
-constexpr uint64_t COUNTER42_MASK = (1ULL << 42) - 1ULL;
-constexpr uint64_t LOW30_MASK = (1ULL << 30) - 1ULL;
+static constexpr uint64_t W1RAND_C = 0xd07e'bc63'2746'54c7ULL;
+static constexpr uint64_t RAND_MASK62 = 0x3FFF'FFFF'FFFF'FFFFULL;
+static constexpr uint64_t COUNTER42_MASK = (1ULL << 42) - 1ULL;
+static constexpr uint64_t LOW30_MASK = (1ULL << 30) - 1ULL;
 
 typedef struct {
     uint64_t state;
