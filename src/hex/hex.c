@@ -2,6 +2,7 @@
 
 #include "../simd.h"
 
+#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -43,8 +44,8 @@ void fmt_hex32(const uint64_t hi, const uint64_t lo, char *out) {
 #else
     unsigned char bytes[16];
     uuid_to_bytes(hi, lo, bytes);
-    for (int i = 0; i < 16; ++i) {
-        hex_pair(out + i * 2, bytes[i]);
+    for (ptrdiff_t i = 0; i < 16; ++i) {
+        hex_pair(out + (i * 2), bytes[i]);
     }
 #endif
 }
@@ -120,8 +121,9 @@ static int decode_hex_32(const char *text, unsigned char bytes[16]) {
     }
     return simd_decode_16_hex_ssse3(text + 16, bytes + 8);
 #else
-    for (int i = 0; i < 16; ++i) {
-        const unsigned int idx = (unsigned int)(unsigned char)text[i * 2] << 8 | (unsigned int)(unsigned char)text[i * 2 + 1];
+    for (ptrdiff_t i = 0; i < 16; ++i) {
+        const ptrdiff_t offset = i * 2;
+        const unsigned int idx = (unsigned int)(unsigned char)text[offset] << 8 | (unsigned int)(unsigned char)text[offset + 1];
         const signed short v = HEX_PAIR_TO_BYTE[idx];
         if (v < 0) {
             return -1;

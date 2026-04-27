@@ -746,7 +746,7 @@ static PyObject *fields(PyObject *self_obj, void *Py_UNUSED(closure)) {
                          (unsigned long)(self->hi & 0xFFFFULL),
                          (unsigned long)(self->lo >> 56),
                          (unsigned long)(self->lo >> 48 & 0xFFULL),
-                         (unsigned long long)(self->lo & 0xFFFF'FFFF'FFFFULL));
+                         self->lo & 0xFFFF'FFFF'FFFFULL);
 }
 
 static PyObject *urn(PyObject *self_obj, void *Py_UNUSED(closure)) {

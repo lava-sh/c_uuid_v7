@@ -31,7 +31,7 @@ int fill_random(unsigned char *buf, const Py_ssize_t len) {
 uint64_t now_ms(void) {
     struct timespec ts = {.tv_sec = 0, .tv_nsec = 0};
     clock_gettime(CLOCK_REALTIME, &ts);
-    return (uint64_t)ts.tv_sec * 1000ULL + (uint64_t)ts.tv_nsec / 1000000ULL;
+    return ((uint64_t)ts.tv_sec * 1000ULL) + ((uint64_t)ts.tv_nsec / 1000000ULL);
 }
 
     #ifdef __APPLE__
