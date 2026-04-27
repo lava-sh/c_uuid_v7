@@ -36,11 +36,11 @@ dependencies = []
 [dependency-groups]
 typos = ["typos == 1.45.1"]
 zizmor = ["zizmor == 1.24.1"]
-rumdl = ["rumdl == 0.1.75"]
+rumdl = ["rumdl == 0.1.83"]
 pytest = ["pytest == 9.0.3"]
 ci = [
-    "ty == 0.0.31",
-    "ruff == 0.15.11",
+    "ty == 0.0.32",
+    "ruff == 0.15.12",
     { include-group = "pytest" },
 ]
 dev = [
@@ -57,8 +57,8 @@ bench = [
     "lastuuid == 0.5.0",
     "fastuuid == 0.14.0",
     # # # # # # # # # #
-    "polars == 1.40.0",
-    "altair == 6.0.0",
+    "polars == 1.40.1",
+    "altair == 6.1.0",
     "py-cpuinfo == 9.0.0",
     "vl-convert-python == 1.9.0.post1",
 ]
