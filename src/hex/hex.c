@@ -6,12 +6,7 @@
 #include <string.h>
 
 #if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-    #if defined(_MSC_VER)
-        #include <stdlib.h>
-        #define HTOBE64(x) _byteswap_uint64(x)
-    #else
-        #define HTOBE64(x) __builtin_bswap64(x)
-    #endif
+    #define HTOBE64(x) __builtin_bswap64(x)
 #else
     #define HTOBE64(x) (x)
 #endif
@@ -49,7 +44,7 @@ void fmt_hex32(const uint64_t hi, const uint64_t lo, char *out) {
     unsigned char bytes[16];
     uuid_to_bytes(hi, lo, bytes);
     for (int i = 0; i < 16; ++i) {
-        hex_pair(out + (i * 2), bytes[i]);
+        hex_pair(out + i * 2, bytes[i]);
     }
 #endif
 }
@@ -90,7 +85,7 @@ void fmt_dashed(const uint64_t hi, const uint64_t lo, char *out) {
 }
 
 static unsigned char ascii_lower(const unsigned char ch) {
-    return (ch >= 'A' && ch <= 'Z') ? (unsigned char)(ch | 0x20) : ch;
+    return ch >= 'A' && ch <= 'Z' ? (unsigned char)(ch | 0x20) : ch;
 }
 
 static void unwrap_uuid_text(const char **text, size_t *size) {

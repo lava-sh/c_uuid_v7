@@ -789,8 +789,8 @@ static PyObject *richcompare(PyObject *a, PyObject *b, const int op) {
     if (!PyObject_TypeCheck(a, &UUID) || !PyObject_TypeCheck(b, &UUID)) {
         Py_RETURN_NOTIMPLEMENTED;
     }
-    const UUIDObject *ua = (const UUIDObject *)a;
-    const UUIDObject *ub = (const UUIDObject *)b;
+    const auto ua = as_uuid(a);
+    const auto ub = as_uuid(b);
 
     const int cmp = uuid_compare(ua, ub);
     if (op == Py_LT) {
@@ -829,7 +829,7 @@ static PyGetSetDef uuid_getset[] = {
     {"clock_seq_low", (getter)clock_seq_low, nullptr, "Clock sequence low byte.", nullptr},
     {"fields", (getter)fields, nullptr, "UUID fields tuple.", nullptr},
     {"hex", (getter)hex, nullptr, "Hexadecimal string.", nullptr},
-    {"int", (getter) __int__, nullptr, "128-bit integer value.", nullptr},
+    {"int", (getter)__int__, nullptr, "128-bit integer value.", nullptr},
     {"node", (getter)node, nullptr, "Node value.", nullptr},
     {"time", (getter)timestamp, nullptr, "UUID time value.", nullptr},
     {"time_hi_version", (getter)time_hi_version, nullptr, "Time high field with version bits.", nullptr},
@@ -976,7 +976,7 @@ static PyMethodDef module_methods[] = {
     {nullptr, nullptr, 0, nullptr},
 };
 
-static struct PyModuleDef module_def = {
+static PyModuleDef module_def = {
     PyModuleDef_HEAD_INIT,
     "_core",
     "Fast UUIDv7 generator.",

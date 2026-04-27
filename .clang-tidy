@@ -1,7 +1,21 @@
----
-Checks: >
-  -*,
-  bugprone-init-variables,
-  bugprone-macro-parentheses,
-  readability-use-concise-preprocessor-directives
-HeaderFilterRegex: 'src/.*'
+HeaderFilterRegex: '.*[\\/]src[\\/].*\.h$'
+WarningsAsErrors: "*"
+Checks: [
+  "*",
+  #
+  "-misc-include-cleaner",
+  #
+  "-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling",
+  #
+  "-bugprone-reserved-identifier",
+  #
+  "-llvm-header-guard",
+  "-llvmlibc-restrict-system-libc-headers",
+  #
+  "-readability-magic-numbers",
+  "-readability-identifier-length",
+  "-readability-function-cognitive-complexity",
+  #
+  "-hicpp-*",
+  "-cppcoreguidelines-*",
+]

@@ -2,21 +2,21 @@
 #define SIMD_H
 
 #ifdef USE_SIMD
-#elif defined(_MSC_VER)
+#elifdef _MSC_VER
     #define USE_SIMD 0
 #else
     #define USE_SIMD 1
 #endif
 
 #ifdef USE_SSSE3
-#elif defined(__SSSE3__)
+#elifdef __SSSE3__
     #define USE_SSSE3 USE_SIMD
 #else
     #define USE_SSSE3 0
 #endif
 
 #ifdef USE_AVX2
-#elif defined(__AVX2__)
+#elifdef __AVX2__
     #define USE_AVX2 USE_SIMD
 #else
     #define USE_AVX2 0
